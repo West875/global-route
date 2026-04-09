@@ -796,24 +796,31 @@
     function InstallBanner({ onInstall, onDismiss, isIOS }) {
       if (isIOS) {
         return (
-          <div className="fixed bottom-0 left-0 right-0 z-50 p-4 install-banner">
-            <div className="card bg-base-200 shadow-xl border border-primary/30">
-              <div className="card-body p-4 gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="bg-primary/20 rounded-xl p-2"><GlobeIcon size={32} className="text-primary" /></div>
-                  <div className="flex-1">
-                    <p className="font-bold text-sm">Install Global Route</p>
-                    <p className="text-xs opacity-70">Add to your home screen for quick access</p>
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 install-banner" onClick={onDismiss}>
+            <div className="w-full max-w-md mx-4 mb-6" onClick={e => e.stopPropagation()}>
+              <div className="card bg-base-200 shadow-2xl border-2 border-primary/50">
+                <div className="card-body p-5 gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="bg-gradient-to-br from-primary to-secondary rounded-2xl p-3 shadow-lg">
+                      <GlobeIcon size={36} className="text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-extrabold text-lg">📲 Install Global Route</p>
+                      <p className="text-sm opacity-80">Get the full app experience on your device</p>
+                    </div>
+                    <button className="btn btn-sm btn-ghost btn-circle" onClick={onDismiss}>✕</button>
                   </div>
-                  <button className="btn btn-sm btn-ghost btn-circle" onClick={onDismiss}>✕</button>
-                </div>
-                <div className="bg-base-300 rounded-lg p-3 text-sm">
-                  <p className="font-semibold mb-1">To install on iPhone/iPad:</p>
-                  <ol className="list-decimal list-inside space-y-1 text-xs opacity-80">
-                    <li>Tap the <strong>Share</strong> button <span className="inline-block align-middle"><ShareIcon size={14} /></span> at the bottom of Safari</li>
-                    <li>Scroll down and tap <strong>"Add to Home Screen"</strong></li>
-                    <li>Tap <strong>"Add"</strong> in the top right</li>
-                  </ol>
+                  <div className="bg-gradient-to-r from-primary/10 to-secondary/10 rounded-xl p-4 border border-primary/20">
+                    <p className="font-bold text-sm mb-2">📱 Install on iPhone/iPad:</p>
+                    <ol className="list-decimal list-inside space-y-2 text-sm">
+                      <li>Tap the <strong>Share</strong> button <span className="inline-block align-middle"><ShareIcon size={14} /></span> at the bottom of Safari</li>
+                      <li>Scroll down and tap <strong>"Add to Home Screen"</strong></li>
+                      <li>Tap <strong>"Add"</strong> in the top right</li>
+                    </ol>
+                  </div>
+                  <div className="flex gap-2">
+                    <button className="btn btn-outline btn-sm flex-1" onClick={onDismiss}>Maybe Later</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -821,19 +828,32 @@
         );
       }
       return (
-        <div className="fixed bottom-0 left-0 right-0 z-50 p-4 install-banner">
-          <div className="card bg-base-200 shadow-xl border border-primary/30">
-            <div className="card-body p-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-primary/20 rounded-xl p-2"><GlobeIcon size={32} className="text-primary" /></div>
-                <div className="flex-1">
-                  <p className="font-bold text-sm">Install Global Route</p>
-                  <p className="text-xs opacity-70">Add to your home screen like a real app</p>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 install-banner" onClick={onDismiss}>
+          <div className="w-full max-w-md mx-4 mb-6" onClick={e => e.stopPropagation()}>
+            <div className="card bg-base-200 shadow-2xl border-2 border-primary/50">
+              <div className="card-body p-5 gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="bg-gradient-to-br from-primary to-secondary rounded-2xl p-3 shadow-lg">
+                    <GlobeIcon size={36} className="text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-extrabold text-lg">📲 Download Global Route</p>
+                    <p className="text-sm opacity-80">Install the app for offline access & quick launch</p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex gap-2 mt-2">
-                <button className="btn btn-primary btn-sm flex-1 gap-2" onClick={onInstall}><DownloadIcon size={16} /> Install App</button>
-                <button className="btn btn-ghost btn-sm" onClick={onDismiss}>Not now</button>
+                <div className="bg-gradient-to-r from-primary/10 to-secondary/10 rounded-xl p-3 border border-primary/20">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span>✅</span><span>Works offline</span>
+                    <span className="mx-1">•</span>
+                    <span>✅</span><span>Home screen icon</span>
+                    <span className="mx-1">•</span>
+                    <span>✅</span><span>Fast launch</span>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button className="btn btn-primary flex-1 gap-2 text-base" onClick={onInstall}><DownloadIcon size={20} /> Install App</button>
+                  <button className="btn btn-ghost btn-sm self-center" onClick={onDismiss}>Later</button>
+                </div>
               </div>
             </div>
           </div>
@@ -945,13 +965,15 @@
         const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
         setIsIOS(ios);
         setIsStandalone(standalone);
-        if (ios && !standalone && !localStorage.getItem('gr_install_dismissed')) {
-          setTimeout(() => setShowInstallBanner(true), 3000);
+        // Show install banner immediately on every visit (iOS)
+        if (ios && !standalone) {
+          setTimeout(() => setShowInstallBanner(true), 1500);
         }
       }, []);
 
       useEffect(() => {
-        const handler = (e) => { e.preventDefault(); setInstallPrompt(e); if (!localStorage.getItem('gr_install_dismissed')) setShowInstallBanner(true); };
+        // Show install banner immediately when Android/Chrome fires the event
+        const handler = (e) => { e.preventDefault(); setInstallPrompt(e); setShowInstallBanner(true); };
         window.addEventListener('beforeinstallprompt', handler);
         return () => window.removeEventListener('beforeinstallprompt', handler);
       }, []);
@@ -959,7 +981,8 @@
       const handleInstall = async () => {
         if (installPrompt) { installPrompt.prompt(); const result = await installPrompt.userChoice; if (result.outcome === 'accepted') setShowInstallBanner(false); setInstallPrompt(null); }
       };
-      const dismissInstall = () => { setShowInstallBanner(false); localStorage.setItem('gr_install_dismissed', 'true'); };
+      // Session-only dismiss — banner comes back on next visit until app is installed
+      const dismissInstall = () => { setShowInstallBanner(false); };
 
       // ── Load user data from Firestore ──
       useEffect(() => {
