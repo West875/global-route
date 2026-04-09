@@ -854,11 +854,11 @@
         ? 'You'
         : (sharedCompletion ? sharedCompletion.completedByName : null);
       const completedAt = isVisited
-        ? (sharedCompletion?.completedAt || null)
-        : (sharedCompletion?.completedAt || null);
+        ? (sharedCompletion && sharedCompletion.completedAt ? sharedCompletion.completedAt : null)
+        : (sharedCompletion && sharedCompletion.completedAt ? sharedCompletion.completedAt : null);
       const completedByPhoto = isVisited
         ? (myAvatarURL || myPhotoURL || null)
-        : (sharedCompletion?.completedByPhoto || null);
+        : (sharedCompletion && sharedCompletion.completedByPhoto ? sharedCompletion.completedByPhoto : null);
 
       return (
         <div className={`card bg-base-200 shadow-md fade-in ${isCurrent ? 'ring-2 ring-primary' : ''} ${isCompleted ? 'opacity-60' : ''}`}>
@@ -959,7 +959,7 @@
             <div className="p-4 space-y-4">
               <div>
                 <input ref={fileInputRef} type="file" accept=".kmz,.kml" className="hidden" onChange={handleFileSelect} />
-                <button className="btn btn-primary w-full gap-2" onClick={() => fileInputRef.current?.click()} disabled={importing}>
+                <button className="btn btn-primary w-full gap-2" onClick={() => fileInputRef.current && fileInputRef.current.click()} disabled={importing}>
                   {importing ? <span className="loading loading-spinner loading-sm"></span> : <UploadIcon size={18} />}
                   {importing ? 'Importing...' : 'Import KMZ / KML File'}
                 </button>
