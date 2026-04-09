@@ -687,7 +687,7 @@
     }
 
     // ── User Menu ──
-    function UserMenu({ user, avatarURL, onLogout }) {
+    function UserMenu({ user, avatarURL, onLogout, onChangePhoto }) {
       const [open, setOpen] = useState(false);
       const displayName = user.displayName || user.email.split('@')[0];
       const initial = displayName.charAt(0).toUpperCase();
@@ -713,6 +713,9 @@
                   <p className="text-xs opacity-50">{user.email}</p>
                 </div>
                 <div className="p-1">
+                  <button className="btn btn-sm btn-ghost w-full justify-start gap-2" onClick={() => { setOpen(false); onChangePhoto(); }}>
+                    📷 {photoSrc ? 'Change Photo' : 'Take Photo'}
+                  </button>
                   <button className="btn btn-sm btn-ghost w-full justify-start gap-2 text-error" onClick={() => { setOpen(false); onLogout(); }}>
                     <LogOutIcon size={14} /> Sign Out
                   </button>
@@ -1258,11 +1261,12 @@
 
       // ID photo is now the same as the avatar selfie — no separate step needed
 
-      return <MainApp user={user} avatarURL={avatarURL} onLogout={handleLogout} />;
+      return <MainApp user={user} avatarURL={avatarURL} setAvatarURL={setAvatarURL} onLogout={handleLogout} />;
     }
 
     // ── Main App (after auth) ──
-    function MainApp({ user, avatarURL, onLogout }) {
+    function MainApp({ user, avatarURL, setAvatarURL, onLogout }) {
+      const [showAvatarSetup, setShowAvatarSetup] = useState(false);
       const [permissionGranted, setPermissionGranted] = useState(false);
       const [userLoc, setUserLoc] = useState(null);
       const [geoError, setGeoError] = useState(null);
@@ -1540,7 +1544,7 @@
               <h1 className="text-lg font-bold flex items-center gap-2">
                 <GlobeIcon size={22} /> Global Route
               </h1>
-              <UserMenu user={user} avatarURL={avatarURL} onLogout={onLogout} />
+              <UserMenu user={user} avatarURL={avatarURL} onLogout={onLogout} onChangePhoto={() => setShowAvatarSetup(true)} />
             </div>
             <p className="text-xs opacity-80 text-center">
               {allSites.length} sites total • {teamCompletedCount} completed by team • Nearest-First Routing
@@ -1645,6 +1649,16 @@
           {/* Notes Panel */}
           {activeNoteSite && (
             <NotesPanel site={activeNoteSite} user={user} avatarURL={avatarURL} onClose={() => setActiveNoteSite(null)} />
+          )}
+
+          {/* Avatar Setup Overlay */}
+          {showAvatarSetup && (
+            <div className="fixed inset-0 z-[2000] bg-black/80 flex items-center justify-center">
+              <div className="relative w-full max-w-sm mx-4">
+                <button className="absolute -top-10 right-0 btn btn-sm btn-ghost text-white" onClick={() => setShowAvatarSetup(false)}>✕ Cancel</button>
+                <AvatarSetup user={user} onComplete={(url) => { setAvatarURL(url); setShowAvatarSetup(false); }} />
+              </div>
+            </div>
           )}
 
           {/* Install Banner */}
