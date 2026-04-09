@@ -349,7 +349,7 @@
       );
     }
 
-    // ── Mandatory ID Photo Upload ──
+    // ── Mandatory ID Selfie ──
     function IDUpload({ user, onComplete }) {
       const videoRef = useRef(null);
       const canvasRef = useRef(null);
@@ -357,51 +357,62 @@
       const [captured, setCaptured] = useState(null);
       const [saving, setSaving] = useState(false);
       const [error, setError] = useState(null);
+      const [cameraActive, setCameraActive] = useState(false);
       const [cameraReady, setCameraReady] = useState(false);
-      const [useCamera, setUseCamera] = useState(false);
 
       const startCamera = useCallback(async () => {
         setError(null);
+        setCameraActive(true);
         try {
-          const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+          const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 480 } }, audio: false });
           setStream(s);
           if (videoRef.current) {
             videoRef.current.srcObject = s;
             videoRef.current.onloadedmetadata = () => setCameraReady(true);
           }
         } catch (err) {
-          setError('Camera access denied. Please use the upload option instead.');
-          setUseCamera(false);
+          setError('Camera access denied. Please use the upload option.');
+          setCameraActive(false);
         }
       }, []);
 
-      useEffect(() => { return () => { if (stream) stream.getTracks().forEach(t => t.stop()); }; }, [stream]);
+      useEffect(() => {
+        startCamera();
+        return () => { if (stream) stream.getTracks().forEach(t => t.stop()); };
+      }, []);
 
-      const openCamera = async () => {
-        setUseCamera(true);
-        setCaptured(null);
-        setCameraReady(false);
-        setTimeout(() => startCamera(), 100);
-      };
+      // Re-attach stream when videoRef becomes available
+      useEffect(() => {
+        if (stream && videoRef.current && !videoRef.current.srcObject) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = () => setCameraReady(true);
+        }
+      }, [stream, cameraActive]);
 
       const capturePhoto = () => {
         if (!videoRef.current || !canvasRef.current) return;
         const video = videoRef.current;
         const canvas = canvasRef.current;
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        const size = Math.min(video.videoWidth, video.videoHeight);
+        canvas.width = 400;
+        canvas.height = 400;
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-        setCaptured(dataUrl);
+        const sx = (video.videoWidth - size) / 2;
+        const sy = (video.videoHeight - size) / 2;
+        ctx.save();
+        ctx.translate(400, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, sx, sy, size, size, 0, 0, 400, 400);
+        ctx.restore();
+        setCaptured(canvas.toDataURL('image/jpeg', 0.85));
         if (stream) stream.getTracks().forEach(t => t.stop());
-        setUseCamera(false);
+        setCameraActive(false);
       };
 
-      const retake = () => {
+      const retake = async () => {
         setCaptured(null);
         setCameraReady(false);
-        setUseCamera(false);
+        setTimeout(() => startCamera(), 100);
       };
 
       const saveID = async () => {
@@ -414,7 +425,7 @@
           }, { merge: true });
           onComplete(captured);
         } catch (err) {
-          setError('Failed to save ID photo. Please try again.');
+          setError('Failed to save. Please try again.');
           setSaving(false);
         }
       };
@@ -422,23 +433,19 @@
       const handleFileUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
+        if (stream) stream.getTracks().forEach(t => t.stop());
+        setCameraActive(false);
         const reader = new FileReader();
         reader.onload = (ev) => {
           const img = new Image();
           img.onload = () => {
             const canvas = canvasRef.current;
-            // Scale down if too large
-            const maxW = 800, maxH = 600;
-            let w = img.width, h = img.height;
-            if (w > maxW) { h = h * maxW / w; w = maxW; }
-            if (h > maxH) { w = w * maxH / h; h = maxH; }
-            canvas.width = w;
-            canvas.height = h;
+            const size = Math.min(img.width, img.height);
+            canvas.width = 400;
+            canvas.height = 400;
             const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, w, h);
-            setCaptured(canvas.toDataURL('image/jpeg', 0.8));
-            if (stream) stream.getTracks().forEach(t => t.stop());
-            setUseCamera(false);
+            ctx.drawImage(img, (img.width - size) / 2, (img.height - size) / 2, size, size, 0, 0, 400, 400);
+            setCaptured(canvas.toDataURL('image/jpeg', 0.85));
           };
           img.src = ev.target.result;
         };
@@ -450,12 +457,12 @@
           <div className="card bg-base-200 w-full max-w-md glow-card fade-in">
             <div className="card-body gap-4">
               <div className="text-center mb-2">
-                <div className="inline-flex bg-warning/20 rounded-full p-4 mb-3">
-                  <IDCardIcon size={48} className="text-warning" />
+                <div className="inline-flex bg-info/20 rounded-full p-4 mb-3">
+                  <CameraIcon size={48} className="text-info" />
                 </div>
-                <h1 className="text-xl font-bold">Upload Your ID</h1>
-                <p className="text-sm opacity-60">A valid photo ID is required for verification</p>
-                <p className="text-xs opacity-40 mt-1">Driver's license, state ID, or passport</p>
+                <h1 className="text-xl font-bold">Take Your ID Selfie</h1>
+                <p className="text-sm opacity-60">A clear face photo is required for team identification</p>
+                <p className="text-xs opacity-40 mt-1">This will be visible to your team leads</p>
               </div>
 
               {error && (
@@ -463,25 +470,27 @@
               )}
 
               <div className="flex justify-center">
-                {useCamera && !captured ? (
-                  <div className="relative">
+                {cameraActive && !captured ? (
+                  <div className="relative" style={{ width: 220, height: 220 }}>
                     <video ref={videoRef} autoPlay playsInline muted
-                      style={{ width: '100%', maxWidth: 340, borderRadius: 12, objectFit: 'cover', background: '#000', border: '3px solid rgba(250,204,21,0.5)' }} />
+                      style={{ width: 220, height: 220, borderRadius: '50%', objectFit: 'cover', background: '#000', border: '4px solid rgba(56,189,248,0.6)', transform: 'scaleX(-1)' }} />
                     {!cameraReady && !error && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="loading loading-spinner loading-lg text-warning"></span>
+                      <div className="absolute inset-0 flex items-center justify-center" style={{ borderRadius: '50%', background: 'rgba(0,0,0,0.5)' }}>
+                        <span className="loading loading-spinner loading-lg text-info"></span>
                       </div>
                     )}
+                    <div className="absolute inset-0" style={{ borderRadius: '50%', boxShadow: 'inset 0 0 30px rgba(56,189,248,0.2)' }}></div>
                   </div>
                 ) : captured ? (
-                  <img src={captured} alt="ID Photo"
-                    style={{ width: '100%', maxWidth: 340, borderRadius: 12, objectFit: 'contain', border: '3px solid #22c55e', background: '#000' }} />
+                  <div style={{ width: 220, height: 220, position: 'relative' }}>
+                    <img src={captured} alt="ID Selfie"
+                      style={{ width: 220, height: 220, borderRadius: '50%', objectFit: 'cover', border: '4px solid #22c55e' }} />
+                    <div style={{ position: 'absolute', bottom: 4, right: 4, background: '#22c55e', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✓</div>
+                  </div>
                 ) : (
-                  <div className="flex flex-col items-center gap-3 py-6 w-full">
-                    <div style={{ width: 200, height: 130, borderRadius: 12, border: '3px dashed rgba(250,204,21,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 8 }}>
-                      <IDCardIcon size={40} className="opacity-30" />
-                      <span className="text-xs opacity-40">Front of ID</span>
-                    </div>
+                  <div style={{ width: 220, height: 220, borderRadius: '50%', border: '4px dashed rgba(56,189,248,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 8 }}>
+                    <CameraIcon size={48} className="opacity-20" />
+                    <span className="text-xs opacity-40">Camera loading...</span>
                   </div>
                 )}
               </div>
@@ -490,36 +499,30 @@
               <div className="flex flex-col gap-2 mt-2">
                 {!captured ? (
                   <>
-                    <label className="btn btn-warning w-full gap-2 cursor-pointer">
-                      <UploadIcon size={18} /> Upload ID Photo
+                    {cameraActive && cameraReady && (
+                      <button className="btn btn-info w-full gap-2" onClick={capturePhoto}>
+                        <CameraIcon size={18} /> Take ID Selfie
+                      </button>
+                    )}
+                    <label className="btn btn-outline btn-sm w-full gap-2 cursor-pointer">
+                      <UploadIcon size={14} /> Upload from Gallery
                       <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
                     </label>
-                    {!useCamera && (
-                      <button className="btn btn-outline btn-sm w-full gap-2" onClick={openCamera}>
-                        <CameraIcon size={14} /> Take Photo with Camera
-                      </button>
-                    )}
-                    {useCamera && cameraReady && (
-                      <button className="btn btn-warning w-full gap-2" onClick={capturePhoto}>
-                        <CameraIcon size={18} /> Capture
-                      </button>
-                    )}
                   </>
                 ) : (
                   <>
                     <button className={`btn btn-success w-full gap-2 ${saving ? 'loading' : ''}`} onClick={saveID} disabled={saving}>
                       {saving && <span className="loading loading-spinner loading-xs"></span>}
-                      ✓ Submit ID Photo
+                      ✓ Submit ID Selfie
                     </button>
                     <button className="btn btn-ghost btn-sm w-full" onClick={retake} disabled={saving}>
-                      ↻ Choose Different Photo
+                      ↻ Retake Photo
                     </button>
                   </>
                 )}
               </div>
 
-              <div className="divider text-xs opacity-40 my-1">SECURE & PRIVATE</div>
-              <p className="text-xs text-center opacity-40">🔒 Your ID is securely stored and only visible to team administrators.</p>
+              <p className="text-xs text-center opacity-40 mt-1">🔒 Your ID selfie is stored securely and visible to team leads only.</p>
             </div>
           </div>
         </div>
