@@ -725,11 +725,10 @@
     }
 
     // ── Leaflet Map Component ──
-    function SiteMap({ sites, userLoc, visited, sharedCompletions, currentTargetId, myAvatarURL, myPhotoURL, teamLocations }) {
+    function SiteMap({ sites, userLoc, visited, sharedCompletions, currentTargetId, myAvatarURL, myPhotoURL }) {
       const mapRef = useRef(null);
       const mapInstanceRef = useRef(null);
       const userLayerRef = useRef(null);
-      const teamLayerRef = useRef(null);
       const sitesLayerRef = useRef(null);
       const hasInitFit = useRef(false);
 
@@ -741,7 +740,6 @@
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 19 }).addTo(map);
         mapInstanceRef.current = map;
         userLayerRef.current = L.layerGroup().addTo(map);
-        teamLayerRef.current = L.layerGroup().addTo(map);
         sitesLayerRef.current = L.layerGroup().addTo(map);
         if (!document.getElementById('pulse-css')) {
           const style = document.createElement('style');
@@ -762,31 +760,7 @@
         }
       }, [userLoc]);
 
-      // Update team member markers (smooth — no map rebuild)
-      useEffect(() => {
-        if (!teamLayerRef.current) return;
-        teamLayerRef.current.clearLayers();
-        if (teamLocations) {
-          Object.values(teamLocations).forEach((member) => {
-            const avatarImg = member.photoURL
-              ? `<img src="${member.photoURL}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:3px solid #8b5cf6;box-shadow:0 0 10px rgba(139,92,246,0.5);" />`
-              : `<div style="width:36px;height:36px;border-radius:50%;background:#8b5cf6;color:white;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:16px;border:3px solid white;box-shadow:0 0 10px rgba(139,92,246,0.5);">${(member.name || '?').charAt(0).toUpperCase()}</div>`;
-            const teamIcon = L.divIcon({
-              html: `<div style="position:relative;">
-                ${avatarImg}
-                <div style="position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);background:#8b5cf6;color:white;font-size:9px;padding:1px 5px;border-radius:6px;white-space:nowrap;font-weight:600;box-shadow:0 1px 4px rgba(0,0,0,0.3);">${member.name || 'Teammate'}</div>
-              </div>`,
-              iconSize: [36, 46], iconAnchor: [18, 23], className: ''
-            });
-            L.marker([member.lat, member.lon], { icon: teamIcon }).addTo(teamLayerRef.current)
-              .bindPopup(`<div style="font-family:system-ui;text-align:center;">
-                ${member.photoURL ? `<img src="${member.photoURL}" style="width:50px;height:50px;border-radius:50%;object-fit:cover;border:2px solid #8b5cf6;" /><br>` : ''}
-                <b style="color:#8b5cf6;">${member.name || 'Teammate'}</b><br>
-                <span style="font-size:11px;color:#888;">🟢 Live Location</span>
-              </div>`);
-          });
-        }
-      }, [teamLocations]);
+
 
       // Update site markers
       useEffect(() => {
@@ -1314,7 +1288,7 @@
       const [isStandalone, setIsStandalone] = useState(false);
       const [noteCounts, setNoteCounts] = useState({});
       const [activeNoteSite, setActiveNoteSite] = useState(null);
-      const [teamLocations, setTeamLocations] = useState({});
+
 
       useEffect(() => {
         const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -1424,96 +1398,21 @@
 
       const useDefaultLocation = useCallback(() => { applyLocation(MYRTLE_BEACH_CENTER, true); }, [applyLocation]);
 
-      // ── Single GPS watcher: handles initial location + live tracking + team sharing ──
-      // Throttle: only update state/Firestore when position changes by >50m or >10s elapsed
-      const lastGpsUpdate = useRef({ lat: 0, lon: 0, time: 0 });
-      const gotFirstFix = useRef(false);
-
+      // ── Get user location once on load ──
       useEffect(() => {
         if (!navigator.geolocation) { setGeoError('Geolocation is not supported.'); setLoading(false); return; }
         setLoading(true); setGeoError(null);
-        const displayName = user.displayName || user.email.split('@')[0];
-        const photoUrl = avatarURL || user.photoURL || null;
-
-        const watchId = navigator.geolocation.watchPosition(
+        navigator.geolocation.getCurrentPosition(
           (pos) => {
-            const loc = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-            const last = lastGpsUpdate.current;
-            const now = Date.now();
-            const dist = Math.sqrt(Math.pow(loc.lat - last.lat, 2) + Math.pow(loc.lon - last.lon, 2)) * 111000; // rough meters
-            const elapsed = now - last.time;
-
-            // First fix: always apply immediately
-            if (!gotFirstFix.current) {
-              gotFirstFix.current = true;
-              applyLocation(loc, false);
-              lastGpsUpdate.current = { lat: loc.lat, lon: loc.lon, time: now };
-            }
-            // After first fix: only update if moved >50m or >10s passed
-            else if (dist > 50 || elapsed > 10000) {
-              setUserLoc(loc);
-              lastGpsUpdate.current = { lat: loc.lat, lon: loc.lon, time: now };
-            }
-
-            // Share location with team (throttle Firestore writes to every 8s)
-            if (!gotFirstFix.current || elapsed > 8000 || dist > 50) {
-              db.collection('teamLocations').doc(user.uid).set({
-                lat: loc.lat,
-                lon: loc.lon,
-                name: displayName,
-                photoURL: photoUrl,
-                uid: user.uid,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-              }).catch(err => console.error('Location share error:', err));
-            }
+            applyLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }, false);
           },
           (err) => {
             const msg = err.code === 1 ? 'Location denied — tap below to use Myrtle Beach center instead.' : `Could not get location: ${err.message}`;
             setGeoError(msg); setLoading(false);
           },
-          { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+          { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 }
         );
-
-        // Clean up: remove location when user leaves
-        const removeLocation = () => {
-          db.collection('teamLocations').doc(user.uid).delete().catch(() => {});
-        };
-        window.addEventListener('beforeunload', removeLocation);
-
-        return () => {
-          navigator.geolocation.clearWatch(watchId);
-          window.removeEventListener('beforeunload', removeLocation);
-          removeLocation();
-        };
-      }, [user.uid, avatarURL]);
-
-      // ── Listen to all team locations in real-time (debounced to prevent flicker) ──
-      useEffect(() => {
-        let debounceTimer = null;
-        const unsub = db.collection('teamLocations').onSnapshot((snapshot) => {
-          clearTimeout(debounceTimer);
-          debounceTimer = setTimeout(() => {
-            const locs = {};
-            snapshot.forEach((doc) => {
-              const data = doc.data();
-              if (doc.id !== user.uid && data.lat && data.lon) {
-                locs[doc.id] = data;
-              }
-            });
-            setTeamLocations(prev => {
-              // Only update if data actually changed
-              const prevKeys = Object.keys(prev).sort().join(',');
-              const newKeys = Object.keys(locs).sort().join(',');
-              if (prevKeys !== newKeys) return locs;
-              for (const k of Object.keys(locs)) {
-                if (!prev[k] || Math.abs(prev[k].lat - locs[k].lat) > 0.0001 || Math.abs(prev[k].lon - locs[k].lon) > 0.0001) return locs;
-              }
-              return prev; // No meaningful change — skip re-render
-            });
-          }, 2000); // Batch updates every 2s
-        });
-        return () => { clearTimeout(debounceTimer); unsub(); };
-      }, [user.uid]);
+      }, []);
 
       const markVisited = (siteId, site) => {
         const newVisited = new Set(visited);
@@ -1683,7 +1582,7 @@
 
           {/* Content */}
           {view === 'map' ? (
-            <SiteMap sites={filteredSites} userLoc={userLoc} visited={visited} sharedCompletions={sharedCompletions} currentTargetId={currentTargetId} myAvatarURL={avatarURL} myPhotoURL={user.photoURL} teamLocations={teamLocations} />
+            <SiteMap sites={filteredSites} userLoc={userLoc} visited={visited} sharedCompletions={sharedCompletions} currentTargetId={currentTargetId} myAvatarURL={avatarURL} myPhotoURL={user.photoURL}  />
           ) : (
             <div className="flex flex-col gap-3 p-4 pb-24">
               {filteredSites.length === 0 ? (
