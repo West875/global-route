@@ -192,6 +192,8 @@
     const UserIcon = ({ size = 18, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>);
     const LogOutIcon = ({ size = 18, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>);
     const UsersIcon = ({ size = 18, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>);
+    const NoteIcon = ({ size = 18, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>);
+    const SendIcon = ({ size = 18, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>);
     const CameraIcon = ({ size = 18, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>);
 
     // ── Avatar Setup Screen (mandatory selfie) ──
@@ -640,7 +642,7 @@
     }
 
     // ── Site Card ──
-    function SiteCard({ site, index, total, isCurrent, isVisited, sharedCompletion, onMarkVisited, myAvatarURL, myPhotoURL }) {
+    function SiteCard({ site, index, total, isCurrent, isVisited, sharedCompletion, onMarkVisited, myAvatarURL, myPhotoURL, noteCount, onOpenNotes }) {
       const isExisting = site.status.includes('Existing Cabinet');
       const isImported = site.source && site.source !== 'builtin';
       const isCompleted = isVisited || sharedCompletion;
@@ -709,6 +711,12 @@
               <a href={directionsUrl(site)} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm flex-1">
                 <NavIcon size={14} /> Get Directions <ExternalIcon />
               </a>
+              <button className="btn btn-outline btn-info btn-sm relative" onClick={onOpenNotes} title="Notes">
+                <NoteIcon size={14} /> Notes
+                {noteCount > 0 && (
+                  <span className="badge badge-xs badge-info absolute -top-2 -right-2">{noteCount}</span>
+                )}
+              </button>
               {!isCompleted && (
                 <button className="btn btn-outline btn-success btn-sm" onClick={onMarkVisited}>
                   <CheckIcon size={14} /> Done
@@ -785,6 +793,118 @@
                 {importedFiles.length === 0 && (
                   <p className="text-xs opacity-40 text-center py-2">No imported files yet. Tap "Import" above to add KMZ files.</p>
                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Site Notes Panel ──
+    function NotesPanel({ site, user, avatarURL, onClose }) {
+      const [notes, setNotes] = useState([]);
+      const [newNote, setNewNote] = useState('');
+      const [sending, setSending] = useState(false);
+      const scrollRef = useRef(null);
+      const routeKey = (!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
+
+      // Listen for notes in real-time
+      useEffect(() => {
+        const unsub = db.collection('siteNotes').doc(`${routeKey}_${site.id}`)
+          .collection('messages')
+          .orderBy('createdAt', 'asc')
+          .onSnapshot((snapshot) => {
+            const msgs = [];
+            snapshot.forEach(doc => msgs.push({ id: doc.id, ...doc.data() }));
+            setNotes(msgs);
+            setTimeout(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, 100);
+          });
+        return unsub;
+      }, [site.id, routeKey]);
+
+      const sendNote = async () => {
+        const text = newNote.trim();
+        if (!text) return;
+        setSending(true);
+        const displayName = user.displayName || user.email.split('@')[0];
+        try {
+          await db.collection('siteNotes').doc(`${routeKey}_${site.id}`)
+            .collection('messages').add({
+              text,
+              authorId: user.uid,
+              authorName: displayName,
+              authorPhoto: avatarURL || user.photoURL || null,
+              createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+          setNewNote('');
+        } catch (err) { console.error('Note error:', err); }
+        setSending(false);
+      };
+
+      const handleKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendNote(); } };
+
+      const formatTime = (ts) => {
+        if (!ts) return '';
+        try { const d = ts.toDate ? ts.toDate() : new Date(ts); return d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch(e) { return ''; }
+      };
+
+      return (
+        <div className="fixed inset-0 z-[2000] bg-black/60 flex items-end sm:items-center justify-center" onClick={onClose}>
+          <div className="bg-base-200 w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="p-4 border-b border-base-300 flex items-center gap-3 shrink-0">
+              <div className="bg-primary/20 rounded-lg p-2"><NoteIcon size={20} className="text-primary" /></div>
+              <div className="flex-1 min-w-0">
+                <h2 className="font-bold text-base truncate">{site.id}</h2>
+                <p className="text-xs opacity-60">Site Notes</p>
+              </div>
+              <button className="btn btn-sm btn-ghost btn-circle" onClick={onClose}>✕</button>
+            </div>
+
+            {/* Notes list */}
+            <div ref={scrollRef} className="flex-1 overflow-auto p-4 space-y-3 min-h-[200px] max-h-[50vh]">
+              {notes.length === 0 ? (
+                <div className="text-center py-8 opacity-40">
+                  <NoteIcon size={32} className="mx-auto mb-2 opacity-30" />
+                  <p className="text-sm">No notes yet</p>
+                  <p className="text-xs">Be the first to leave a note!</p>
+                </div>
+              ) : (
+                notes.map(note => {
+                  const isMe = note.authorId === user.uid;
+                  return (
+                    <div key={note.id} className={`flex gap-2 ${isMe ? 'flex-row-reverse' : ''}`}>
+                      {note.authorPhoto ? (
+                        <img src={note.authorPhoto} alt="" className="w-8 h-8 rounded-full object-cover shrink-0 border border-base-300" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center text-xs font-bold shrink-0">
+                          {note.authorName ? note.authorName.charAt(0).toUpperCase() : '?'}
+                        </div>
+                      )}
+                      <div className={`max-w-[75%] ${isMe ? 'items-end' : 'items-start'}`}>
+                        <div className={`rounded-2xl px-3 py-2 text-sm ${isMe ? 'bg-primary text-primary-content rounded-br-sm' : 'bg-base-300 rounded-bl-sm'}`}>
+                          {note.text}
+                        </div>
+                        <div className={`flex items-center gap-1 mt-0.5 text-xs opacity-40 ${isMe ? 'justify-end' : ''}`}>
+                          <span className="font-medium">{isMe ? 'You' : note.authorName}</span>
+                          {note.createdAt && <span>· {formatTime(note.createdAt)}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Input */}
+            <div className="p-3 border-t border-base-300 shrink-0">
+              <div className="flex gap-2 items-end">
+                <textarea className="textarea textarea-bordered flex-1 text-sm min-h-[40px] max-h-[100px] resize-none"
+                  placeholder="Write a note..." value={newNote} onChange={e => setNewNote(e.target.value)}
+                  onKeyDown={handleKeyDown} rows={1} />
+                <button className={`btn btn-primary btn-sm btn-circle ${sending ? 'loading' : ''}`} onClick={sendNote} disabled={!newNote.trim() || sending}>
+                  {!sending && <SendIcon size={16} />}
+                </button>
               </div>
             </div>
           </div>
@@ -959,6 +1079,8 @@
       const [showInstallBanner, setShowInstallBanner] = useState(false);
       const [isIOS, setIsIOS] = useState(false);
       const [isStandalone, setIsStandalone] = useState(false);
+      const [noteCounts, setNoteCounts] = useState({});
+      const [activeNoteSite, setActiveNoteSite] = useState(null);
 
       useEffect(() => {
         const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -1025,6 +1147,21 @@
         });
         return () => unsubs.forEach(u => u());
       }, [importedFiles]);
+
+      // ── Listen for note counts across all sites ──
+      useEffect(() => {
+        const unsub = db.collectionGroup('messages')
+          .onSnapshot((snapshot) => {
+            const counts = {};
+            snapshot.forEach(doc => {
+              // Parent path: siteNotes/{routeKey_siteId}/messages
+              const parentId = doc.ref.parent.parent.id;
+              counts[parentId] = (counts[parentId] || 0) + 1;
+            });
+            setNoteCounts(counts);
+          });
+        return unsub;
+      }, []);
 
       // ── Save user data to Firestore (debounced) ──
       const saveTimeoutRef = useRef(null);
@@ -1248,7 +1385,9 @@
                     isCurrent={site.id === currentTargetId} isVisited={visited.has(site.id)}
                     sharedCompletion={sharedCompletions[site.id]}
                     onMarkVisited={() => markVisited(site.id, site)}
-                    myAvatarURL={avatarURL} myPhotoURL={user.photoURL} />
+                    myAvatarURL={avatarURL} myPhotoURL={user.photoURL}
+                    noteCount={noteCounts[`${(!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_')}_${site.id}`] || 0}
+                    onOpenNotes={() => setActiveNoteSite(site)} />
                 ))
               )}
             </div>
@@ -1269,6 +1408,11 @@
           {/* KMZ Manager Modal */}
           {showKMZManager && (
             <KMZManager importedFiles={importedFiles} onImport={handleKMZImport} onRemoveFile={handleRemoveFile} onClose={() => setShowKMZManager(false)} />
+          )}
+
+          {/* Notes Panel */}
+          {activeNoteSite && (
+            <NotesPanel site={activeNoteSite} user={user} avatarURL={avatarURL} onClose={() => setActiveNoteSite(null)} />
           )}
 
           {/* Install Banner */}
