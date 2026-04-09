@@ -73,7 +73,7 @@
   </script>
 
   <script type="text/babel">
-    const { useState, useEffect, useCallback, useRef } = React;
+    const { useState, useEffect, useCallback, useRef, useMemo } = React;
 
     // ── Built-in Site Data (Myrtle Beach) ──
     const BUILTIN_SITES = [
@@ -725,7 +725,7 @@
     }
 
     // ── Leaflet Map Component ──
-    function SiteMap({ sites, userLoc, visited, sharedCompletions, currentTargetId, myAvatarURL, myPhotoURL }) {
+    const SiteMap = React.memo(function SiteMap({ sites, userLoc, visited, sharedCompletions, currentTargetId, myAvatarURL, myPhotoURL }) {
       const mapRef = useRef(null);
       const mapInstanceRef = useRef(null);
       const userLayerRef = useRef(null);
@@ -840,7 +840,7 @@
       }, [sites, visited, sharedCompletions, currentTargetId]);
 
       return <div id="map-container" ref={mapRef}></div>;
-    }
+    });
 
     // ── Site Card ──
     function SiteCard({ site, index, total, isCurrent, isVisited, sharedCompletion, onMarkVisited, myAvatarURL, myPhotoURL, noteCount, onOpenNotes }) {
@@ -1320,9 +1320,21 @@
         const unsub = db.collection('userData').doc(uid).onSnapshot((doc) => {
           if (doc.exists) {
             const data = doc.data();
-            setVisited(new Set(data.visited || []));
-            setImportedFiles(data.importedFiles || []);
-            setImportedSites(data.importedSites || []);
+            const newVisitedArr = data.visited || [];
+            setVisited(prev => {
+              if (newVisitedArr.length === prev.size && newVisitedArr.every(v => prev.has(v))) return prev;
+              return new Set(newVisitedArr);
+            });
+            setImportedFiles(prev => {
+              const newVal = data.importedFiles || [];
+              if (JSON.stringify(newVal) === JSON.stringify(prev)) return prev;
+              return newVal;
+            });
+            setImportedSites(prev => {
+              const newVal = data.importedSites || [];
+              if (JSON.stringify(newVal) === JSON.stringify(prev)) return prev;
+              return newVal;
+            });
           }
           setDataLoaded(true);
         });
@@ -1337,7 +1349,11 @@
             snapshot.forEach(doc => {
               completions[doc.id] = doc.data();
             });
-            setSharedCompletions(prev => ({ ...prev, ...completions }));
+            setSharedCompletions(prev => {
+              const merged = { ...prev, ...completions };
+              if (JSON.stringify(merged) === JSON.stringify(prev)) return prev;
+              return merged;
+            });
           });
         return unsub;
       }, []);
@@ -1350,7 +1366,11 @@
             .collection('completions').onSnapshot((snapshot) => {
               const completions = {};
               snapshot.forEach(doc => { completions[doc.id] = doc.data(); });
-              setSharedCompletions(prev => ({ ...prev, ...completions }));
+              setSharedCompletions(prev => {
+                const merged = { ...prev, ...completions };
+                if (JSON.stringify(merged) === JSON.stringify(prev)) return prev;
+                return merged;
+              });
             });
         });
         return () => unsubs.forEach(u => u());
@@ -1362,11 +1382,13 @@
           .onSnapshot((snapshot) => {
             const counts = {};
             snapshot.forEach(doc => {
-              // Parent path: siteNotes/{routeKey_siteId}/messages
               const parentId = doc.ref.parent.parent.id;
               counts[parentId] = (counts[parentId] || 0) + 1;
             });
-            setNoteCounts(counts);
+            setNoteCounts(prev => {
+              if (JSON.stringify(counts) === JSON.stringify(prev)) return prev;
+              return counts;
+            });
           });
         return unsub;
       }, []);
@@ -1465,8 +1487,8 @@
         }
       };
 
-      // Apply source and status filters
-      const filteredSites = sortedSites.filter((s) => {
+      // Apply source and status filters (memoized to prevent map flicker)
+      const filteredSites = useMemo(() => sortedSites.filter((s) => {
         if (sourceFilter !== 'all') {
           if (sourceFilter === 'builtin' && s.source !== 'builtin') return false;
           if (sourceFilter !== 'builtin' && s.source !== sourceFilter) return false;
@@ -1475,11 +1497,11 @@
         if (filter === 'visited') return visited.has(s.id);
         if (filter === 'completed') return !!sharedCompletions[s.id];
         return true;
-      });
+      }), [sortedSites, sourceFilter, filter, visited, sharedCompletions]);
 
-      const currentTargetId = sortedSites.find((s) => !visited.has(s.id) && !sharedCompletions[s.id])?.id ?? null;
-      const remainingCount = sortedSites.filter(s => !visited.has(s.id) && !sharedCompletions[s.id]).length;
-      const teamCompletedCount = Object.keys(sharedCompletions).length;
+      const currentTargetId = useMemo(() => sortedSites.find((s) => !visited.has(s.id) && !sharedCompletions[s.id])?.id ?? null, [sortedSites, visited, sharedCompletions]);
+      const remainingCount = useMemo(() => sortedSites.filter(s => !visited.has(s.id) && !sharedCompletions[s.id]).length, [sortedSites, visited, sharedCompletions]);
+      const teamCompletedCount = useMemo(() => Object.keys(sharedCompletions).length, [sharedCompletions]);
 
       // Loading screen
       if (!permissionGranted) {
