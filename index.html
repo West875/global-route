@@ -294,8 +294,8 @@
                 <div className="inline-flex bg-primary/20 rounded-full p-4 mb-3">
                   <CameraIcon size={48} className="text-primary" />
                 </div>
-                <h1 className="text-xl font-bold">Set Your Avatar</h1>
-                <p className="text-sm opacity-60">Take a photo so your team knows who you are</p>
+                <h1 className="text-xl font-bold">Take Your ID Selfie</h1>
+                <p className="text-sm opacity-60">This photo is your login ID — it will be shown on every location you complete so your team knows who did the work</p>
               </div>
 
               {error && (
@@ -776,14 +776,14 @@
               try { timeStr = new Date(isSharedComplete.completedAt.toDate()).toLocaleString(); } catch(e) {}
             }
             const avatarHtml = photoUrl
-              ? `<img src="${photoUrl}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;border:2px solid ${bgColor};flex-shrink:0;" />`
-              : `<div style="width:28px;height:28px;border-radius:50%;background:${bgColor};color:white;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:13px;flex-shrink:0;">${initial}</div>`;
+              ? `<img src="${photoUrl}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:3px solid ${bgColor};flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.2);" />`
+              : `<div style="width:44px;height:44px;border-radius:50%;background:${bgColor};color:white;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:18px;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.2);">${initial}</div>`;
             closedByHtml = `
-              <div style="background:${bgColor}15;border:1px solid ${bgColor}40;border-radius:8px;padding:8px;margin:6px 0;display:flex;align-items:center;gap:8px;">
+              <div style="background:${bgColor}15;border:2px solid ${bgColor}40;border-radius:10px;padding:10px;margin:8px 0;display:flex;align-items:center;gap:10px;">
                 ${avatarHtml}
                 <div>
-                  <div style="font-weight:700;font-size:13px;color:${bgColor};">Closed by ${closerName}</div>
-                  ${timeStr ? `<div style="font-size:10px;opacity:0.7;">${timeStr}</div>` : ''}
+                  <div style="font-weight:700;font-size:14px;color:${bgColor};">✅ Completed by ${closerName}</div>
+                  ${timeStr ? `<div style="font-size:11px;opacity:0.7;margin-top:2px;">🕐 ${timeStr}</div>` : ''}
                 </div>
               </div>`;
           }
@@ -864,27 +864,26 @@
               <p className="text-xs opacity-50 ml-6">📍 {site.distance.toFixed(2)} miles away</p>
             )}
 
-            {/* Prominent "Closed by" banner with avatar photo */}
+            {/* Prominent "Completed by" banner with large ID selfie */}
             {isCompleted && (
-              <div className={`mt-2 rounded-lg p-3 flex items-center gap-3 ${isVisited ? 'bg-success/15 border border-success/30' : 'bg-info/15 border border-info/30'}`}>
+              <div className={`mt-2 rounded-xl p-4 flex items-center gap-4 ${isVisited ? 'bg-success/20 border-2 border-success/40' : 'bg-info/20 border-2 border-info/40'}`}>
                 {completedByPhoto ? (
-                  <img src={completedByPhoto} alt="" className="w-9 h-9 rounded-full object-cover shrink-0 border-2" style={{ borderColor: isVisited ? '#22c55e' : '#6366f1' }} referrerPolicy="no-referrer" />
+                  <img src={completedByPhoto} alt="" className="w-14 h-14 rounded-full object-cover shrink-0 border-3 shadow-lg" style={{ borderColor: isVisited ? '#22c55e' : '#6366f1', borderWidth: '3px' }} referrerPolicy="no-referrer" />
                 ) : (
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${isVisited ? 'bg-success text-success-content' : 'bg-info text-info-content'}`}>
+                  <div className={`w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold shrink-0 shadow-lg ${isVisited ? 'bg-success text-success-content' : 'bg-info text-info-content'}`}>
                     {completedByName ? completedByName.charAt(0).toUpperCase() : '✓'}
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className={`font-bold text-sm ${isVisited ? 'text-success' : 'text-info'}`}>
-                    Closed by {completedByName || 'Team Member'}
+                  <p className={`font-bold text-base ${isVisited ? 'text-success' : 'text-info'}`}>
+                    ✅ Completed by {completedByName || 'Team Member'}
                   </p>
                   {completedAt && (
-                    <p className="text-xs opacity-60">
-                      {(() => { try { return new Date(completedAt.toDate()).toLocaleString(); } catch(e) { return ''; } })()}
+                    <p className="text-xs opacity-60 mt-1">
+                      🕐 {(() => { try { return new Date(completedAt.toDate()).toLocaleString(); } catch(e) { return ''; } })()}
                     </p>
                   )}
                 </div>
-                <CheckIcon size={22} className={isVisited ? 'text-success' : 'text-info'} />
               </div>
             )}
 
@@ -1237,10 +1236,7 @@
         return <AvatarSetup user={user} onComplete={(url) => setAvatarURL(url)} />;
       }
 
-      // Step 2: Show mandatory ID upload if user hasn't uploaded one
-      if (!idPhotoURL) {
-        return <IDUpload user={user} onComplete={(url) => setIdPhotoURL(url)} />;
-      }
+      // ID photo is now the same as the avatar selfie — no separate step needed
 
       return <MainApp user={user} avatarURL={avatarURL} onLogout={handleLogout} />;
     }
