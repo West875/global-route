@@ -425,16 +425,35 @@
           const sourceBadge = isImported
             ? `<span style="background:#f59e0b;color:black;padding:1px 6px;border-radius:8px;font-size:11px;">${site.source}</span>`
             : (isExisting ? '<span style="background:#22c55e;color:white;padding:1px 6px;border-radius:8px;font-size:11px;">Existing Cabinet</span>' : '<span style="background:#ef4444;color:white;padding:1px 6px;border-radius:8px;font-size:11px;">Out of Scope</span>');
-          const visitedBadge = isVisited ? ' <span style="background:#6b7280;color:white;padding:1px 6px;border-radius:8px;font-size:11px;">✓ You visited</span>' : '';
-          const sharedBadge = isSharedComplete && !isVisited ? ` <span style="background:#6366f1;color:white;padding:1px 6px;border-radius:8px;font-size:11px;">✓ ${isSharedComplete.completedByName}</span>` : '';
           const currentBadge = isCurrent ? '<div style="background:#a855f7;color:white;padding:2px 8px;border-radius:8px;font-size:11px;text-align:center;margin-bottom:4px;">⭐ NEXT STOP</div>' : '';
+
+          // Build "Closed by" banner for map popup
+          let closedByHtml = '';
+          if (isVisited || isSharedComplete) {
+            const closerName = isVisited ? 'You' : (isSharedComplete ? isSharedComplete.completedByName : 'Team Member');
+            const initial = closerName.charAt(0).toUpperCase();
+            const bgColor = isVisited ? '#22c55e' : '#6366f1';
+            let timeStr = '';
+            if (isSharedComplete && isSharedComplete.completedAt) {
+              try { timeStr = new Date(isSharedComplete.completedAt.toDate()).toLocaleString(); } catch(e) {}
+            }
+            closedByHtml = `
+              <div style="background:${bgColor}15;border:1px solid ${bgColor}40;border-radius:8px;padding:8px;margin:6px 0;display:flex;align-items:center;gap:8px;">
+                <div style="width:28px;height:28px;border-radius:50%;background:${bgColor};color:white;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:13px;flex-shrink:0;">${initial}</div>
+                <div>
+                  <div style="font-weight:700;font-size:13px;color:${bgColor};">Closed by ${closerName}</div>
+                  ${timeStr ? `<div style="font-size:10px;opacity:0.7;">${timeStr}</div>` : ''}
+                </div>
+              </div>`;
+          }
 
           const popup = `
             <div style="min-width:200px;font-family:system-ui;">
               ${currentBadge}
-              <b style="font-size:14px;">${site.id}</b> ${sourceBadge}${visitedBadge}${sharedBadge}<br>
+              <b style="font-size:14px;">${site.id}</b> ${sourceBadge}<br>
               <span style="color:#888;font-size:12px;">${site.address}</span>${distText}
-              <br><br>
+              ${closedByHtml}
+              <br>
               <a href="${directionsUrl(site)}" target="_blank" rel="noopener"
                 style="display:inline-block;background:#570df8;color:white;padding:6px 14px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
                 🗺️ Get Directions
@@ -466,8 +485,16 @@
     function SiteCard({ site, index, total, isCurrent, isVisited, sharedCompletion, onMarkVisited }) {
       const isExisting = site.status.includes('Existing Cabinet');
       const isImported = site.source && site.source !== 'builtin';
+      const isCompleted = isVisited || sharedCompletion;
+      const completedByName = isVisited
+        ? 'You'
+        : (sharedCompletion ? sharedCompletion.completedByName : null);
+      const completedAt = isVisited
+        ? (sharedCompletion?.completedAt || null)
+        : (sharedCompletion?.completedAt || null);
+
       return (
-        <div className={`card bg-base-200 shadow-md fade-in ${isCurrent ? 'ring-2 ring-primary' : ''} ${isVisited ? 'opacity-50' : ''}`}>
+        <div className={`card bg-base-200 shadow-md fade-in ${isCurrent ? 'ring-2 ring-primary' : ''} ${isCompleted ? 'opacity-60' : ''}`}>
           <div className="card-body p-4 gap-2">
             <div className="flex items-center justify-between flex-wrap gap-1">
               <div className="flex items-center gap-2 flex-wrap">
@@ -477,12 +504,6 @@
                 ) : (
                   <span className={`badge badge-sm ${isExisting ? 'badge-success' : 'badge-error'}`}>
                     {isExisting ? 'Existing Cabinet' : 'Out of Scope'}
-                  </span>
-                )}
-                {isVisited && <span className="badge badge-sm badge-ghost"><CheckIcon size={12} /> You visited</span>}
-                {sharedCompletion && !isVisited && (
-                  <span className="badge badge-sm badge-info gap-1">
-                    <UsersIcon size={10} /> {sharedCompletion.completedByName}
                   </span>
                 )}
               </div>
@@ -498,16 +519,32 @@
             {site.distance !== undefined && (
               <p className="text-xs opacity-50 ml-6">📍 {site.distance.toFixed(2)} miles away</p>
             )}
-            {sharedCompletion && !isVisited && (
-              <p className="text-xs opacity-50 ml-6 text-info">
-                ✅ Completed by {sharedCompletion.completedByName} {sharedCompletion.completedAt ? `• ${new Date(sharedCompletion.completedAt.toDate()).toLocaleString()}` : ''}
-              </p>
+
+            {/* Prominent "Closed by" banner */}
+            {isCompleted && (
+              <div className={`mt-2 rounded-lg p-3 flex items-center gap-3 ${isVisited ? 'bg-success/15 border border-success/30' : 'bg-info/15 border border-info/30'}`}>
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${isVisited ? 'bg-success text-success-content' : 'bg-info text-info-content'}`}>
+                  {completedByName ? completedByName.charAt(0).toUpperCase() : '✓'}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`font-bold text-sm ${isVisited ? 'text-success' : 'text-info'}`}>
+                    Closed by {completedByName || 'Team Member'}
+                  </p>
+                  {completedAt && (
+                    <p className="text-xs opacity-60">
+                      {(() => { try { return new Date(completedAt.toDate()).toLocaleString(); } catch(e) { return ''; } })()}
+                    </p>
+                  )}
+                </div>
+                <CheckIcon size={22} className={isVisited ? 'text-success' : 'text-info'} />
+              </div>
             )}
+
             <div className="flex gap-2 mt-2">
               <a href={directionsUrl(site)} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm flex-1">
                 <NavIcon size={14} /> Get Directions <ExternalIcon />
               </a>
-              {!isVisited && !sharedCompletion && (
+              {!isCompleted && (
                 <button className="btn btn-outline btn-success btn-sm" onClick={onMarkVisited}>
                   <CheckIcon size={14} /> Done
                 </button>
