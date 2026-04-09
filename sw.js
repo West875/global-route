@@ -1,4 +1,4 @@
-const CACHE_NAME = 'global-route-v5';
+const CACHE_NAME = 'global-route-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -21,7 +21,6 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  // Network-first strategy to always get latest version
   e.respondWith(
     fetch(e.request)
       .then((response) => {
