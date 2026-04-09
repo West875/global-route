@@ -1425,6 +1425,10 @@
       const useDefaultLocation = useCallback(() => { applyLocation(MYRTLE_BEACH_CENTER, true); }, [applyLocation]);
 
       // ── Single GPS watcher: handles initial location + live tracking + team sharing ──
+      // Throttle: only update state/Firestore when position changes by >50m or >10s elapsed
+      const lastGpsUpdate = useRef({ lat: 0, lon: 0, time: 0 });
+      const gotFirstFix = useRef(false);
+
       useEffect(() => {
         if (!navigator.geolocation) { setGeoError('Geolocation is not supported.'); setLoading(false); return; }
         setLoading(true); setGeoError(null);
@@ -1434,16 +1438,34 @@
         const watchId = navigator.geolocation.watchPosition(
           (pos) => {
             const loc = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-            applyLocation(loc, false);
-            // Share location with team via Firestore
-            db.collection('teamLocations').doc(user.uid).set({
-              lat: loc.lat,
-              lon: loc.lon,
-              name: displayName,
-              photoURL: photoUrl,
-              uid: user.uid,
-              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            }).catch(err => console.error('Location share error:', err));
+            const last = lastGpsUpdate.current;
+            const now = Date.now();
+            const dist = Math.sqrt(Math.pow(loc.lat - last.lat, 2) + Math.pow(loc.lon - last.lon, 2)) * 111000; // rough meters
+            const elapsed = now - last.time;
+
+            // First fix: always apply immediately
+            if (!gotFirstFix.current) {
+              gotFirstFix.current = true;
+              applyLocation(loc, false);
+              lastGpsUpdate.current = { lat: loc.lat, lon: loc.lon, time: now };
+            }
+            // After first fix: only update if moved >50m or >10s passed
+            else if (dist > 50 || elapsed > 10000) {
+              setUserLoc(loc);
+              lastGpsUpdate.current = { lat: loc.lat, lon: loc.lon, time: now };
+            }
+
+            // Share location with team (throttle Firestore writes to every 8s)
+            if (!gotFirstFix.current || elapsed > 8000 || dist > 50) {
+              db.collection('teamLocations').doc(user.uid).set({
+                lat: loc.lat,
+                lon: loc.lon,
+                name: displayName,
+                photoURL: photoUrl,
+                uid: user.uid,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+              }).catch(err => console.error('Location share error:', err));
+            }
           },
           (err) => {
             const msg = err.code === 1 ? 'Location denied — tap below to use Myrtle Beach center instead.' : `Could not get location: ${err.message}`;
@@ -1465,20 +1487,32 @@
         };
       }, [user.uid, avatarURL]);
 
-      // ── Listen to all team locations in real-time ──
+      // ── Listen to all team locations in real-time (debounced to prevent flicker) ──
       useEffect(() => {
+        let debounceTimer = null;
         const unsub = db.collection('teamLocations').onSnapshot((snapshot) => {
-          const locs = {};
-          snapshot.forEach((doc) => {
-            const data = doc.data();
-            // Don't include self — we already show "Your Location"
-            if (doc.id !== user.uid && data.lat && data.lon) {
-              locs[doc.id] = data;
-            }
-          });
-          setTeamLocations(locs);
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => {
+            const locs = {};
+            snapshot.forEach((doc) => {
+              const data = doc.data();
+              if (doc.id !== user.uid && data.lat && data.lon) {
+                locs[doc.id] = data;
+              }
+            });
+            setTeamLocations(prev => {
+              // Only update if data actually changed
+              const prevKeys = Object.keys(prev).sort().join(',');
+              const newKeys = Object.keys(locs).sort().join(',');
+              if (prevKeys !== newKeys) return locs;
+              for (const k of Object.keys(locs)) {
+                if (!prev[k] || Math.abs(prev[k].lat - locs[k].lat) > 0.0001 || Math.abs(prev[k].lon - locs[k].lon) > 0.0001) return locs;
+              }
+              return prev; // No meaningful change — skip re-render
+            });
+          }, 2000); // Batch updates every 2s
         });
-        return unsub;
+        return () => { clearTimeout(debounceTimer); unsub(); };
       }, [user.uid]);
 
       const markVisited = (siteId, site) => {
