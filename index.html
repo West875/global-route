@@ -725,7 +725,7 @@
     }
 
     // ── Leaflet Map Component ──
-    function SiteMap({ sites, userLoc, visited, sharedCompletions, currentTargetId, myAvatarURL, myPhotoURL }) {
+    function SiteMap({ sites, userLoc, visited, sharedCompletions, currentTargetId, myAvatarURL, myPhotoURL, teamLocations }) {
       const mapRef = useRef(null);
       const mapInstanceRef = useRef(null);
 
@@ -738,6 +738,28 @@
         if (userLoc) {
           const userIcon = L.divIcon({ html: '<div style="width:16px;height:16px;background:#3b82f6;border:3px solid white;border-radius:50%;box-shadow:0 0 8px rgba(59,130,246,0.6);"></div>', iconSize: [16, 16], iconAnchor: [8, 8], className: '' });
           L.marker([userLoc.lat, userLoc.lon], { icon: userIcon }).addTo(map).bindPopup('<b>📍 Your Location</b>');
+        }
+
+        // Show team members on map with their avatar photos
+        if (teamLocations) {
+          Object.values(teamLocations).forEach((member) => {
+            const avatarImg = member.photoURL
+              ? `<img src="${member.photoURL}" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:3px solid #8b5cf6;box-shadow:0 0 10px rgba(139,92,246,0.5);" />`
+              : `<div style="width:36px;height:36px;border-radius:50%;background:#8b5cf6;color:white;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:16px;border:3px solid white;box-shadow:0 0 10px rgba(139,92,246,0.5);">${(member.name || '?').charAt(0).toUpperCase()}</div>`;
+            const teamIcon = L.divIcon({
+              html: `<div style="position:relative;">
+                ${avatarImg}
+                <div style="position:absolute;bottom:-4px;left:50%;transform:translateX(-50%);background:#8b5cf6;color:white;font-size:9px;padding:1px 5px;border-radius:6px;white-space:nowrap;font-weight:600;box-shadow:0 1px 4px rgba(0,0,0,0.3);">${member.name || 'Teammate'}</div>
+              </div>`,
+              iconSize: [36, 46], iconAnchor: [18, 23], className: ''
+            });
+            L.marker([member.lat, member.lon], { icon: teamIcon }).addTo(map)
+              .bindPopup(`<div style="font-family:system-ui;text-align:center;">
+                ${member.photoURL ? `<img src="${member.photoURL}" style="width:50px;height:50px;border-radius:50%;object-fit:cover;border:2px solid #8b5cf6;" /><br>` : ''}
+                <b style="color:#8b5cf6;">${member.name || 'Teammate'}</b><br>
+                <span style="font-size:11px;color:#888;">🟢 Live Location</span>
+              </div>`);
+          });
         }
 
         sites.forEach((site) => {
@@ -776,14 +798,14 @@
               try { timeStr = new Date(isSharedComplete.completedAt.toDate()).toLocaleString(); } catch(e) {}
             }
             const avatarHtml = photoUrl
-              ? `<img src="${photoUrl}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:3px solid ${bgColor};flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.2);" />`
-              : `<div style="width:44px;height:44px;border-radius:50%;background:${bgColor};color:white;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:18px;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,0.2);">${initial}</div>`;
+              ? `<img src="${photoUrl}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;border:2px solid ${bgColor};flex-shrink:0;" />`
+              : `<div style="width:28px;height:28px;border-radius:50%;background:${bgColor};color:white;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:13px;flex-shrink:0;">${initial}</div>`;
             closedByHtml = `
-              <div style="background:${bgColor}15;border:2px solid ${bgColor}40;border-radius:10px;padding:10px;margin:8px 0;display:flex;align-items:center;gap:10px;">
+              <div style="background:${bgColor}15;border:1px solid ${bgColor}40;border-radius:8px;padding:8px;margin:6px 0;display:flex;align-items:center;gap:8px;">
                 ${avatarHtml}
                 <div>
-                  <div style="font-weight:700;font-size:14px;color:${bgColor};">✅ Completed by ${closerName}</div>
-                  ${timeStr ? `<div style="font-size:11px;opacity:0.7;margin-top:2px;">🕐 ${timeStr}</div>` : ''}
+                  <div style="font-weight:700;font-size:13px;color:${bgColor};">✅ Completed by ${closerName}</div>
+                  ${timeStr ? `<div style="font-size:10px;opacity:0.7;">${timeStr}</div>` : ''}
                 </div>
               </div>`;
           }
@@ -817,7 +839,7 @@
           document.head.appendChild(style);
         }
         return () => { if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; } };
-      }, [sites, userLoc, visited, sharedCompletions, currentTargetId]);
+      }, [sites, userLoc, visited, sharedCompletions, currentTargetId, teamLocations]);
 
       return <div id="map-container" ref={mapRef}></div>;
     }
@@ -1268,6 +1290,7 @@
       const [isStandalone, setIsStandalone] = useState(false);
       const [noteCounts, setNoteCounts] = useState({});
       const [activeNoteSite, setActiveNoteSite] = useState(null);
+      const [teamLocations, setTeamLocations] = useState({});
 
       useEffect(() => {
         const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -1390,6 +1413,60 @@
 
       const useDefaultLocation = useCallback(() => { applyLocation(MYRTLE_BEACH_CENTER, true); }, [applyLocation]);
       useEffect(() => { requestLocation(); }, []);
+
+      // ── Live team location sharing ──
+      useEffect(() => {
+        if (!navigator.geolocation) return;
+        const displayName = user.displayName || user.email.split('@')[0];
+        const photoUrl = avatarURL || user.photoURL || null;
+
+        // Continuously watch position and write to Firestore
+        const watchId = navigator.geolocation.watchPosition(
+          (pos) => {
+            const loc = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+            setUserLoc(loc);
+            // Update Firestore with current location
+            db.collection('teamLocations').doc(user.uid).set({
+              lat: loc.lat,
+              lon: loc.lon,
+              name: displayName,
+              photoURL: photoUrl,
+              uid: user.uid,
+              updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }).catch(err => console.error('Location share error:', err));
+          },
+          (err) => console.log('Watch position error:', err.message),
+          { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+        );
+
+        // Clean up: remove location when user leaves
+        const removeLocation = () => {
+          db.collection('teamLocations').doc(user.uid).delete().catch(() => {});
+        };
+        window.addEventListener('beforeunload', removeLocation);
+
+        return () => {
+          navigator.geolocation.clearWatch(watchId);
+          window.removeEventListener('beforeunload', removeLocation);
+          removeLocation();
+        };
+      }, [user.uid, avatarURL]);
+
+      // ── Listen to all team locations in real-time ──
+      useEffect(() => {
+        const unsub = db.collection('teamLocations').onSnapshot((snapshot) => {
+          const locs = {};
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            // Don't include self — we already show "Your Location"
+            if (doc.id !== user.uid && data.lat && data.lon) {
+              locs[doc.id] = data;
+            }
+          });
+          setTeamLocations(locs);
+        });
+        return unsub;
+      }, [user.uid]);
 
       const markVisited = (siteId, site) => {
         const newVisited = new Set(visited);
@@ -1559,7 +1636,7 @@
 
           {/* Content */}
           {view === 'map' ? (
-            <SiteMap sites={filteredSites} userLoc={userLoc} visited={visited} sharedCompletions={sharedCompletions} currentTargetId={currentTargetId} myAvatarURL={avatarURL} myPhotoURL={user.photoURL} />
+            <SiteMap sites={filteredSites} userLoc={userLoc} visited={visited} sharedCompletions={sharedCompletions} currentTargetId={currentTargetId} myAvatarURL={avatarURL} myPhotoURL={user.photoURL} teamLocations={teamLocations} />
           ) : (
             <div className="flex flex-col gap-3 p-4 pb-24">
               {filteredSites.length === 0 ? (
