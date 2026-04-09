@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Global Route</title>
+
+  <!-- PWA meta tags -->
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Global Route" />
+  <meta name="theme-color" content="#570df8" />
+  <meta name="description" content="Navigate Myrtle Beach sites in nearest-first order" />
+
+  <!-- Inline app icon (SVG as data URI) -->
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+
+  <link rel="manifest" href="/manifest.json" />
+
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .pulse-ring { animation: pulseRing 2s ease-out infinite; }
+    @keyframes pulseRing { 0% { transform: scale(0.8); opacity: 1; } 100% { transform: scale(2.2); opacity: 0; } }
+    /* PWA install banner */
+    .install-banner { animation: slideUp 0.4s ease-out; }
+    @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  </script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useCallback, useRef } = React;
+
+    // ── Site Data ──
+    const SITES = [
+      { id: "6M141", address: "6549 Pozzallo Pl, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.750530, lon: -78.840449 },
+      { id: "6M144", address: "6099 Tramonto St, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.745662, lon: -78.844500 },
+      { id: "6M149", address: "7701 N Ocean Blvd, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.745449, lon: -78.815466 },
+      { id: "6M151", address: "US 17, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.659747, lon: -78.973617 },
+      { id: "6M152", address: "2304 N Ocean Blvd, Myrtle Beach, SC", status: "A - Existing Cabinet", lat: 33.702635, lon: -78.867421 },
+      { id: "6M154", address: "6965 Skiff Ln, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.748245, lon: -78.833054 },
+      { id: "6M158", address: "2101 S Ocean Blvd, Myrtle Beach, SC", status: "A - Existing Cabinet", lat: 33.668229, lon: -78.905800 },
+      { id: "6M159", address: "6103 Tides Way, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.742797, lon: -78.845791 },
+      { id: "6M160", address: "6085 Tides Way, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.743483, lon: -78.843621 },
+      { id: "6M161", address: "6035 Tides Way, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.741138, lon: -78.846391 },
+      { id: "6M162", address: "1406 Yaupon Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.675015, lon: -78.901795 },
+      { id: "6M201", address: "3999 Lark Hill Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.725786, lon: -78.887515 },
+      { id: "6M202", address: "1002 29th Ave N, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.718061, lon: -78.876865 },
+      { id: "6M208", address: "US 17, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.792668, lon: -78.758078 },
+      { id: "6M211", address: "1301 Pridgen Rd, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.682650, lon: -78.907350 },
+      { id: "6M214", address: "1114 3rd Ave S, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.693616, lon: -78.897323 },
+      { id: "6M232", address: "815 44th Ave N, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.724270, lon: -78.857160 },
+      { id: "6M238", address: "6928 N Kings Hwy, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.741638, lon: -78.824970 },
+      { id: "6M266", address: "3865 Spruce Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.655865, lon: -78.949911 },
+      { id: "6M267", address: "307 Flagg St, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.687116, lon: -78.885784 },
+      { id: "6M280", address: "2010 S Ocean Blvd, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.669508, lon: -78.906683 },
+      { id: "6M308", address: "890 Briarwood Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.793963, lon: -78.762701 },
+      { id: "6M366", address: "3861 Spruce Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.655766, lon: -78.949796 },
+      { id: "6M402", address: "1898 Plantation Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.727818, lon: -78.875115 },
+      { id: "6M408", address: "5308 N Ocean Blvd, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.724970, lon: -78.839376 },
+      { id: "6M906", address: "1031 Anrea St, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.743347, lon: -78.847293 },
+      { id: "6M907", address: "520 Lake Arrowhead Rd, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.770005, lon: -78.789908 },
+      { id: "6M908", address: "501 Lake Arrowhead Rd, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.768643, lon: -78.789720 },
+      { id: "6M911", address: "Goldfinch Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.664454, lon: -78.967462 },
+    ];
+
+    // ── Geo Helpers ──
+    function toRad(deg) { return (deg * Math.PI) / 180; }
+    function haversineDistance(loc1, loc2) {
+      const R = 3958.8;
+      const dLat = toRad(loc2.lat - loc1.lat);
+      const dLon = toRad(loc2.lon - loc1.lon);
+      const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(loc1.lat)) * Math.cos(toRad(loc2.lat)) * Math.sin(dLon / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+    function sortByNearest(sites, userLoc) {
+      return sites
+        .map((s) => ({ ...s, distance: haversineDistance(userLoc, { lat: s.lat, lon: s.lon }) }))
+        .sort((a, b) => a.distance - b.distance);
+    }
+    function directionsUrl(site) {
+      return `https://www.google.com/maps/dir/?api=1&destination=${site.lat},${site.lon}`;
+    }
+
+    // ── SVG Icons ──
+    const MapPinIcon = ({ size = 18, className = "" }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>
+      </svg>
+    );
+    const NavIcon = ({ size = 18, className = "" }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+      </svg>
+    );
+    const RefreshIcon = ({ size = 18, className = "" }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/>
+      </svg>
+    );
+    const CheckIcon = ({ size = 18, className = "" }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/>
+      </svg>
+    );
+    const ExternalIcon = ({ size = 12 }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+      </svg>
+    );
+    const GlobeIcon = ({ size = 64, className = "" }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/>
+      </svg>
+    );
+    const DownloadIcon = ({ size = 18, className = "" }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+    );
+    const ShareIcon = ({ size = 18, className = "" }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+      </svg>
+    );
+
+    // ── Site Card ──
+    function SiteCard({ site, index, total, isCurrent, isVisited, onMarkVisited }) {
+      const isExisting = site.status.includes('Existing Cabinet');
+      return (
+        <div className={`card bg-base-200 shadow-md fade-in ${isCurrent ? 'ring-2 ring-primary' : ''} ${isVisited ? 'opacity-50' : ''}`}>
+          <div className="card-body p-4 gap-2">
+            <div className="flex items-center justify-between flex-wrap gap-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="badge badge-sm badge-outline font-mono">#{index + 1} of {total}</span>
+                <span className={`badge badge-sm ${isExisting ? 'badge-success' : 'badge-error'}`}>
+                  {isExisting ? 'Existing Cabinet' : 'Out of Scope'}
+                </span>
+                {isVisited && (
+                  <span className="badge badge-sm badge-ghost"><CheckIcon size={12} /> Visited</span>
+                )}
+              </div>
+              {isCurrent && <span className="badge badge-primary badge-sm">⭐ NEXT STOP</span>}
+            </div>
+            <div className="flex items-start gap-2 mt-1">
+              <MapPinIcon size={18} className="opacity-60 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-sm">{site.id}</p>
+                <p className="text-sm opacity-70">{site.address}</p>
+              </div>
+            </div>
+            {site.distance !== undefined && (
+              <p className="text-xs opacity-50 ml-6">📍 {site.distance.toFixed(2)} miles away</p>
+            )}
+            <div className="flex gap-2 mt-2">
+              <a href={directionsUrl(site)} target="_blank" rel="noopener noreferrer"
+                className="btn btn-primary btn-sm flex-1">
+                <NavIcon size={14} /> Get Directions <ExternalIcon />
+              </a>
+              {!isVisited && (
+                <button className="btn btn-outline btn-success btn-sm" onClick={onMarkVisited}>
+                  <CheckIcon size={14} /> Done
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Install Banner ──
+    function InstallBanner({ onInstall, onDismiss, isIOS }) {
+      if (isIOS) {
+        return (
+          <div className="fixed bottom-0 left-0 right-0 z-50 p-4 install-banner">
+            <div className="card bg-base-200 shadow-xl border border-primary/30">
+              <div className="card-body p-4 gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="bg-primary/20 rounded-xl p-2">
+                    <GlobeIcon size={32} className="text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-bold text-sm">Install Global Route</p>
+                    <p className="text-xs opacity-70">Add to your home screen for quick access</p>
+                  </div>
+                  <button className="btn btn-sm btn-ghost btn-circle" onClick={onDismiss}>✕</button>
+                </div>
+                <div className="bg-base-300 rounded-lg p-3 text-sm">
+                  <p className="font-semibold mb-1">To install on iPhone/iPad:</p>
+                  <ol className="list-decimal list-inside space-y-1 text-xs opacity-80">
+                    <li>Tap the <strong>Share</strong> button <span className="inline-block align-middle"><ShareIcon size={14} /></span> at the bottom of Safari</li>
+                    <li>Scroll down and tap <strong>"Add to Home Screen"</strong></li>
+                    <li>Tap <strong>"Add"</strong> in the top right</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+      return (
+        <div className="fixed bottom-0 left-0 right-0 z-50 p-4 install-banner">
+          <div className="card bg-base-200 shadow-xl border border-primary/30">
+            <div className="card-body p-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-primary/20 rounded-xl p-2">
+                  <GlobeIcon size={32} className="text-primary" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-sm">Install Global Route</p>
+                  <p className="text-xs opacity-70">Add to your home screen like a real app</p>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-2">
+                <button className="btn btn-primary btn-sm flex-1 gap-2" onClick={onInstall}>
+                  <DownloadIcon size={16} /> Install App
+                </button>
+                <button className="btn btn-ghost btn-sm" onClick={onDismiss}>Not now</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Default fallback location ──
+    const MYRTLE_BEACH_CENTER = { lat: 33.6891, lon: -78.8867 };
+
+    // ── Main App ──
+    function App() {
+      const [permissionGranted, setPermissionGranted] = useState(false);
+      const [userLoc, setUserLoc] = useState(null);
+      const [geoError, setGeoError] = useState(null);
+      const [loading, setLoading] = useState(true);
+      const [sortedSites, setSortedSites] = useState(SITES);
+      const [visited, setVisited] = useState(() => {
+        try { return new Set(JSON.parse(localStorage.getItem('gr_visited') || '[]')); }
+        catch { return new Set(); }
+      });
+      const [filter, setFilter] = useState('all');
+      const [usingDefault, setUsingDefault] = useState(false);
+
+      // PWA install prompt
+      const [installPrompt, setInstallPrompt] = useState(null);
+      const [showInstallBanner, setShowInstallBanner] = useState(false);
+      const [isIOS, setIsIOS] = useState(false);
+      const [isStandalone, setIsStandalone] = useState(false);
+
+      // Detect iOS and standalone mode
+      useEffect(() => {
+        const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+        setIsIOS(ios);
+        setIsStandalone(standalone);
+
+        // Show iOS install hint if not already installed
+        if (ios && !standalone && !localStorage.getItem('gr_install_dismissed')) {
+          setTimeout(() => setShowInstallBanner(true), 3000);
+        }
+      }, []);
+
+      // Listen for Android/Chrome install prompt
+      useEffect(() => {
+        const handler = (e) => {
+          e.preventDefault();
+          setInstallPrompt(e);
+          if (!localStorage.getItem('gr_install_dismissed')) {
+            setShowInstallBanner(true);
+          }
+        };
+        window.addEventListener('beforeinstallprompt', handler);
+        return () => window.removeEventListener('beforeinstallprompt', handler);
+      }, []);
+
+      const handleInstall = async () => {
+        if (installPrompt) {
+          installPrompt.prompt();
+          const result = await installPrompt.userChoice;
+          if (result.outcome === 'accepted') {
+            setShowInstallBanner(false);
+          }
+          setInstallPrompt(null);
+        }
+      };
+
+      const dismissInstall = () => {
+        setShowInstallBanner(false);
+        localStorage.setItem('gr_install_dismissed', 'true');
+      };
+
+      // Persist visited sites
+      useEffect(() => {
+        localStorage.setItem('gr_visited', JSON.stringify([...visited]));
+      }, [visited]);
+
+      const applyLocation = useCallback((loc, isDefault) => {
+        setUserLoc(loc);
+        setSortedSites(sortByNearest(SITES, loc));
+        setUsingDefault(isDefault || false);
+        setPermissionGranted(true);
+        setLoading(false);
+      }, []);
+
+      const requestLocation = useCallback(() => {
+        setLoading(true);
+        setGeoError(null);
+        if (!navigator.geolocation) {
+          setGeoError('Geolocation is not supported by your browser.');
+          setLoading(false);
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            applyLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }, false);
+          },
+          (err) => {
+            const msg = err.code === 1
+              ? 'Location denied — tap below to use Myrtle Beach center instead, or enable location in your browser settings.'
+              : `Could not get location: ${err.message}`;
+            setGeoError(msg);
+            setLoading(false);
+          },
+          { enableHighAccuracy: true, timeout: 10000 }
+        );
+      }, [applyLocation]);
+
+      const useDefaultLocation = useCallback(() => {
+        applyLocation(MYRTLE_BEACH_CENTER, true);
+      }, [applyLocation]);
+
+      // Auto-request location on first load
+      useEffect(() => { requestLocation(); }, []);
+
+      const markVisited = (id) => {
+        setVisited((prev) => { const next = new Set(prev); next.add(id); return next; });
+      };
+
+      const resetProgress = () => {
+        if (confirm('Reset all visited sites? This cannot be undone.')) {
+          setVisited(new Set());
+          localStorage.removeItem('gr_visited');
+        }
+      };
+
+      const filteredSites = sortedSites.filter((s) => {
+        if (filter === 'remaining') return !visited.has(s.id);
+        if (filter === 'visited') return visited.has(s.id);
+        return true;
+      });
+
+      const currentTargetId = sortedSites.find((s) => !visited.has(s.id))?.id ?? null;
+      const remainingCount = sortedSites.length - visited.size;
+
+      // ── Loading screen ──
+      if (!permissionGranted) {
+        if (loading) {
+          return (
+            <div className="flex flex-col items-center justify-center min-h-screen gap-4 p-8 text-center">
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-24 h-24 rounded-full border-2 border-primary/30 pulse-ring"></div>
+                </div>
+                <div className="relative z-10 bg-primary/10 rounded-full p-6">
+                  <MapPinIcon size={48} className="text-primary" />
+                </div>
+              </div>
+              <span className="loading loading-spinner loading-lg text-primary"></span>
+              <p className="opacity-70 text-lg font-semibold">Finding your location…</p>
+              <p className="text-xs opacity-40">Allow location access when your browser asks</p>
+            </div>
+          );
+        }
+        // GPS failed
+        return (
+          <div className="flex flex-col items-center justify-center min-h-screen gap-5 p-8 text-center">
+            <div className="bg-error/10 rounded-full p-6">
+              <MapPinIcon size={48} className="text-error" />
+            </div>
+            {geoError && (
+              <div className="alert alert-warning max-w-sm text-sm">
+                <MapPinIcon size={16} />
+                <span>{geoError}</span>
+              </div>
+            )}
+            <button className="btn btn-primary btn-lg gap-2" onClick={requestLocation}>
+              <MapPinIcon size={20} /> Try Again
+            </button>
+            <div className="divider max-w-xs">OR</div>
+            <button className="btn btn-outline btn-lg gap-2" onClick={useDefaultLocation}>
+              <GlobeIcon size={20} /> Use Myrtle Beach Center
+            </button>
+            <p className="text-xs opacity-40 max-w-xs">
+              This will sort sites from the center of Myrtle Beach. You can refresh your GPS later.
+            </p>
+          </div>
+        );
+      }
+
+      return (
+        <div className="flex flex-col min-h-screen">
+          {/* Header */}
+          <div className="bg-primary text-primary-content px-4 py-3 text-center">
+            <h1 className="text-lg font-bold flex items-center justify-center gap-2">
+              <GlobeIcon size={22} /> Global Route
+            </h1>
+            <p className="text-xs opacity-80">Myrtle Beach, SC — Nearest-First Routing</p>
+          </div>
+
+          {/* Toolbar */}
+          <div className="sticky top-0 z-10 bg-base-100 border-b border-base-300 px-4 py-3 flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <NavIcon size={18} className="text-primary shrink-0" />
+              <span className="font-semibold text-sm truncate">{remainingCount} sites remaining</span>
+              <span className="text-xs opacity-50">({visited.size} visited)</span>
+            </div>
+            <div className="flex gap-2">
+              <select className="select select-bordered select-sm" value={filter}
+                onChange={(e) => setFilter(e.target.value)}>
+                <option value="all">All ({sortedSites.length})</option>
+                <option value="remaining">Remaining ({remainingCount})</option>
+                <option value="visited">Visited ({visited.size})</option>
+              </select>
+              <button className="btn btn-sm btn-outline btn-primary" onClick={requestLocation} title="Refresh GPS">
+                <RefreshIcon size={14} />
+              </button>
+              {visited.size > 0 && (
+                <button className="btn btn-sm btn-outline btn-error" onClick={resetProgress} title="Reset progress">
+                  ↺
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Default location banner */}
+          {usingDefault && (
+            <div className="px-4 py-2 bg-warning/20 text-warning-content text-xs flex items-center justify-between gap-2">
+              <span>📍 Using Myrtle Beach center — distances are approximate</span>
+              <button className="btn btn-xs btn-warning" onClick={requestLocation}>Use My GPS</button>
+            </div>
+          )}
+
+          {/* Location bar */}
+          {userLoc && !usingDefault && (
+            <div className="px-4 py-2 bg-base-200 text-xs opacity-60 flex items-center gap-1">
+              <MapPinIcon size={12} /> Your location: {userLoc.lat.toFixed(5)}, {userLoc.lon.toFixed(5)}
+            </div>
+          )}
+
+          {/* Site cards */}
+          <div className="flex flex-col gap-3 p-4 pb-24">
+            {filteredSites.length === 0 ? (
+              <div className="text-center py-12 opacity-50">
+                {filter === 'visited' ? 'No sites visited yet.' : '🎉 All sites visited! Great work!'}
+              </div>
+            ) : (
+              filteredSites.map((site, idx) => (
+                <SiteCard key={site.id} site={site} index={idx} total={filteredSites.length}
+                  isCurrent={site.id === currentTargetId} isVisited={visited.has(site.id)}
+                  onMarkVisited={() => markVisited(site.id)} />
+              ))
+            )}
+          </div>
+
+          {/* Install Banner */}
+          {showInstallBanner && !isStandalone && (
+            <InstallBanner
+              onInstall={handleInstall}
+              onDismiss={dismissInstall}
+              isIOS={isIOS}
+            />
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
