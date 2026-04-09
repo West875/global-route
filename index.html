@@ -192,6 +192,159 @@
     const UserIcon = ({ size = 18, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>);
     const LogOutIcon = ({ size = 18, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>);
     const UsersIcon = ({ size = 18, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>);
+    const CameraIcon = ({ size = 18, className = "" }) => (<svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>);
+
+    // ── Avatar Setup Screen (mandatory selfie) ──
+    function AvatarSetup({ user, onComplete }) {
+      const videoRef = useRef(null);
+      const canvasRef = useRef(null);
+      const [stream, setStream] = useState(null);
+      const [captured, setCaptured] = useState(null);
+      const [saving, setSaving] = useState(false);
+      const [error, setError] = useState(null);
+      const [cameraReady, setCameraReady] = useState(false);
+
+      const startCamera = useCallback(async () => {
+        setError(null);
+        try {
+          const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 480 } }, audio: false });
+          setStream(s);
+          if (videoRef.current) {
+            videoRef.current.srcObject = s;
+            videoRef.current.onloadedmetadata = () => setCameraReady(true);
+          }
+        } catch (err) {
+          setError('Camera access denied. Please allow camera access and try again.');
+        }
+      }, []);
+
+      useEffect(() => { startCamera(); return () => { if (stream) stream.getTracks().forEach(t => t.stop()); }; }, []);
+
+      const capturePhoto = () => {
+        if (!videoRef.current || !canvasRef.current) return;
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        const size = Math.min(video.videoWidth, video.videoHeight);
+        const sx = (video.videoWidth - size) / 2;
+        const sy = (video.videoHeight - size) / 2;
+        canvas.width = 150;
+        canvas.height = 150;
+        const ctx = canvas.getContext('2d');
+        // Mirror the image (front camera is mirrored)
+        ctx.translate(150, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, sx, sy, size, size, 0, 0, 150, 150);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        setCaptured(dataUrl);
+        if (stream) stream.getTracks().forEach(t => t.stop());
+      };
+
+      const retake = async () => {
+        setCaptured(null);
+        setCameraReady(false);
+        await startCamera();
+      };
+
+      const saveAvatar = async () => {
+        if (!captured) return;
+        setSaving(true);
+        try {
+          await db.collection('users').doc(user.uid).set({
+            avatarURL: captured,
+            avatarSetAt: firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+          onComplete(captured);
+        } catch (err) {
+          setError('Failed to save photo. Please try again.');
+          setSaving(false);
+        }
+      };
+
+      const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = canvasRef.current;
+            canvas.width = 150;
+            canvas.height = 150;
+            const ctx = canvas.getContext('2d');
+            const size = Math.min(img.width, img.height);
+            const sx = (img.width - size) / 2;
+            const sy = (img.height - size) / 2;
+            ctx.drawImage(img, sx, sy, size, size, 0, 0, 150, 150);
+            setCaptured(canvas.toDataURL('image/jpeg', 0.7));
+            if (stream) stream.getTracks().forEach(t => t.stop());
+          };
+          img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+      };
+
+      return (
+        <div className="auth-bg min-h-screen flex items-center justify-center p-6">
+          <div className="card bg-base-200 w-full max-w-md glow-card fade-in">
+            <div className="card-body gap-4">
+              <div className="text-center mb-2">
+                <div className="inline-flex bg-primary/20 rounded-full p-4 mb-3">
+                  <CameraIcon size={48} className="text-primary" />
+                </div>
+                <h1 className="text-xl font-bold">Set Your Avatar</h1>
+                <p className="text-sm opacity-60">Take a photo so your team knows who you are</p>
+              </div>
+
+              {error && (
+                <div className="alert alert-error text-sm py-2"><span>{error}</span></div>
+              )}
+
+              <div className="flex justify-center">
+                {!captured ? (
+                  <div className="relative">
+                    <video ref={videoRef} autoPlay playsInline muted
+                      style={{ width: 220, height: 220, borderRadius: '50%', objectFit: 'cover', transform: 'scaleX(-1)', background: '#000', border: '4px solid rgba(87,13,248,0.5)' }} />
+                    {!cameraReady && !error && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="loading loading-spinner loading-lg text-primary"></span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <img src={captured} alt="Your photo"
+                    style={{ width: 220, height: 220, borderRadius: '50%', objectFit: 'cover', border: '4px solid #22c55e' }} />
+                )}
+              </div>
+              <canvas ref={canvasRef} style={{ display: 'none' }} />
+
+              <div className="flex flex-col gap-2 mt-2">
+                {!captured ? (
+                  <>
+                    <button className="btn btn-primary w-full gap-2" onClick={capturePhoto} disabled={!cameraReady}>
+                      <CameraIcon size={18} /> Take Photo
+                    </button>
+                    <label className="btn btn-outline btn-sm w-full gap-2 cursor-pointer">
+                      <UploadIcon size={14} /> Upload from Gallery
+                      <input type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+                    </label>
+                  </>
+                ) : (
+                  <>
+                    <button className={`btn btn-success w-full gap-2 ${saving ? 'loading' : ''}`} onClick={saveAvatar} disabled={saving}>
+                      {saving && <span className="loading loading-spinner loading-xs"></span>}
+                      ✓ Use This Photo
+                    </button>
+                    <button className="btn btn-ghost btn-sm w-full" onClick={retake} disabled={saving}>
+                      ↻ Retake
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     // ── Auth Screen ──
     function AuthScreen({ onAuthSuccess }) {
@@ -351,16 +504,17 @@
     }
 
     // ── User Menu ──
-    function UserMenu({ user, onLogout }) {
+    function UserMenu({ user, avatarURL, onLogout }) {
       const [open, setOpen] = useState(false);
       const displayName = user.displayName || user.email.split('@')[0];
       const initial = displayName.charAt(0).toUpperCase();
+      const photoSrc = avatarURL || user.photoURL;
 
       return (
         <div className="relative">
           <button className="btn btn-sm btn-ghost btn-circle" onClick={() => setOpen(!open)} title={displayName}>
-            {user.photoURL ? (
-              <img src={user.photoURL} alt="" className="w-7 h-7 rounded-full" referrerPolicy="no-referrer" />
+            {photoSrc ? (
+              <img src={photoSrc} alt="" className="w-7 h-7 rounded-full object-cover" referrerPolicy="no-referrer" />
             ) : (
               <div className="w-7 h-7 rounded-full bg-primary text-primary-content flex items-center justify-center text-xs font-bold">
                 {initial}
@@ -388,7 +542,7 @@
     }
 
     // ── Leaflet Map Component ──
-    function SiteMap({ sites, userLoc, visited, sharedCompletions, currentTargetId }) {
+    function SiteMap({ sites, userLoc, visited, sharedCompletions, currentTargetId, myAvatarURL, myPhotoURL }) {
       const mapRef = useRef(null);
       const mapInstanceRef = useRef(null);
 
@@ -427,19 +581,23 @@
             : (isExisting ? '<span style="background:#22c55e;color:white;padding:1px 6px;border-radius:8px;font-size:11px;">Existing Cabinet</span>' : '<span style="background:#ef4444;color:white;padding:1px 6px;border-radius:8px;font-size:11px;">Out of Scope</span>');
           const currentBadge = isCurrent ? '<div style="background:#a855f7;color:white;padding:2px 8px;border-radius:8px;font-size:11px;text-align:center;margin-bottom:4px;">⭐ NEXT STOP</div>' : '';
 
-          // Build "Closed by" banner for map popup
+          // Build "Closed by" banner for map popup with avatar photo
           let closedByHtml = '';
           if (isVisited || isSharedComplete) {
             const closerName = isVisited ? 'You' : (isSharedComplete ? isSharedComplete.completedByName : 'Team Member');
             const initial = closerName.charAt(0).toUpperCase();
             const bgColor = isVisited ? '#22c55e' : '#6366f1';
+            const photoUrl = isVisited ? (myAvatarURL || myPhotoURL || null) : (isSharedComplete ? isSharedComplete.completedByPhoto : null);
             let timeStr = '';
             if (isSharedComplete && isSharedComplete.completedAt) {
               try { timeStr = new Date(isSharedComplete.completedAt.toDate()).toLocaleString(); } catch(e) {}
             }
+            const avatarHtml = photoUrl
+              ? `<img src="${photoUrl}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;border:2px solid ${bgColor};flex-shrink:0;" />`
+              : `<div style="width:28px;height:28px;border-radius:50%;background:${bgColor};color:white;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:13px;flex-shrink:0;">${initial}</div>`;
             closedByHtml = `
               <div style="background:${bgColor}15;border:1px solid ${bgColor}40;border-radius:8px;padding:8px;margin:6px 0;display:flex;align-items:center;gap:8px;">
-                <div style="width:28px;height:28px;border-radius:50%;background:${bgColor};color:white;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:13px;flex-shrink:0;">${initial}</div>
+                ${avatarHtml}
                 <div>
                   <div style="font-weight:700;font-size:13px;color:${bgColor};">Closed by ${closerName}</div>
                   ${timeStr ? `<div style="font-size:10px;opacity:0.7;">${timeStr}</div>` : ''}
@@ -482,7 +640,7 @@
     }
 
     // ── Site Card ──
-    function SiteCard({ site, index, total, isCurrent, isVisited, sharedCompletion, onMarkVisited }) {
+    function SiteCard({ site, index, total, isCurrent, isVisited, sharedCompletion, onMarkVisited, myAvatarURL, myPhotoURL }) {
       const isExisting = site.status.includes('Existing Cabinet');
       const isImported = site.source && site.source !== 'builtin';
       const isCompleted = isVisited || sharedCompletion;
@@ -492,6 +650,9 @@
       const completedAt = isVisited
         ? (sharedCompletion?.completedAt || null)
         : (sharedCompletion?.completedAt || null);
+      const completedByPhoto = isVisited
+        ? (myAvatarURL || myPhotoURL || null)
+        : (sharedCompletion?.completedByPhoto || null);
 
       return (
         <div className={`card bg-base-200 shadow-md fade-in ${isCurrent ? 'ring-2 ring-primary' : ''} ${isCompleted ? 'opacity-60' : ''}`}>
@@ -520,12 +681,16 @@
               <p className="text-xs opacity-50 ml-6">📍 {site.distance.toFixed(2)} miles away</p>
             )}
 
-            {/* Prominent "Closed by" banner */}
+            {/* Prominent "Closed by" banner with avatar photo */}
             {isCompleted && (
               <div className={`mt-2 rounded-lg p-3 flex items-center gap-3 ${isVisited ? 'bg-success/15 border border-success/30' : 'bg-info/15 border border-info/30'}`}>
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${isVisited ? 'bg-success text-success-content' : 'bg-info text-info-content'}`}>
-                  {completedByName ? completedByName.charAt(0).toUpperCase() : '✓'}
-                </div>
+                {completedByPhoto ? (
+                  <img src={completedByPhoto} alt="" className="w-9 h-9 rounded-full object-cover shrink-0 border-2" style={{ borderColor: isVisited ? '#22c55e' : '#6366f1' }} referrerPolicy="no-referrer" />
+                ) : (
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${isVisited ? 'bg-success text-success-content' : 'bg-info text-info-content'}`}>
+                    {completedByName ? completedByName.charAt(0).toUpperCase() : '✓'}
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <p className={`font-bold text-sm ${isVisited ? 'text-success' : 'text-info'}`}>
                     Closed by {completedByName || 'Team Member'}
@@ -684,11 +849,26 @@
       // Auth state
       const [user, setUser] = useState(null);
       const [authLoading, setAuthLoading] = useState(true);
+      const [avatarURL, setAvatarURL] = useState(null);
+      const [avatarChecked, setAvatarChecked] = useState(false);
 
       useEffect(() => {
-        const unsub = auth.onAuthStateChanged((u) => {
+        const unsub = auth.onAuthStateChanged(async (u) => {
           setUser(u);
           setAuthLoading(false);
+          if (u) {
+            // Check if user has avatar
+            try {
+              const doc = await db.collection('users').doc(u.uid).get();
+              if (doc.exists && doc.data().avatarURL) {
+                setAvatarURL(doc.data().avatarURL);
+              }
+            } catch(e) {}
+            setAvatarChecked(true);
+          } else {
+            setAvatarURL(null);
+            setAvatarChecked(false);
+          }
         });
         return unsub;
       }, []);
@@ -696,6 +876,8 @@
       const handleLogout = async () => {
         if (confirm('Sign out of Global Route?')) {
           await auth.signOut();
+          setAvatarURL(null);
+          setAvatarChecked(false);
         }
       };
 
@@ -713,11 +895,27 @@
         return <AuthScreen />;
       }
 
-      return <MainApp user={user} onLogout={handleLogout} />;
+      // Show avatar setup if user hasn't set one (and not Google photo)
+      if (avatarChecked && !avatarURL && !user.photoURL) {
+        return <AvatarSetup user={user} onComplete={(url) => setAvatarURL(url)} />;
+      }
+
+      // Wait for avatar check
+      if (!avatarChecked) {
+        return (
+          <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+            <div className="bg-primary/10 rounded-full p-6"><GlobeIcon size={48} className="text-primary" /></div>
+            <span className="loading loading-spinner loading-lg text-primary"></span>
+            <p className="text-sm opacity-60">Loading profile...</p>
+          </div>
+        );
+      }
+
+      return <MainApp user={user} avatarURL={avatarURL} onLogout={handleLogout} />;
     }
 
     // ── Main App (after auth) ──
-    function MainApp({ user, onLogout }) {
+    function MainApp({ user, avatarURL, onLogout }) {
       const [permissionGranted, setPermissionGranted] = useState(false);
       const [userLoc, setUserLoc] = useState(null);
       const [geoError, setGeoError] = useState(null);
@@ -852,15 +1050,18 @@
         setVisited(newVisited);
         saveToFirestore(newVisited, importedFiles, importedSites);
 
-        // Write to shared completions
+        // Write to shared completions (include avatar photo)
         const routeKey = (site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
         const displayName = user.displayName || user.email.split('@')[0];
+        const completionData = {
+          completedBy: user.uid,
+          completedByName: displayName,
+          completedByPhoto: avatarURL || user.photoURL || null,
+          completedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
         db.collection('sharedRoutes').doc(routeKey)
-          .collection('completions').doc(siteId).set({
-            completedBy: user.uid,
-            completedByName: displayName,
-            completedAt: firebase.firestore.FieldValue.serverTimestamp()
-          }).catch(err => console.error('Shared completion error:', err));
+          .collection('completions').doc(siteId).set(completionData)
+          .catch(err => console.error('Shared completion error:', err));
       };
 
       const resetProgress = () => {
@@ -947,7 +1148,7 @@
               <h1 className="text-lg font-bold flex items-center gap-2">
                 <GlobeIcon size={22} /> Global Route
               </h1>
-              <UserMenu user={user} onLogout={onLogout} />
+              <UserMenu user={user} avatarURL={avatarURL} onLogout={onLogout} />
             </div>
             <p className="text-xs opacity-80 text-center">
               {allSites.length} sites total • {teamCompletedCount} completed by team • Nearest-First Routing
@@ -1011,7 +1212,7 @@
 
           {/* Content */}
           {view === 'map' ? (
-            <SiteMap sites={filteredSites} userLoc={userLoc} visited={visited} sharedCompletions={sharedCompletions} currentTargetId={currentTargetId} />
+            <SiteMap sites={filteredSites} userLoc={userLoc} visited={visited} sharedCompletions={sharedCompletions} currentTargetId={currentTargetId} myAvatarURL={avatarURL} myPhotoURL={user.photoURL} />
           ) : (
             <div className="flex flex-col gap-3 p-4 pb-24">
               {filteredSites.length === 0 ? (
@@ -1023,7 +1224,8 @@
                   <SiteCard key={`${site.source}-${site.id}`} site={site} index={idx} total={filteredSites.length}
                     isCurrent={site.id === currentTargetId} isVisited={visited.has(site.id)}
                     sharedCompletion={sharedCompletions[site.id]}
-                    onMarkVisited={() => markVisited(site.id, site)} />
+                    onMarkVisited={() => markVisited(site.id, site)}
+                    myAvatarURL={avatarURL} myPhotoURL={user.photoURL} />
                 ))
               )}
             </div>
