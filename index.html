@@ -1424,6 +1424,19 @@
 
       const useDefaultLocation = useCallback(() => { applyLocation(MYRTLE_BEACH_CENTER, true); }, [applyLocation]);
 
+      const requestLocation = useCallback(() => {
+        if (!navigator.geolocation) { setGeoError('Geolocation is not supported.'); return; }
+        setLoading(true); setGeoError(null);
+        navigator.geolocation.getCurrentPosition(
+          (pos) => { applyLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }, false); },
+          (err) => {
+            const msg = err.code === 1 ? 'Location denied — tap below to use Myrtle Beach center instead.' : 'Could not get location: ' + err.message;
+            setGeoError(msg); setLoading(false);
+          },
+          { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 }
+        );
+      }, [applyLocation]);
+
       // ── Get user location once on load ──
       useEffect(() => {
         if (!navigator.geolocation) { setGeoError('Geolocation is not supported.'); setLoading(false); return; }
