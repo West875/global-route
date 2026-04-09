@@ -695,11 +695,11 @@
 
       return (
         <div className="relative">
-          <button className="btn btn-sm btn-ghost btn-circle" onClick={() => setOpen(!open)} title={displayName}>
+          <button className="btn btn-ghost p-0" style={{minWidth:'44px',minHeight:'44px'}} onClick={() => setOpen(!open)} title={displayName}>
             {photoSrc ? (
-              <img src={photoSrc} alt="" className="w-7 h-7 rounded-full object-cover" referrerPolicy="no-referrer" />
+              <img src={photoSrc} alt="" className="w-10 h-10 rounded-full object-cover ring-2 ring-white/50" referrerPolicy="no-referrer" />
             ) : (
-              <div className="w-7 h-7 rounded-full bg-primary text-primary-content flex items-center justify-center text-xs font-bold">
+              <div className="w-10 h-10 rounded-full bg-warning text-warning-content flex items-center justify-center text-lg font-bold ring-2 ring-white/50">
                 {initial}
               </div>
             )}
