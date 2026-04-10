@@ -1547,17 +1547,29 @@
       };
 
       var claimEnroute = function(siteId, site, onConfirmed) {
-        var existing = enroutes[siteId];
-        if (existing && existing.userId !== user.uid) {
-          setEnrouteConfirm({
-            userName: existing.userName,
-            userPhoto: existing.userPhoto,
-            onYes: function() { setEnrouteConfirm(null); doClaimAndNavigate(siteId, site, onConfirmed); },
-            onNo: function() { setEnrouteConfirm(null); }
+        var routeKey = (!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
+        // Direct Firestore read to guarantee fresh data
+        db.collection('sharedRoutes').doc(routeKey)
+          .collection('enroute').doc(siteId).get()
+          .then(function(docSnap) {
+            if (docSnap.exists) {
+              var existing = docSnap.data();
+              if (existing.userId && existing.userId !== user.uid) {
+                setEnrouteConfirm({
+                  userName: existing.userName || 'A teammate',
+                  userPhoto: existing.userPhoto || null,
+                  onYes: function() { setEnrouteConfirm(null); doClaimAndNavigate(siteId, site, onConfirmed); },
+                  onNo: function() { setEnrouteConfirm(null); }
+                });
+                return;
+              }
+            }
+            doClaimAndNavigate(siteId, site, onConfirmed);
+          })
+          .catch(function(err) {
+            console.error('En-route check error:', err);
+            doClaimAndNavigate(siteId, site, onConfirmed);
           });
-          return;
-        }
-        doClaimAndNavigate(siteId, site, onConfirmed);
       };
 
       const cancelEnroute = (siteId, site) => {
