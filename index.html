@@ -846,7 +846,7 @@
     });
 
     // ── Site Card ──
-    function SiteCard({ site, index, total, isCurrent, isVisited, sharedCompletion, onMarkVisited, myAvatarURL, myPhotoURL, noteCount, onOpenNotes }) {
+    function SiteCard({ site, index, total, isCurrent, isVisited, sharedCompletion, onMarkVisited, onUndoVisit, myAvatarURL, myPhotoURL, noteCount, onOpenNotes, currentUserId }) {
       const isExisting = site.status.includes('Existing Cabinet');
       const isImported = site.source && site.source !== 'builtin';
       const isCompleted = isVisited || sharedCompletion;
@@ -923,6 +923,11 @@
               {!isCompleted && (
                 <button className="btn btn-outline btn-success btn-sm" onClick={onMarkVisited}>
                   <CheckIcon size={14} /> Done
+                </button>
+              )}
+              {isCompleted && (isVisited || (sharedCompletion && sharedCompletion.completedBy === currentUserId)) && (
+                <button className="btn btn-outline btn-warning btn-sm" onClick={onUndoVisit}>
+                  ↩ Undo
                 </button>
               )}
             </div>
@@ -1463,6 +1468,21 @@
           .catch(err => console.error('Shared completion error:', err));
       };
 
+      const undoVisit = (siteId, site) => {
+        if (!confirm('Undo this completion? It will be removed for the whole team.')) return;
+        // Remove from local visited set
+        const newVisited = new Set(visited);
+        newVisited.delete(siteId);
+        setVisited(newVisited);
+        saveToFirestore(newVisited, importedFiles, importedSites);
+
+        // Remove shared completion from Firestore
+        const routeKey = (site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
+        db.collection('sharedRoutes').doc(routeKey)
+          .collection('completions').doc(siteId).delete()
+          .catch(err => console.error('Undo completion error:', err));
+      };
+
       const resetProgress = () => {
         if (confirm('Reset all YOUR visited sites? This cannot be undone.')) {
           const newVisited = new Set();
@@ -1624,6 +1644,8 @@
                     isCurrent={site.id === currentTargetId} isVisited={visited.has(site.id)}
                     sharedCompletion={sharedCompletions[site.id]}
                     onMarkVisited={() => markVisited(site.id, site)}
+                    onUndoVisit={() => undoVisit(site.id, site)}
+                    currentUserId={user.uid}
                     myAvatarURL={avatarURL} myPhotoURL={user.photoURL}
                     noteCount={noteCounts[`${(!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_')}_${site.id}`] || 0}
                     onOpenNotes={() => setActiveNoteSite(site)} />
