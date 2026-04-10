@@ -258,10 +258,16 @@
       siteIds.forEach(function(siteId) {
         var docId = 'builtin_' + siteId;
         db.collection('siteNotes').doc(docId).collection('messages')
-          .orderBy('createdAt', 'desc').onSnapshot(function(msgSnap) {
+          .onSnapshot(function(msgSnap) {
             var messages = [];
             msgSnap.forEach(function(msgDoc) {
               messages.push(Object.assign({ id: msgDoc.id, siteId: siteId, siteDocId: docId }, msgDoc.data()));
+            });
+            // Sort by createdAt descending client-side
+            messages.sort(function(a, b) {
+              var ta = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : a.createdAt) : 0;
+              var tb = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : b.createdAt) : 0;
+              return tb - ta;
             });
             if (messages.length > 0) {
               console.log('Admin: loaded ' + messages.length + ' notes for ' + siteId);
