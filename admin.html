@@ -245,30 +245,23 @@
         setState({ kmzFiles: files });
       }, function(err) { logDataError('kmzFiles', err); });
 
-      // Load all notes from siteNotes collection
+      // Load all notes using collectionGroup query
       // Notes are stored as: siteNotes/{routeKey}_{siteId}/messages/{msgId}
-      db.collection('siteNotes').onSnapshot(function(snap) {
-        console.log('Admin: found ' + snap.size + ' siteNotes docs');
-        if (snap.empty) {
-          console.log('Admin: siteNotes collection is empty');
-        }
-        snap.forEach(function(siteDoc) {
-          var docId = siteDoc.id;
-          var parts = docId.split('_');
-          var siteId = parts.length > 1 ? parts.slice(1).join('_') : docId;
-
-          siteDoc.ref.collection('messages').orderBy('createdAt', 'desc').onSnapshot(function(msgSnap) {
-            var messages = [];
-            msgSnap.forEach(function(msgDoc) {
-              messages.push(Object.assign({ id: msgDoc.id, siteId: siteId, siteDocId: docId }, msgDoc.data()));
-            });
-            console.log('Admin: loaded ' + messages.length + ' messages for site ' + siteId);
-            var currentNotes = Object.assign({}, state.notes || {});
-            currentNotes[siteId] = messages;
-            setState({ notes: currentNotes });
-          }, function(err) { logDataError('notes-messages-' + docId, err); });
+      // Parent docs in siteNotes may not exist as actual documents, so we query all 'messages' subcollections
+      db.collectionGroup('messages').orderBy('createdAt', 'desc').onSnapshot(function(snap) {
+        console.log('Admin: collectionGroup messages found ' + snap.size + ' notes');
+        var notesBySite = {};
+        snap.forEach(function(msgDoc) {
+          // Parent path: siteNotes/{routeKey}_{siteId}/messages/{msgId}
+          var parentPath = msgDoc.ref.parent.parent.id; // e.g. "builtin_site1"
+          var parts = parentPath.split('_');
+          var siteId = parts.length > 1 ? parts.slice(1).join('_') : parentPath;
+          if (!notesBySite[siteId]) notesBySite[siteId] = [];
+          notesBySite[siteId].push(Object.assign({ id: msgDoc.id, siteId: siteId, siteDocId: parentPath }, msgDoc.data()));
         });
-      }, function(err) { logDataError('siteNotes', err); });
+        console.log('Admin: notes grouped by', Object.keys(notesBySite).length, 'sites');
+        setState({ notes: notesBySite });
+      }, function(err) { logDataError('notes-collectionGroup', err); });
 
       // Also try collectionGroup query for completions as fallback diagnostic
       db.collectionGroup('completions').get().then(function(snap) {
