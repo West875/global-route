@@ -1301,6 +1301,7 @@
       const [isStandalone, setIsStandalone] = useState(false);
       const [noteCounts, setNoteCounts] = useState({});
       const [enroutes, setEnroutes] = useState({});
+      const [enrouteConfirm, setEnrouteConfirm] = useState(null); // {userName, userPhoto, onYes, onNo}
       const [activeNoteSite, setActiveNoteSite] = useState(null);
 
 
@@ -1532,15 +1533,9 @@
         );
       }, []);
 
-      var claimEnroute = function(siteId, site, onConfirmed) {
+      var doClaimAndNavigate = function(siteId, site, onConfirmed) {
         var routeKey = (!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
         var displayName = user.displayName || user.email.split('@')[0];
-        // Check if someone else is already en-route
-        var existing = enroutes[siteId];
-        if (existing && existing.userId !== user.uid) {
-          var go = confirm('Heads up — ' + existing.userName + ' is already heading to this site. Go anyway?');
-          if (!go) return; // Don't navigate and don't claim
-        }
         db.collection('sharedRoutes').doc(routeKey)
           .collection('enroute').doc(siteId).set({
             userId: user.uid,
@@ -1548,8 +1543,21 @@
             userPhoto: avatarURL || user.photoURL || null,
             startedAt: firebase.firestore.FieldValue.serverTimestamp()
           }).catch(function(err) { console.error('En-route claim error:', err); });
-        // Open navigation after claiming
         if (onConfirmed) onConfirmed();
+      };
+
+      var claimEnroute = function(siteId, site, onConfirmed) {
+        var existing = enroutes[siteId];
+        if (existing && existing.userId !== user.uid) {
+          setEnrouteConfirm({
+            userName: existing.userName,
+            userPhoto: existing.userPhoto,
+            onYes: function() { setEnrouteConfirm(null); doClaimAndNavigate(siteId, site, onConfirmed); },
+            onNo: function() { setEnrouteConfirm(null); }
+          });
+          return;
+        }
+        doClaimAndNavigate(siteId, site, onConfirmed);
       };
 
       const cancelEnroute = (siteId, site) => {
@@ -1800,6 +1808,30 @@
               <div className="relative w-full max-w-sm mx-4">
                 <button className="absolute -top-10 right-0 btn btn-sm btn-ghost text-white" onClick={() => setShowAvatarSetup(false)}>✕ Cancel</button>
                 <AvatarSetup user={user} onComplete={(url) => { setAvatarURL(url); setShowAvatarSetup(false); }} />
+              </div>
+            </div>
+          )}
+
+          {/* En-Route Confirmation Modal */}
+          {enrouteConfirm && (
+            <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.7)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}
+              onClick={enrouteConfirm.onNo}>
+              <div style={{background:'#1d232a',borderRadius:16,padding:24,maxWidth:320,width:'100%',textAlign:'center',boxShadow:'0 8px 32px rgba(0,0,0,0.5)'}}
+                onClick={function(e){e.stopPropagation();}}>
+                <div style={{fontSize:24,marginBottom:12}}>🚗 Heads Up!</div>
+                {enrouteConfirm.userPhoto ? (
+                  <img src={enrouteConfirm.userPhoto} alt="" style={{width:64,height:64,borderRadius:'50%',objectFit:'cover',border:'3px solid #3b82f6',marginBottom:8}} />
+                ) : (
+                  <div style={{width:64,height:64,borderRadius:'50%',background:'#3b82f6',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 8px',fontSize:28,color:'white'}}>
+                    {(enrouteConfirm.userName || '?').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div style={{fontWeight:700,fontSize:16,color:'white',marginBottom:4}}>{enrouteConfirm.userName}</div>
+                <div style={{color:'#94a3b8',fontSize:14,marginBottom:20}}>is already en-route to this site.<br/>Go anyway?</div>
+                <div style={{display:'flex',gap:12}}>
+                  <button onClick={enrouteConfirm.onNo} style={{flex:1,padding:'10px 0',borderRadius:8,border:'1px solid #475569',background:'transparent',color:'#94a3b8',fontWeight:600,fontSize:14,cursor:'pointer'}}>Cancel</button>
+                  <button onClick={enrouteConfirm.onYes} style={{flex:1,padding:'10px 0',borderRadius:8,border:'none',background:'#570df8',color:'white',fontWeight:600,fontSize:14,cursor:'pointer'}}>Go Anyway</button>
+                </div>
               </div>
             </div>
           )}
