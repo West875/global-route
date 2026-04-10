@@ -77,6 +77,68 @@
     // Admin emails (add yours here)
     var ADMIN_EMAILS = ['d.west@globalwestgroupllc.com'];
 
+    // Built-in 29 Myrtle Beach sites for seeding Firestore
+    var BUILTIN_SITES = [
+      { id: "6M141", address: "6549 Pozzallo Pl, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.750530, lon: -78.840449 },
+      { id: "6M144", address: "6099 Tramonto St, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.745662, lon: -78.844500 },
+      { id: "6M149", address: "7701 N Ocean Blvd, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.745449, lon: -78.815466 },
+      { id: "6M151", address: "US 17, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.659747, lon: -78.973617 },
+      { id: "6M152", address: "2304 N Ocean Blvd, Myrtle Beach, SC", status: "A - Existing Cabinet", lat: 33.702635, lon: -78.867421 },
+      { id: "6M154", address: "6965 Skiff Ln, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.748245, lon: -78.833054 },
+      { id: "6M158", address: "2101 S Ocean Blvd, Myrtle Beach, SC", status: "A - Existing Cabinet", lat: 33.668229, lon: -78.905800 },
+      { id: "6M159", address: "6103 Tides Way, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.742797, lon: -78.845791 },
+      { id: "6M160", address: "6085 Tides Way, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.743483, lon: -78.843621 },
+      { id: "6M161", address: "6035 Tides Way, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.741138, lon: -78.846391 },
+      { id: "6M162", address: "1406 Yaupon Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.675015, lon: -78.901795 },
+      { id: "6M201", address: "3999 Lark Hill Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.725786, lon: -78.887515 },
+      { id: "6M202", address: "1002 29th Ave N, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.718061, lon: -78.876865 },
+      { id: "6M208", address: "US 17, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.792668, lon: -78.758078 },
+      { id: "6M211", address: "1301 Pridgen Rd, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.682650, lon: -78.907350 },
+      { id: "6M214", address: "1114 3rd Ave S, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.693616, lon: -78.897323 },
+      { id: "6M232", address: "815 44th Ave N, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.724270, lon: -78.857160 },
+      { id: "6M238", address: "6928 N Kings Hwy, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.741638, lon: -78.824970 },
+      { id: "6M266", address: "3865 Spruce Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.655865, lon: -78.949911 },
+      { id: "6M267", address: "307 Flagg St, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.687116, lon: -78.885784 },
+      { id: "6M280", address: "2010 S Ocean Blvd, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.669508, lon: -78.906683 },
+      { id: "6M308", address: "890 Briarwood Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.793963, lon: -78.762701 },
+      { id: "6M366", address: "3861 Spruce Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.655766, lon: -78.949796 },
+      { id: "6M402", address: "1898 Plantation Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.727818, lon: -78.875115 },
+      { id: "6M408", address: "5308 N Ocean Blvd, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.724970, lon: -78.839376 },
+      { id: "6M906", address: "1031 Anrea St, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.743347, lon: -78.847293 },
+      { id: "6M907", address: "520 Lake Arrowhead Rd, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.770005, lon: -78.789908 },
+      { id: "6M908", address: "501 Lake Arrowhead Rd, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.768643, lon: -78.789720 },
+      { id: "6M911", address: "Goldfinch Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.664454, lon: -78.967462 }
+    ];
+
+    // Seed sites into Firestore if collection is empty
+    function seedSitesIfEmpty() {
+      db.collection('sites').get().then(function(snap) {
+        if (snap.empty) {
+          console.log('Seeding ' + BUILTIN_SITES.length + ' sites into Firestore...');
+          var batch = db.batch();
+          BUILTIN_SITES.forEach(function(site) {
+            var ref = db.collection('sites').doc(site.id);
+            batch.set(ref, {
+              name: site.id,
+              address: site.address,
+              status: site.status,
+              lat: site.lat,
+              lon: site.lon,
+              source: 'builtin',
+              createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+          });
+          batch.commit().then(function() {
+            console.log('Sites seeded successfully!');
+          }).catch(function(err) {
+            console.error('Error seeding sites:', err);
+          });
+        } else {
+          console.log('Sites collection already has ' + snap.size + ' documents, skipping seed.');
+        }
+      });
+    }
+
     function setState(updates) {
       Object.assign(state, updates);
       render();
@@ -116,6 +178,9 @@
 
     // Data loading
     function loadAllData() {
+      // Seed the 29 built-in sites if Firestore is empty
+      seedSitesIfEmpty();
+
       // Load users
       db.collection('users').onSnapshot(function(snap) {
         var users = [];
@@ -556,7 +621,7 @@
       }
 
       html += '<div class="stat-card" style="overflow-x:auto;"><table class="admin-table"><thead><tr>' +
-        '<th>Name</th><th>Coordinates</th><th>Status</th><th>Completed By</th><th>Notes</th><th>Actions</th>' +
+        '<th>Site ID</th><th>Address</th><th>Coordinates</th><th>Status</th><th>Completed</th><th>Notes</th><th>Actions</th>' +
         '</tr></thead><tbody>';
 
       filtered.forEach(function(s) {
@@ -564,8 +629,9 @@
         var noteCount = (state.notes[s.id] || state.notes[s.name] || []).length;
         html += '<tr>' +
           '<td style="font-weight:500;">' + (s.name || 'Unnamed') + '</td>' +
+          '<td style="font-size:0.85rem;max-width:220px;">' + (s.address || '—') + '</td>' +
           '<td style="font-size:0.8rem;color:#a6adbb;">' + (s.lat || '?') + ', ' + (s.lng || s.lon || '?') + '</td>' +
-          '<td><span class="badge badge-sm ' + (s.status === 'Existing Cabinet' ? 'badge-success' : 'badge-warning') + '">' + (s.status || 'Unknown') + '</span></td>' +
+          '<td><span class="badge badge-sm ' + ((s.status || '').indexOf('Existing') !== -1 ? 'badge-success' : 'badge-warning') + '">' + ((s.status || '').indexOf('Existing') !== -1 ? 'Existing' : 'RTM') + '</span></td>' +
           '<td>' + (completedBy.length > 0 ? '<span style="color:#36d399;font-weight:bold;">' + completedBy.length + ' ✓</span>' : '<span style="color:#a6adbb;">—</span>') + '</td>' +
           '<td>' + (noteCount > 0 ? noteCount + ' 💬' : '—') + '</td>' +
           '<td><div style="display:flex;gap:4px;">' +
