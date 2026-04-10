@@ -1548,9 +1548,20 @@
 
       var claimEnroute = function(siteId, site, onConfirmed) {
         var routeKey = (!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
-        // Direct Firestore read to guarantee fresh data
+        // Check local state first (populated by real-time listener), then verify with server
+        var localClaim = enroutes[siteId];
+        if (localClaim && localClaim.userId && localClaim.userId !== user.uid) {
+          setEnrouteConfirm({
+            userName: localClaim.userName || 'A teammate',
+            userPhoto: localClaim.userPhoto || null,
+            onYes: function() { setEnrouteConfirm(null); doClaimAndNavigate(siteId, site, onConfirmed); },
+            onNo: function() { setEnrouteConfirm(null); }
+          });
+          return;
+        }
+        // Also do a server read as backup in case local state is stale
         db.collection('sharedRoutes').doc(routeKey)
-          .collection('enroute').doc(siteId).get()
+          .collection('enroute').doc(siteId).get({ source: 'server' })
           .then(function(docSnap) {
             if (docSnap.exists) {
               var existing = docSnap.data();
@@ -1568,6 +1579,7 @@
           })
           .catch(function(err) {
             console.error('En-route check error:', err);
+            // If server read fails, still allow navigation
             doClaimAndNavigate(siteId, site, onConfirmed);
           });
       };
