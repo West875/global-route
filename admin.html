@@ -177,6 +177,13 @@
     }
 
     // Data loading
+    var dataErrors = [];
+    function logDataError(source, err) {
+      console.error('Admin data error [' + source + ']:', err);
+      dataErrors.push(source + ': ' + err.message);
+      render();
+    }
+
     function loadAllData() {
       // Seed the 29 built-in sites if Firestore is empty
       seedSitesIfEmpty();
@@ -185,8 +192,9 @@
       db.collection('users').onSnapshot(function(snap) {
         var users = [];
         snap.forEach(function(doc) { users.push(Object.assign({ id: doc.id }, doc.data())); });
+        console.log('Admin: loaded ' + users.length + ' users');
         setState({ users: users });
-      });
+      }, function(err) { logDataError('users', err); });
 
       // Load completions from sharedRoutes/builtin/completions
       db.collection('sharedRoutes').doc('builtin')
@@ -195,47 +203,57 @@
           snap.forEach(function(doc) {
             completions.push(Object.assign({ id: doc.id, siteId: doc.id, routeKey: 'builtin' }, doc.data()));
           });
-          setState({ completions: completions });
-        });
+          console.log('Admin: loaded ' + completions.length + ' builtin completions');
+          // Store builtin completions and merge with any imported
+          state._builtinCompletions = completions;
+          var allCompletions = completions.concat(state._importedCompletions || []);
+          setState({ completions: allCompletions });
+        }, function(err) { logDataError('builtin-completions', err); });
 
       // Also load completions from imported KMZ routes
       db.collection('sharedRoutes').onSnapshot(function(routeSnap) {
         routeSnap.forEach(function(routeDoc) {
-          if (routeDoc.id === 'builtin') return; // already loaded above
+          if (routeDoc.id === 'builtin') return;
           routeDoc.ref.collection('completions').onSnapshot(function(compSnap) {
             var importedCompletions = [];
             compSnap.forEach(function(doc) {
               importedCompletions.push(Object.assign({ id: doc.id, siteId: doc.id, routeKey: routeDoc.id }, doc.data()));
             });
-            // Merge with existing completions
-            setState(function(prev) {
-              var filtered = (prev.completions || []).filter(function(c) { return c.routeKey !== routeDoc.id; });
-              return { completions: filtered.concat(importedCompletions) };
-            });
-          });
+            console.log('Admin: loaded ' + importedCompletions.length + ' completions from route ' + routeDoc.id);
+            // Properly merge: remove old entries for this route, add new ones
+            var existing = (state._importedCompletions || []).filter(function(c) { return c.routeKey !== routeDoc.id; });
+            state._importedCompletions = existing.concat(importedCompletions);
+            var allCompletions = (state._builtinCompletions || []).concat(state._importedCompletions);
+            setState({ completions: allCompletions });
+          }, function(err) { logDataError('imported-completions-' + routeDoc.id, err); });
         });
-      });
+      }, function(err) { logDataError('sharedRoutes', err); });
 
       // Load sites
       db.collection('sites').onSnapshot(function(snap) {
         var sites = [];
         snap.forEach(function(doc) { sites.push(Object.assign({ id: doc.id }, doc.data())); });
+        console.log('Admin: loaded ' + sites.length + ' sites');
         setState({ sites: sites });
-      });
+      }, function(err) { logDataError('sites', err); });
 
       // Load KMZ files
       db.collection('kmzFiles').onSnapshot(function(snap) {
         var files = [];
         snap.forEach(function(doc) { files.push(Object.assign({ id: doc.id }, doc.data())); });
+        console.log('Admin: loaded ' + files.length + ' kmzFiles');
         setState({ kmzFiles: files });
-      });
+      }, function(err) { logDataError('kmzFiles', err); });
 
       // Load all notes from siteNotes collection
       // Notes are stored as: siteNotes/{routeKey}_{siteId}/messages/{msgId}
       db.collection('siteNotes').onSnapshot(function(snap) {
-        var allNotes = {};
+        console.log('Admin: found ' + snap.size + ' siteNotes docs');
+        if (snap.empty) {
+          console.log('Admin: siteNotes collection is empty');
+        }
         snap.forEach(function(siteDoc) {
-          var docId = siteDoc.id; // e.g., "builtin_6M-SCMB-001"
+          var docId = siteDoc.id;
           var parts = docId.split('_');
           var siteId = parts.length > 1 ? parts.slice(1).join('_') : docId;
 
@@ -244,12 +262,22 @@
             msgSnap.forEach(function(msgDoc) {
               messages.push(Object.assign({ id: msgDoc.id, siteId: siteId, siteDocId: docId }, msgDoc.data()));
             });
-            // Update notes for this site
+            console.log('Admin: loaded ' + messages.length + ' messages for site ' + siteId);
             var currentNotes = Object.assign({}, state.notes || {});
             currentNotes[siteId] = messages;
             setState({ notes: currentNotes });
-          });
+          }, function(err) { logDataError('notes-messages-' + docId, err); });
         });
+      }, function(err) { logDataError('siteNotes', err); });
+
+      // Also try collectionGroup query for completions as fallback diagnostic
+      db.collectionGroup('completions').get().then(function(snap) {
+        console.log('Admin diagnostic: collectionGroup completions found ' + snap.size + ' docs');
+        snap.forEach(function(doc) {
+          console.log('  completion doc path: ' + doc.ref.path + ' data:', JSON.stringify(doc.data()));
+        });
+      }).catch(function(err) {
+        console.log('Admin diagnostic: collectionGroup query failed (may need index):', err.message);
       });
     }
 
@@ -436,7 +464,13 @@
         case 'roles': content = renderRoles(); break;
       }
 
-      return mobileNav + '<div style="display:flex;height:100vh;">' + sidebar + '<div class="content-area">' + content + '</div></div>';
+      var errorBanner = '';
+      if (dataErrors.length > 0) {
+        errorBanner = '<div style="background:#f8727233;border:1px solid #f87272;border-radius:8px;padding:12px;margin-bottom:16px;">' +
+          '<div style="font-weight:bold;color:#f87272;margin-bottom:4px;">⚠️ Data Loading Errors:</div>' +
+          '<div style="font-size:0.8rem;color:#f87272;">' + dataErrors.join('<br>') + '</div></div>';
+      }
+      return mobileNav + '<div style="display:flex;height:100vh;">' + sidebar + '<div class="content-area">' + errorBanner + content + '</div></div>';
     }
 
     // ── DASHBOARD ──
