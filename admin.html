@@ -188,11 +188,32 @@
         setState({ users: users });
       });
 
-      // Load completions
-      db.collection('completions').onSnapshot(function(snap) {
-        var completions = [];
-        snap.forEach(function(doc) { completions.push(Object.assign({ id: doc.id }, doc.data())); });
-        setState({ completions: completions });
+      // Load completions from sharedRoutes/builtin/completions
+      db.collection('sharedRoutes').doc('builtin')
+        .collection('completions').onSnapshot(function(snap) {
+          var completions = [];
+          snap.forEach(function(doc) {
+            completions.push(Object.assign({ id: doc.id, siteId: doc.id, routeKey: 'builtin' }, doc.data()));
+          });
+          setState({ completions: completions });
+        });
+
+      // Also load completions from imported KMZ routes
+      db.collection('sharedRoutes').onSnapshot(function(routeSnap) {
+        routeSnap.forEach(function(routeDoc) {
+          if (routeDoc.id === 'builtin') return; // already loaded above
+          routeDoc.ref.collection('completions').onSnapshot(function(compSnap) {
+            var importedCompletions = [];
+            compSnap.forEach(function(doc) {
+              importedCompletions.push(Object.assign({ id: doc.id, siteId: doc.id, routeKey: routeDoc.id }, doc.data()));
+            });
+            // Merge with existing completions
+            setState(function(prev) {
+              var filtered = (prev.completions || []).filter(function(c) { return c.routeKey !== routeDoc.id; });
+              return { completions: filtered.concat(importedCompletions) };
+            });
+          });
+        });
       });
 
       // Load sites
@@ -209,24 +230,26 @@
         setState({ kmzFiles: files });
       });
 
-      // Load all notes
-      db.collection('notes').onSnapshot(function(snap) {
-        var notes = {};
-        snap.forEach(function(doc) {
-          var data = doc.data();
-          var siteId = data.siteId || 'unknown';
-          if (!notes[siteId]) notes[siteId] = [];
-          notes[siteId].push(Object.assign({ id: doc.id }, data));
-        });
-        // Sort each site's notes by timestamp
-        Object.keys(notes).forEach(function(key) {
-          notes[key].sort(function(a, b) {
-            var ta = a.timestamp ? (a.timestamp.toDate ? a.timestamp.toDate().getTime() : new Date(a.timestamp).getTime()) : 0;
-            var tb = b.timestamp ? (b.timestamp.toDate ? b.timestamp.toDate().getTime() : new Date(b.timestamp).getTime()) : 0;
-            return tb - ta;
+      // Load all notes from siteNotes collection
+      // Notes are stored as: siteNotes/{routeKey}_{siteId}/messages/{msgId}
+      db.collection('siteNotes').onSnapshot(function(snap) {
+        var allNotes = {};
+        snap.forEach(function(siteDoc) {
+          var docId = siteDoc.id; // e.g., "builtin_6M-SCMB-001"
+          var parts = docId.split('_');
+          var siteId = parts.length > 1 ? parts.slice(1).join('_') : docId;
+
+          siteDoc.ref.collection('messages').orderBy('createdAt', 'desc').onSnapshot(function(msgSnap) {
+            var messages = [];
+            msgSnap.forEach(function(msgDoc) {
+              messages.push(Object.assign({ id: msgDoc.id, siteId: siteId, siteDocId: docId }, msgDoc.data()));
+            });
+            // Update notes for this site
+            var currentNotes = Object.assign({}, state.notes || {});
+            currentNotes[siteId] = messages;
+            setState({ notes: currentNotes });
           });
         });
-        setState({ notes: notes });
       });
     }
 
@@ -297,9 +320,11 @@
     }
 
     // Delete note
-    function deleteNote(noteId) {
+    function deleteNote(siteDocId, messageId) {
       if (confirm('Delete this note?')) {
-        db.collection('notes').doc(noteId).delete();
+        if (siteDocId && messageId) {
+          db.collection('siteNotes').doc(siteDocId).collection('messages').doc(messageId).delete();
+        }
       }
     }
 
@@ -457,12 +482,19 @@
         html += '<p style="color:#a6adbb;">No completions yet.</p>';
       } else {
         recentCompletions.forEach(function(c) {
-          var user = state.users.find(function(u) { return u.id === c.userId; });
-          var userName = user ? (user.displayName || user.email) : (c.userName || 'Unknown');
+          var user = state.users.find(function(u) { return u.id === c.completedBy; });
+          var userName = user ? (user.displayName || user.email) : (c.completedByName || 'Unknown');
+          var siteName = c.siteId || 'Unknown Site';
+          // Try to find site name from sites list
+          var siteObj = state.sites.find(function(s) { return s.id === c.siteId; });
+          if (siteObj) siteName = siteObj.name || siteName;
+          var photoHTML = c.completedByPhoto
+            ? '<img src="' + c.completedByPhoto + '" style="width:36px;height:36px;border-radius:50%;object-fit:cover;" />'
+            : (user ? avatarHTML(user, 'sm') : '<div style="width:36px;height:36px;border-radius:50%;background:#2a323c;display:flex;align-items:center;justify-content:center;">?</div>');
           html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #2a323c;">' +
-            (user ? avatarHTML(user, 'sm') : '<div style="width:36px;height:36px;border-radius:50%;background:#2a323c;display:flex;align-items:center;justify-content:center;">?</div>') +
+            photoHTML +
             '<div style="flex:1;"><div style="font-weight:500;">' + userName + '</div>' +
-            '<div style="font-size:0.8rem;color:#a6adbb;">Completed: ' + (c.siteName || c.siteId || 'Unknown Site') + '</div></div>' +
+            '<div style="font-size:0.8rem;color:#a6adbb;">Completed: ' + siteName + '</div></div>' +
             '<div style="font-size:0.75rem;color:#a6adbb;">' + formatDateTime(c.completedAt) + '</div></div>';
         });
       }
@@ -497,7 +529,7 @@
         '</tr></thead><tbody>';
 
       filtered.forEach(function(u) {
-        var completionCount = state.completions.filter(function(c) { return c.userId === u.id; }).length;
+        var completionCount = state.completions.filter(function(c) { return c.completedBy === u.id; }).length;
         var role = u.role || 'user';
         var disabled = u.disabled || false;
         html += '<tr>' +
@@ -528,16 +560,16 @@
       var filtered = sorted.filter(function(c) {
         if (!state.searchQuery) return true;
         var q = state.searchQuery.toLowerCase();
-        var user = state.users.find(function(u) { return u.id === c.userId; });
-        var userName = user ? (user.displayName || user.email || '') : (c.userName || '');
-        return userName.toLowerCase().indexOf(q) !== -1 || (c.siteName || c.siteId || '').toLowerCase().indexOf(q) !== -1;
+        var user = state.users.find(function(u) { return u.id === c.completedBy; });
+        var userName = user ? (user.displayName || user.email || '') : (c.completedByName || '');
+        return userName.toLowerCase().indexOf(q) !== -1 || (c.siteId || '').toLowerCase().indexOf(q) !== -1;
       });
 
       // Per-user stats
       var userStats = {};
       state.completions.forEach(function(c) {
-        if (!userStats[c.userId]) userStats[c.userId] = 0;
-        userStats[c.userId]++;
+        if (!userStats[c.completedBy]) userStats[c.completedBy] = 0;
+        userStats[c.completedBy]++;
       });
       var topUsers = Object.keys(userStats).map(function(uid) {
         var user = state.users.find(function(u) { return u.id === uid; });
@@ -570,11 +602,17 @@
         '</tr></thead><tbody>';
 
       filtered.slice(0, 50).forEach(function(c) {
-        var user = state.users.find(function(u) { return u.id === c.userId; });
-        var userName = user ? (user.displayName || user.email) : (c.userName || 'Unknown');
+        var user = state.users.find(function(u) { return u.id === c.completedBy; });
+        var userName = user ? (user.displayName || user.email) : (c.completedByName || 'Unknown');
+        var siteName = c.siteId || 'Unknown';
+        var siteObj = state.sites.find(function(s) { return s.id === c.siteId; });
+        if (siteObj) siteName = siteObj.name || siteName;
+        var photoHTML = c.completedByPhoto
+          ? '<img src="' + c.completedByPhoto + '" style="width:32px;height:32px;border-radius:50%;object-fit:cover;" />'
+          : (user ? avatarHTML(user, 'sm') : '');
         html += '<tr><td><div style="display:flex;align-items:center;gap:8px;">' +
-          (user ? avatarHTML(user, 'sm') : '') + '<span>' + userName + '</span></div></td>' +
-          '<td>' + (c.siteName || c.siteId || 'Unknown') + '</td>' +
+          photoHTML + '<span>' + userName + '</span></div></td>' +
+          '<td>' + siteName + '</td>' +
           '<td style="font-size:0.85rem;color:#a6adbb;">' + formatDateTime(c.completedAt) + '</td></tr>';
       });
 
@@ -625,7 +663,7 @@
         '</tr></thead><tbody>';
 
       filtered.forEach(function(s) {
-        var completedBy = state.completions.filter(function(c) { return c.siteId === s.id || c.siteName === s.name; });
+        var completedBy = state.completions.filter(function(c) { return c.siteId === s.id; });
         var noteCount = (state.notes[s.id] || state.notes[s.name] || []).length;
         html += '<tr>' +
           '<td style="font-weight:500;">' + (s.name || 'Unnamed') + '</td>' +
@@ -683,14 +721,17 @@
           '<h3 style="font-weight:bold;margin-bottom:12px;">📍 ' + siteName + ' <span style="color:#a6adbb;font-weight:normal;font-size:0.85rem;">(' + notes.length + ' notes)</span></h3>';
 
         notes.forEach(function(n) {
-          var user = state.users.find(function(u) { return u.id === n.userId; });
-          var userName = user ? (user.displayName || user.email) : (n.userName || 'Unknown');
+          var user = state.users.find(function(u) { return u.id === (n.authorId || n.userId); });
+          var userName = user ? (user.displayName || user.email) : (n.authorName || n.userName || 'Unknown');
+          var photoHTML = n.authorPhoto
+            ? '<img src="' + n.authorPhoto + '" style="width:32px;height:32px;border-radius:50%;object-fit:cover;" />'
+            : (user ? avatarHTML(user, 'sm') : '<div style="width:32px;height:32px;border-radius:50%;background:#2a323c;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;">?</div>');
           html += '<div class="note-bubble">' +
             '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
-            (user ? avatarHTML(user, 'sm') : '') +
+            photoHTML +
             '<span style="font-weight:500;font-size:0.9rem;">' + userName + '</span>' +
-            '<span style="font-size:0.75rem;color:#a6adbb;margin-left:auto;">' + formatDateTime(n.timestamp) + '</span>' +
-            '<button class="btn btn-ghost btn-xs" onclick="deleteNote(\'' + n.id + '\')" title="Delete note">🗑️</button>' +
+            '<span style="font-size:0.75rem;color:#a6adbb;margin-left:auto;">' + formatDateTime(n.createdAt || n.timestamp) + '</span>' +
+            '<button class="btn btn-ghost btn-xs" onclick="deleteNote(\'' + (n.siteDocId || '') + '\',\'' + n.id + '\')" title="Delete note">🗑️</button>' +
             '</div>' +
             '<div style="font-size:0.9rem;padding-left:44px;">' + (n.text || n.message || '') + '</div></div>';
         });
