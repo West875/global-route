@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Global Route - Admin Back Office</title>
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; background: #1d232a; min-height: 100vh; }
+    .sidebar { width: 260px; min-height: 100vh; background: #191e24; border-right: 1px solid #2a323c; }
+    .sidebar-item { padding: 12px 20px; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: all 0.15s; border-left: 3px solid transparent; }
+    .sidebar-item:hover { background: #2a323c; }
+    .sidebar-item.active { background: #2a323c; border-left-color: #570df8; color: #570df8; }
+    .stat-card { background: #191e24; border: 1px solid #2a323c; border-radius: 12px; padding: 20px; }
+    .avatar-sm { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; }
+    .avatar-md { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
+    .content-area { flex: 1; padding: 24px; overflow-y: auto; max-height: 100vh; }
+    .admin-table { width: 100%; border-collapse: collapse; }
+    .admin-table th { text-align: left; padding: 12px 16px; border-bottom: 1px solid #2a323c; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #a6adbb; }
+    .admin-table td { padding: 12px 16px; border-bottom: 1px solid #2a323c; }
+    .admin-table tr:hover { background: #2a323c40; }
+    .badge-admin { background: #570df8; color: white; padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; }
+    .badge-user { background: #2a323c; color: #a6adbb; padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; }
+    .search-box { background: #191e24; border: 1px solid #2a323c; border-radius: 8px; padding: 8px 16px; color: white; width: 300px; }
+    .search-box:focus { outline: none; border-color: #570df8; }
+    .note-bubble { background: #2a323c; border-radius: 12px; padding: 12px 16px; margin-bottom: 8px; }
+    .tab-active-custom { border-bottom: 2px solid #570df8; color: #570df8; }
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .mobile-nav { display: flex !important; }
+      .content-area { padding: 16px; }
+      .search-box { width: 100%; }
+    }
+    .mobile-nav { display: none; background: #191e24; border-bottom: 1px solid #2a323c; padding: 8px; gap: 4px; overflow-x: auto; }
+    .mobile-nav-item { padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; white-space: nowrap; cursor: pointer; }
+    .mobile-nav-item.active { background: #570df8; color: white; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script>
+    // Firebase config
+    var firebaseConfig = {
+      apiKey: "AIzaSyD-s8Pg4GeSZhOzYpusiHGEEcQuav-IBOo",
+      authDomain: "global-route-79e25.firebaseapp.com",
+      projectId: "global-route-79e25",
+      storageBucket: "global-route-79e25.firebasestorage.app",
+      messagingSenderId: "780041424093",
+      appId: "1:780041424093:web:43ed17f4a12764db6f5f34"
+    };
+    firebase.initializeApp(firebaseConfig);
+    var auth = firebase.auth();
+    var db = firebase.firestore();
+
+    // State
+    var state = {
+      user: null,
+      isAdmin: false,
+      authLoading: true,
+      currentTab: 'dashboard',
+      users: [],
+      completions: [],
+      sites: [],
+      notes: {},
+      kmzFiles: [],
+      searchQuery: '',
+      editingSite: null,
+      editingUser: null,
+      showAddSite: false
+    };
+
+    // Admin emails (add yours here)
+    var ADMIN_EMAILS = ['d.west@globalwestgroupllc.com'];
+
+    function setState(updates) {
+      Object.assign(state, updates);
+      render();
+    }
+
+    // Auth
+    auth.onAuthStateChanged(function(u) {
+      if (u) {
+        var isAdmin = ADMIN_EMAILS.indexOf(u.email) !== -1;
+        setState({ user: u, isAdmin: isAdmin, authLoading: false });
+        if (isAdmin) {
+          loadAllData();
+        }
+      } else {
+        setState({ user: null, isAdmin: false, authLoading: false });
+      }
+    });
+
+    function signInWithEmail() {
+      var email = document.getElementById('admin-email').value;
+      var pass = document.getElementById('admin-pass').value;
+      auth.signInWithEmailAndPassword(email, pass).catch(function(err) {
+        document.getElementById('auth-error').textContent = err.message;
+      });
+    }
+
+    function signInWithGoogle() {
+      var provider = new firebase.auth.GoogleAuthProvider();
+      auth.signInWithPopup(provider).catch(function(err) {
+        document.getElementById('auth-error').textContent = err.message;
+      });
+    }
+
+    function signOut() {
+      auth.signOut();
+    }
+
+    // Data loading
+    function loadAllData() {
+      // Load users
+      db.collection('users').onSnapshot(function(snap) {
+        var users = [];
+        snap.forEach(function(doc) { users.push(Object.assign({ id: doc.id }, doc.data())); });
+        setState({ users: users });
+      });
+
+      // Load completions
+      db.collection('completions').onSnapshot(function(snap) {
+        var completions = [];
+        snap.forEach(function(doc) { completions.push(Object.assign({ id: doc.id }, doc.data())); });
+        setState({ completions: completions });
+      });
+
+      // Load sites
+      db.collection('sites').onSnapshot(function(snap) {
+        var sites = [];
+        snap.forEach(function(doc) { sites.push(Object.assign({ id: doc.id }, doc.data())); });
+        setState({ sites: sites });
+      });
+
+      // Load KMZ files
+      db.collection('kmzFiles').onSnapshot(function(snap) {
+        var files = [];
+        snap.forEach(function(doc) { files.push(Object.assign({ id: doc.id }, doc.data())); });
+        setState({ kmzFiles: files });
+      });
+
+      // Load all notes
+      db.collection('notes').onSnapshot(function(snap) {
+        var notes = {};
+        snap.forEach(function(doc) {
+          var data = doc.data();
+          var siteId = data.siteId || 'unknown';
+          if (!notes[siteId]) notes[siteId] = [];
+          notes[siteId].push(Object.assign({ id: doc.id }, data));
+        });
+        // Sort each site's notes by timestamp
+        Object.keys(notes).forEach(function(key) {
+          notes[key].sort(function(a, b) {
+            var ta = a.timestamp ? (a.timestamp.toDate ? a.timestamp.toDate().getTime() : new Date(a.timestamp).getTime()) : 0;
+            var tb = b.timestamp ? (b.timestamp.toDate ? b.timestamp.toDate().getTime() : new Date(b.timestamp).getTime()) : 0;
+            return tb - ta;
+          });
+        });
+        setState({ notes: notes });
+      });
+    }
+
+    // Helper functions
+    function formatDate(ts) {
+      if (!ts) return 'N/A';
+      var d = ts.toDate ? ts.toDate() : new Date(ts);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+
+    function formatDateTime(ts) {
+      if (!ts) return 'N/A';
+      var d = ts.toDate ? ts.toDate() : new Date(ts);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+    }
+
+    function getInitials(name) {
+      if (!name) return '?';
+      return name.split(' ').map(function(w) { return w[0]; }).join('').toUpperCase().substring(0, 2);
+    }
+
+    function avatarHTML(user, size) {
+      var cls = size === 'md' ? 'avatar-md' : 'avatar-sm';
+      if (user.avatarURL || user.photoURL) {
+        return '<img src="' + (user.avatarURL || user.photoURL) + '" class="' + cls + '" />';
+      }
+      var colors = ['#570df8', '#f000b8', '#37cdbe', '#3abff8', '#fbbd23'];
+      var idx = (user.displayName || user.email || '').length % colors.length;
+      var sz = size === 'md' ? 48 : 36;
+      var fsz = size === 'md' ? 18 : 14;
+      return '<div style="width:' + sz + 'px;height:' + sz + 'px;border-radius:50%;background:' + colors[idx] + ';display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:' + fsz + 'px;color:white;">' + getInitials(user.displayName || user.email) + '</div>';
+    }
+
+    // User management
+    function toggleUserRole(userId, currentRole) {
+      var newRole = currentRole === 'admin' ? 'user' : 'admin';
+      db.collection('users').doc(userId).update({ role: newRole });
+    }
+
+    function toggleUserDisabled(userId, currentDisabled) {
+      db.collection('users').doc(userId).update({ disabled: !currentDisabled });
+    }
+
+    function deleteUser(userId, email) {
+      if (confirm('Delete user ' + email + '? This cannot be undone.')) {
+        db.collection('users').doc(userId).delete();
+        // Also delete their completions
+        db.collection('completions').where('userId', '==', userId).get().then(function(snap) {
+          snap.forEach(function(doc) { doc.ref.delete(); });
+        });
+      }
+    }
+
+    // Site management
+    function saveSite(siteData) {
+      if (siteData.id) {
+        db.collection('sites').doc(siteData.id).update(siteData);
+      } else {
+        db.collection('sites').add(siteData);
+      }
+      setState({ editingSite: null, showAddSite: false });
+    }
+
+    function deleteSite(siteId, siteName) {
+      if (confirm('Delete site "' + siteName + '"? This cannot be undone.')) {
+        db.collection('sites').doc(siteId).delete();
+      }
+    }
+
+    // Delete note
+    function deleteNote(noteId) {
+      if (confirm('Delete this note?')) {
+        db.collection('notes').doc(noteId).delete();
+      }
+    }
+
+    // Delete KMZ
+    function deleteKmz(kmzId, name) {
+      if (confirm('Delete KMZ file "' + name + '"?')) {
+        db.collection('kmzFiles').doc(kmzId).delete();
+      }
+    }
+
+    // ── RENDER ──
+    function render() {
+      var app = document.getElementById('app');
+
+      // Loading
+      if (state.authLoading) {
+        app.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;"><span class="loading loading-spinner loading-lg text-primary"></span></div>';
+        return;
+      }
+
+      // Not logged in
+      if (!state.user) {
+        app.innerHTML = renderLogin();
+        return;
+      }
+
+      // Not admin
+      if (!state.isAdmin) {
+        app.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px;">' +
+          '<div style="font-size:48px;">🔒</div>' +
+          '<h2 style="font-size:1.5rem;font-weight:bold;">Access Denied</h2>' +
+          '<p style="color:#a6adbb;">You need admin privileges to access the back office.</p>' +
+          '<p style="color:#a6adbb;font-size:0.85rem;">Logged in as: ' + state.user.email + '</p>' +
+          '<button class="btn btn-ghost" onclick="signOut()">Sign Out</button>' +
+          '</div>';
+        return;
+      }
+
+      // Admin view
+      app.innerHTML = renderAdmin();
+    }
+
+    function renderLogin() {
+      return '<div style="display:flex;align-items:center;justify-content:center;height:100vh;">' +
+        '<div class="card bg-base-200" style="width:400px;max-width:90vw;">' +
+        '<div class="card-body">' +
+        '<div style="text-align:center;margin-bottom:16px;">' +
+        '<div style="font-size:40px;margin-bottom:8px;">🌐</div>' +
+        '<h1 style="font-size:1.5rem;font-weight:bold;">Global Route Admin</h1>' +
+        '<p style="color:#a6adbb;font-size:0.9rem;">Back Office Management</p>' +
+        '</div>' +
+        '<div id="auth-error" style="color:#f87272;font-size:0.85rem;text-align:center;"></div>' +
+        '<input id="admin-email" type="email" placeholder="Email" class="input input-bordered w-full" style="margin-bottom:8px;" />' +
+        '<input id="admin-pass" type="password" placeholder="Password" class="input input-bordered w-full" style="margin-bottom:12px;" onkeydown="if(event.key===\'Enter\')signInWithEmail()" />' +
+        '<button class="btn btn-primary w-full" onclick="signInWithEmail()">Sign In</button>' +
+        '<div class="divider" style="margin:12px 0;">OR</div>' +
+        '<button class="btn btn-outline w-full" onclick="signInWithGoogle()">🔵 Sign in with Google</button>' +
+        '</div></div></div>';
+    }
+
+    function renderAdmin() {
+      var tabs = [
+        { id: 'dashboard', icon: '📊', label: 'Dashboard' },
+        { id: 'users', icon: '👥', label: 'Users' },
+        { id: 'activity', icon: '📋', label: 'Activity' },
+        { id: 'sites', icon: '📍', label: 'Sites' },
+        { id: 'notes', icon: '📝', label: 'Notes' },
+        { id: 'kmz', icon: '📁', label: 'KMZ Files' },
+        { id: 'roles', icon: '🔒', label: 'Roles' }
+      ];
+
+      var sidebar = '<div class="sidebar">' +
+        '<div style="padding:20px;border-bottom:1px solid #2a323c;">' +
+        '<div style="display:flex;align-items:center;gap:12px;">' +
+        '<div style="font-size:28px;">🌐</div>' +
+        '<div><div style="font-weight:bold;font-size:1.1rem;">Global Route</div><div style="color:#a6adbb;font-size:0.75rem;">Admin Panel</div></div>' +
+        '</div></div>';
+
+      tabs.forEach(function(tab) {
+        var active = state.currentTab === tab.id ? ' active' : '';
+        sidebar += '<div class="sidebar-item' + active + '" onclick="setState({currentTab:\'' + tab.id + '\'})">' +
+          '<span>' + tab.icon + '</span><span>' + tab.label + '</span></div>';
+      });
+
+      sidebar += '<div style="position:absolute;bottom:0;left:0;width:260px;padding:16px;border-top:1px solid #2a323c;">' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
+        avatarHTML(state.user, 'sm') +
+        '<div style="flex:1;min-width:0;"><div style="font-size:0.85rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (state.user.displayName || 'Admin') + '</div>' +
+        '<div style="font-size:0.7rem;color:#a6adbb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + state.user.email + '</div></div></div>' +
+        '<button class="btn btn-ghost btn-sm w-full" onclick="signOut()">Sign Out</button></div>';
+      sidebar += '</div>';
+
+      // Mobile nav
+      var mobileNav = '<div class="mobile-nav">';
+      tabs.forEach(function(tab) {
+        var active = state.currentTab === tab.id ? ' active' : '';
+        mobileNav += '<div class="mobile-nav-item' + active + '" onclick="setState({currentTab:\'' + tab.id + '\'})">' + tab.icon + ' ' + tab.label + '</div>';
+      });
+      mobileNav += '</div>';
+
+      var content = '';
+      switch(state.currentTab) {
+        case 'dashboard': content = renderDashboard(); break;
+        case 'users': content = renderUsers(); break;
+        case 'activity': content = renderActivity(); break;
+        case 'sites': content = renderSites(); break;
+        case 'notes': content = renderNotes(); break;
+        case 'kmz': content = renderKmz(); break;
+        case 'roles': content = renderRoles(); break;
+      }
+
+      return mobileNav + '<div style="display:flex;height:100vh;">' + sidebar + '<div class="content-area">' + content + '</div></div>';
+    }
+
+    // ── DASHBOARD ──
+    function renderDashboard() {
+      var totalUsers = state.users.length;
+      var totalCompletions = state.completions.length;
+      var totalSites = state.sites.length;
+      var totalNotes = Object.keys(state.notes).reduce(function(sum, key) { return sum + state.notes[key].length; }, 0);
+
+      // Completions today
+      var today = new Date();
+      today.setHours(0, 0, 0, 0);
+      var todayCompletions = state.completions.filter(function(c) {
+        var d = c.completedAt ? (c.completedAt.toDate ? c.completedAt.toDate() : new Date(c.completedAt)) : null;
+        return d && d >= today;
+      }).length;
+
+      // Completion rate
+      var completionRate = totalSites > 0 ? Math.round((totalCompletions / totalSites) * 100) : 0;
+
+      // Recent activity (last 5)
+      var recentCompletions = state.completions.slice().sort(function(a, b) {
+        var ta = a.completedAt ? (a.completedAt.toDate ? a.completedAt.toDate().getTime() : new Date(a.completedAt).getTime()) : 0;
+        var tb = b.completedAt ? (b.completedAt.toDate ? b.completedAt.toDate().getTime() : new Date(b.completedAt).getTime()) : 0;
+        return tb - ta;
+      }).slice(0, 8);
+
+      var html = '<h2 style="font-size:1.5rem;font-weight:bold;margin-bottom:20px;">📊 Dashboard</h2>';
+
+      // Stats grid
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px;">';
+      html += statCard('👥', 'Total Users', totalUsers, '#570df8');
+      html += statCard('✅', 'Completions', totalCompletions, '#36d399');
+      html += statCard('📍', 'Total Sites', totalSites, '#f59e0b');
+      html += statCard('📝', 'Total Notes', totalNotes, '#3abff8');
+      html += statCard('🔥', 'Today', todayCompletions, '#f87272');
+      html += statCard('📈', 'Completion %', completionRate + '%', '#a78bfa');
+      html += '</div>';
+
+      // Recent activity
+      html += '<div class="stat-card"><h3 style="font-weight:bold;margin-bottom:16px;">🕐 Recent Activity</h3>';
+      if (recentCompletions.length === 0) {
+        html += '<p style="color:#a6adbb;">No completions yet.</p>';
+      } else {
+        recentCompletions.forEach(function(c) {
+          var user = state.users.find(function(u) { return u.id === c.userId; });
+          var userName = user ? (user.displayName || user.email) : (c.userName || 'Unknown');
+          html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #2a323c;">' +
+            (user ? avatarHTML(user, 'sm') : '<div style="width:36px;height:36px;border-radius:50%;background:#2a323c;display:flex;align-items:center;justify-content:center;">?</div>') +
+            '<div style="flex:1;"><div style="font-weight:500;">' + userName + '</div>' +
+            '<div style="font-size:0.8rem;color:#a6adbb;">Completed: ' + (c.siteName || c.siteId || 'Unknown Site') + '</div></div>' +
+            '<div style="font-size:0.75rem;color:#a6adbb;">' + formatDateTime(c.completedAt) + '</div></div>';
+        });
+      }
+      html += '</div>';
+
+      return html;
+    }
+
+    function statCard(icon, label, value, color) {
+      return '<div class="stat-card">' +
+        '<div style="display:flex;align-items:center;gap:12px;">' +
+        '<div style="width:48px;height:48px;border-radius:12px;background:' + color + '20;display:flex;align-items:center;justify-content:center;font-size:24px;">' + icon + '</div>' +
+        '<div><div style="font-size:0.8rem;color:#a6adbb;">' + label + '</div>' +
+        '<div style="font-size:1.75rem;font-weight:bold;">' + value + '</div></div></div></div>';
+    }
+
+    // ── USERS ──
+    function renderUsers() {
+      var filtered = state.users.filter(function(u) {
+        if (!state.searchQuery) return true;
+        var q = state.searchQuery.toLowerCase();
+        return (u.displayName || '').toLowerCase().indexOf(q) !== -1 || (u.email || '').toLowerCase().indexOf(q) !== -1;
+      });
+
+      var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">' +
+        '<h2 style="font-size:1.5rem;font-weight:bold;">👥 Users (' + state.users.length + ')</h2>' +
+        '<input class="search-box" placeholder="🔍 Search users..." value="' + (state.searchQuery || '') + '" oninput="setState({searchQuery:this.value})" />' +
+        '</div>';
+
+      html += '<div class="stat-card" style="overflow-x:auto;"><table class="admin-table"><thead><tr>' +
+        '<th>User</th><th>Email</th><th>Role</th><th>Joined</th><th>Completions</th><th>Status</th><th>Actions</th>' +
+        '</tr></thead><tbody>';
+
+      filtered.forEach(function(u) {
+        var completionCount = state.completions.filter(function(c) { return c.userId === u.id; }).length;
+        var role = u.role || 'user';
+        var disabled = u.disabled || false;
+        html += '<tr>' +
+          '<td><div style="display:flex;align-items:center;gap:10px;">' + avatarHTML(u, 'sm') + '<span style="font-weight:500;">' + (u.displayName || 'No Name') + '</span></div></td>' +
+          '<td style="color:#a6adbb;font-size:0.85rem;">' + (u.email || 'N/A') + '</td>' +
+          '<td><span class="' + (role === 'admin' ? 'badge-admin' : 'badge-user') + '">' + role + '</span></td>' +
+          '<td style="font-size:0.85rem;">' + formatDate(u.createdAt) + '</td>' +
+          '<td style="text-align:center;font-weight:bold;">' + completionCount + '</td>' +
+          '<td>' + (disabled ? '<span style="color:#f87272;">Disabled</span>' : '<span style="color:#36d399;">Active</span>') + '</td>' +
+          '<td><div style="display:flex;gap:4px;">' +
+          '<button class="btn btn-ghost btn-xs" onclick="toggleUserDisabled(\'' + u.id + '\',' + disabled + ')" title="' + (disabled ? 'Enable' : 'Disable') + '">' + (disabled ? '✅' : '🚫') + '</button>' +
+          '<button class="btn btn-ghost btn-xs" onclick="deleteUser(\'' + u.id + '\',\'' + (u.email || '') + '\')" title="Delete">🗑️</button>' +
+          '</div></td></tr>';
+      });
+
+      html += '</tbody></table></div>';
+      return html;
+    }
+
+    // ── ACTIVITY ──
+    function renderActivity() {
+      var sorted = state.completions.slice().sort(function(a, b) {
+        var ta = a.completedAt ? (a.completedAt.toDate ? a.completedAt.toDate().getTime() : new Date(a.completedAt).getTime()) : 0;
+        var tb = b.completedAt ? (b.completedAt.toDate ? b.completedAt.toDate().getTime() : new Date(b.completedAt).getTime()) : 0;
+        return tb - ta;
+      });
+
+      var filtered = sorted.filter(function(c) {
+        if (!state.searchQuery) return true;
+        var q = state.searchQuery.toLowerCase();
+        var user = state.users.find(function(u) { return u.id === c.userId; });
+        var userName = user ? (user.displayName || user.email || '') : (c.userName || '');
+        return userName.toLowerCase().indexOf(q) !== -1 || (c.siteName || c.siteId || '').toLowerCase().indexOf(q) !== -1;
+      });
+
+      // Per-user stats
+      var userStats = {};
+      state.completions.forEach(function(c) {
+        if (!userStats[c.userId]) userStats[c.userId] = 0;
+        userStats[c.userId]++;
+      });
+      var topUsers = Object.keys(userStats).map(function(uid) {
+        var user = state.users.find(function(u) { return u.id === uid; });
+        return { userId: uid, count: userStats[uid], name: user ? (user.displayName || user.email) : 'Unknown', user: user };
+      }).sort(function(a, b) { return b.count - a.count; }).slice(0, 5);
+
+      var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">' +
+        '<h2 style="font-size:1.5rem;font-weight:bold;">📋 Activity (' + state.completions.length + ' completions)</h2>' +
+        '<input class="search-box" placeholder="🔍 Search by user or site..." value="' + (state.searchQuery || '') + '" oninput="setState({searchQuery:this.value})" />' +
+        '</div>';
+
+      // Top performers
+      if (topUsers.length > 0) {
+        html += '<div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;">';
+        topUsers.forEach(function(u, i) {
+          var medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '🏅';
+          html += '<div class="stat-card" style="flex:1;min-width:150px;">' +
+            '<div style="text-align:center;">' + medal +
+            '<div style="margin:8px 0;">' + (u.user ? avatarHTML(u.user, 'sm') : '') + '</div>' +
+            '<div style="font-weight:500;font-size:0.85rem;">' + u.name + '</div>' +
+            '<div style="font-size:1.25rem;font-weight:bold;color:#36d399;">' + u.count + '</div>' +
+            '<div style="font-size:0.7rem;color:#a6adbb;">completions</div></div></div>';
+        });
+        html += '</div>';
+      }
+
+      // Activity log
+      html += '<div class="stat-card" style="overflow-x:auto;"><table class="admin-table"><thead><tr>' +
+        '<th>User</th><th>Site</th><th>Date</th>' +
+        '</tr></thead><tbody>';
+
+      filtered.slice(0, 50).forEach(function(c) {
+        var user = state.users.find(function(u) { return u.id === c.userId; });
+        var userName = user ? (user.displayName || user.email) : (c.userName || 'Unknown');
+        html += '<tr><td><div style="display:flex;align-items:center;gap:8px;">' +
+          (user ? avatarHTML(user, 'sm') : '') + '<span>' + userName + '</span></div></td>' +
+          '<td>' + (c.siteName || c.siteId || 'Unknown') + '</td>' +
+          '<td style="font-size:0.85rem;color:#a6adbb;">' + formatDateTime(c.completedAt) + '</td></tr>';
+      });
+
+      if (filtered.length > 50) {
+        html += '<tr><td colspan="3" style="text-align:center;color:#a6adbb;">... and ' + (filtered.length - 50) + ' more</td></tr>';
+      }
+
+      html += '</tbody></table></div>';
+      return html;
+    }
+
+    // ── SITES ──
+    function renderSites() {
+      var filtered = state.sites.filter(function(s) {
+        if (!state.searchQuery) return true;
+        var q = state.searchQuery.toLowerCase();
+        return (s.name || '').toLowerCase().indexOf(q) !== -1 || (s.address || '').toLowerCase().indexOf(q) !== -1;
+      });
+
+      var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">' +
+        '<h2 style="font-size:1.5rem;font-weight:bold;">📍 Sites (' + state.sites.length + ')</h2>' +
+        '<div style="display:flex;gap:8px;">' +
+        '<input class="search-box" placeholder="🔍 Search sites..." value="' + (state.searchQuery || '') + '" oninput="setState({searchQuery:this.value})" />' +
+        '<button class="btn btn-primary btn-sm" onclick="setState({showAddSite:true})">+ Add Site</button>' +
+        '</div></div>';
+
+      // Add/edit site modal
+      if (state.showAddSite || state.editingSite) {
+        var site = state.editingSite || {};
+        html += '<div class="stat-card" style="margin-bottom:16px;border-color:#570df8;">' +
+          '<h3 style="font-weight:bold;margin-bottom:12px;">' + (site.id ? '✏️ Edit Site' : '➕ Add New Site') + '</h3>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+          '<input id="site-name" class="input input-bordered input-sm" placeholder="Site Name" value="' + (site.name || '') + '" />' +
+          '<input id="site-address" class="input input-bordered input-sm" placeholder="Address" value="' + (site.address || '') + '" />' +
+          '<input id="site-lat" class="input input-bordered input-sm" placeholder="Latitude" value="' + (site.lat || '') + '" type="number" step="any" />' +
+          '<input id="site-lng" class="input input-bordered input-sm" placeholder="Longitude" value="' + (site.lng || site.lon || '') + '" type="number" step="any" />' +
+          '<input id="site-status" class="input input-bordered input-sm" placeholder="Status (e.g. Existing Cabinet)" value="' + (site.status || '') + '" />' +
+          '<select id="site-source" class="select select-bordered select-sm"><option value="default">Default</option><option value="imported">Imported</option></select>' +
+          '</div>' +
+          '<div style="display:flex;gap:8px;margin-top:12px;">' +
+          '<button class="btn btn-primary btn-sm" onclick="saveSiteForm(\'' + (site.id || '') + '\')">💾 Save</button>' +
+          '<button class="btn btn-ghost btn-sm" onclick="setState({editingSite:null,showAddSite:false})">Cancel</button>' +
+          '</div></div>';
+      }
+
+      html += '<div class="stat-card" style="overflow-x:auto;"><table class="admin-table"><thead><tr>' +
+        '<th>Name</th><th>Coordinates</th><th>Status</th><th>Completed By</th><th>Notes</th><th>Actions</th>' +
+        '</tr></thead><tbody>';
+
+      filtered.forEach(function(s) {
+        var completedBy = state.completions.filter(function(c) { return c.siteId === s.id || c.siteName === s.name; });
+        var noteCount = (state.notes[s.id] || state.notes[s.name] || []).length;
+        html += '<tr>' +
+          '<td style="font-weight:500;">' + (s.name || 'Unnamed') + '</td>' +
+          '<td style="font-size:0.8rem;color:#a6adbb;">' + (s.lat || '?') + ', ' + (s.lng || s.lon || '?') + '</td>' +
+          '<td><span class="badge badge-sm ' + (s.status === 'Existing Cabinet' ? 'badge-success' : 'badge-warning') + '">' + (s.status || 'Unknown') + '</span></td>' +
+          '<td>' + (completedBy.length > 0 ? '<span style="color:#36d399;font-weight:bold;">' + completedBy.length + ' ✓</span>' : '<span style="color:#a6adbb;">—</span>') + '</td>' +
+          '<td>' + (noteCount > 0 ? noteCount + ' 💬' : '—') + '</td>' +
+          '<td><div style="display:flex;gap:4px;">' +
+          '<button class="btn btn-ghost btn-xs" onclick="editSite(\'' + s.id + '\')">✏️</button>' +
+          '<button class="btn btn-ghost btn-xs" onclick="deleteSite(\'' + s.id + '\',\'' + (s.name || '').replace(/'/g, "\\'") + '\')">🗑️</button>' +
+          '</div></td></tr>';
+      });
+
+      html += '</tbody></table></div>';
+      return html;
+    }
+
+    function editSite(siteId) {
+      var site = state.sites.find(function(s) { return s.id === siteId; });
+      if (site) setState({ editingSite: Object.assign({}, site), showAddSite: false });
+    }
+
+    function saveSiteForm(existingId) {
+      var data = {
+        name: document.getElementById('site-name').value,
+        address: document.getElementById('site-address').value,
+        lat: parseFloat(document.getElementById('site-lat').value) || 0,
+        lng: parseFloat(document.getElementById('site-lng').value) || 0,
+        status: document.getElementById('site-status').value,
+        source: document.getElementById('site-source').value
+      };
+      if (existingId) data.id = existingId;
+      saveSite(data);
+    }
+
+    // ── NOTES ──
+    function renderNotes() {
+      var allSiteIds = Object.keys(state.notes);
+      var totalNotes = allSiteIds.reduce(function(sum, key) { return sum + state.notes[key].length; }, 0);
+
+      var html = '<h2 style="font-size:1.5rem;font-weight:bold;margin-bottom:20px;">📝 Notes (' + totalNotes + ')</h2>';
+
+      if (allSiteIds.length === 0) {
+        html += '<div class="stat-card"><p style="color:#a6adbb;">No notes yet.</p></div>';
+        return html;
+      }
+
+      allSiteIds.forEach(function(siteId) {
+        var notes = state.notes[siteId];
+        var site = state.sites.find(function(s) { return s.id === siteId || s.name === siteId; });
+        var siteName = site ? site.name : siteId;
+
+        html += '<div class="stat-card" style="margin-bottom:12px;">' +
+          '<h3 style="font-weight:bold;margin-bottom:12px;">📍 ' + siteName + ' <span style="color:#a6adbb;font-weight:normal;font-size:0.85rem;">(' + notes.length + ' notes)</span></h3>';
+
+        notes.forEach(function(n) {
+          var user = state.users.find(function(u) { return u.id === n.userId; });
+          var userName = user ? (user.displayName || user.email) : (n.userName || 'Unknown');
+          html += '<div class="note-bubble">' +
+            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
+            (user ? avatarHTML(user, 'sm') : '') +
+            '<span style="font-weight:500;font-size:0.9rem;">' + userName + '</span>' +
+            '<span style="font-size:0.75rem;color:#a6adbb;margin-left:auto;">' + formatDateTime(n.timestamp) + '</span>' +
+            '<button class="btn btn-ghost btn-xs" onclick="deleteNote(\'' + n.id + '\')" title="Delete note">🗑️</button>' +
+            '</div>' +
+            '<div style="font-size:0.9rem;padding-left:44px;">' + (n.text || n.message || '') + '</div></div>';
+        });
+
+        html += '</div>';
+      });
+
+      return html;
+    }
+
+    // ── KMZ FILES ──
+    function renderKmz() {
+      var html = '<h2 style="font-size:1.5rem;font-weight:bold;margin-bottom:20px;">📁 KMZ Files (' + state.kmzFiles.length + ')</h2>';
+
+      if (state.kmzFiles.length === 0) {
+        html += '<div class="stat-card"><p style="color:#a6adbb;">No KMZ files imported by users yet.</p></div>';
+        return html;
+      }
+
+      html += '<div class="stat-card" style="overflow-x:auto;"><table class="admin-table"><thead><tr>' +
+        '<th>File Name</th><th>Uploaded By</th><th>Sites</th><th>Date</th><th>Actions</th>' +
+        '</tr></thead><tbody>';
+
+      state.kmzFiles.forEach(function(f) {
+        var user = state.users.find(function(u) { return u.id === f.userId; });
+        var userName = user ? (user.displayName || user.email) : (f.userName || 'Unknown');
+        html += '<tr>' +
+          '<td style="font-weight:500;">📄 ' + (f.name || f.fileName || 'Untitled') + '</td>' +
+          '<td><div style="display:flex;align-items:center;gap:8px;">' + (user ? avatarHTML(user, 'sm') : '') + userName + '</div></td>' +
+          '<td>' + (f.siteCount || '?') + ' sites</td>' +
+          '<td style="font-size:0.85rem;color:#a6adbb;">' + formatDate(f.uploadedAt || f.createdAt) + '</td>' +
+          '<td><button class="btn btn-ghost btn-xs" onclick="deleteKmz(\'' + f.id + '\',\'' + (f.name || f.fileName || '').replace(/'/g, "\\'") + '\')">🗑️</button></td>' +
+          '</tr>';
+      });
+
+      html += '</tbody></table></div>';
+      return html;
+    }
+
+    // ── ROLES ──
+    function renderRoles() {
+      var admins = state.users.filter(function(u) { return u.role === 'admin' || ADMIN_EMAILS.indexOf(u.email) !== -1; });
+      var regularUsers = state.users.filter(function(u) { return u.role !== 'admin' && ADMIN_EMAILS.indexOf(u.email) === -1; });
+
+      var html = '<h2 style="font-size:1.5rem;font-weight:bold;margin-bottom:20px;">🔒 Role Management</h2>';
+
+      html += '<div class="stat-card" style="margin-bottom:16px;">' +
+        '<h3 style="font-weight:bold;margin-bottom:4px;">Administrators (' + admins.length + ')</h3>' +
+        '<p style="font-size:0.8rem;color:#a6adbb;margin-bottom:12px;">Admins can access the back office and manage all data</p>';
+
+      admins.forEach(function(u) {
+        var isHardcoded = ADMIN_EMAILS.indexOf(u.email) !== -1;
+        html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #2a323c;">' +
+          avatarHTML(u, 'sm') +
+          '<div style="flex:1;"><div style="font-weight:500;">' + (u.displayName || 'No Name') + '</div>' +
+          '<div style="font-size:0.8rem;color:#a6adbb;">' + (u.email || '') + '</div></div>' +
+          (isHardcoded ? '<span style="font-size:0.75rem;color:#a6adbb;">🔐 Owner</span>' :
+          '<button class="btn btn-ghost btn-xs" onclick="toggleUserRole(\'' + u.id + '\',\'admin\')">Remove Admin</button>') +
+          '</div>';
+      });
+      html += '</div>';
+
+      html += '<div class="stat-card">' +
+        '<h3 style="font-weight:bold;margin-bottom:4px;">Regular Users (' + regularUsers.length + ')</h3>' +
+        '<p style="font-size:0.8rem;color:#a6adbb;margin-bottom:12px;">Click "Make Admin" to promote a user</p>';
+
+      regularUsers.forEach(function(u) {
+        html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #2a323c;">' +
+          avatarHTML(u, 'sm') +
+          '<div style="flex:1;"><div style="font-weight:500;">' + (u.displayName || 'No Name') + '</div>' +
+          '<div style="font-size:0.8rem;color:#a6adbb;">' + (u.email || '') + '</div></div>' +
+          '<button class="btn btn-primary btn-xs" onclick="toggleUserRole(\'' + u.id + '\',\'user\')">Make Admin</button>' +
+          '</div>';
+      });
+
+      if (regularUsers.length === 0) {
+        html += '<p style="color:#a6adbb;">No regular users yet.</p>';
+      }
+      html += '</div>';
+
+      return html;
+    }
+
+    // Initial render
+    render();
+  </script>
+</body>
+</html>
