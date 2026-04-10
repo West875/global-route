@@ -1116,23 +1116,23 @@
     }
 
     // ── Install Banner ──
-    function InstallBanner({ onInstall, onDismiss, isIOS }) {
-      if (isIOS) {
-        return (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 install-banner" onClick={onDismiss}>
-            <div className="w-full max-w-md mx-4 mb-6" onClick={e => e.stopPropagation()}>
-              <div className="card bg-base-200 shadow-2xl border-2 border-primary/50">
-                <div className="card-body p-5 gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className="bg-gradient-to-br from-primary to-secondary rounded-2xl p-3 shadow-lg">
-                      <GlobeIcon size={36} className="text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-extrabold text-lg">📲 Install Global Route</p>
-                      <p className="text-sm opacity-80">Get the full app experience on your device</p>
-                    </div>
-                    <button className="btn btn-sm btn-ghost btn-circle" onClick={onDismiss}>✕</button>
+    function InstallBanner({ onInstall, onDismiss, isIOS, hasNativePrompt }) {
+      return (
+        <div className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/50 install-banner" onClick={onDismiss}>
+          <div className="w-full max-w-md mx-4 mb-6" onClick={function(e){ e.stopPropagation(); }}>
+            <div className="card bg-base-200 shadow-2xl border-2 border-primary/50">
+              <div className="card-body p-5 gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="bg-gradient-to-br from-primary to-secondary rounded-2xl p-3 shadow-lg">
+                    <GlobeIcon size={36} className="text-white" />
                   </div>
+                  <div className="flex-1">
+                    <p className="font-extrabold text-lg">📲 Install Global Route</p>
+                    <p className="text-sm opacity-80">Get the full app experience on your device</p>
+                  </div>
+                  <button className="btn btn-sm btn-ghost btn-circle" onClick={onDismiss}>✕</button>
+                </div>
+                {isIOS ? (
                   <div className="bg-gradient-to-r from-primary/10 to-secondary/10 rounded-xl p-4 border border-primary/20">
                     <p className="font-bold text-sm mb-2">📱 Install on iPhone/iPad:</p>
                     <ol className="list-decimal list-inside space-y-2 text-sm">
@@ -1141,41 +1141,31 @@
                       <li>Tap <strong>"Add"</strong> in the top right</li>
                     </ol>
                   </div>
-                  <div className="flex gap-2">
-                    <button className="btn btn-outline btn-sm flex-1" onClick={onDismiss}>Maybe Later</button>
+                ) : hasNativePrompt ? (
+                  <div className="bg-gradient-to-r from-primary/10 to-secondary/10 rounded-xl p-3 border border-primary/20">
+                    <div className="flex items-center gap-2 text-sm">
+                      <span>✅</span><span>Works offline</span>
+                      <span className="mx-1">•</span>
+                      <span>✅</span><span>Home screen icon</span>
+                      <span className="mx-1">•</span>
+                      <span>✅</span><span>Fast launch</span>
+                    </div>
                   </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      }
-      return (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 install-banner" onClick={onDismiss}>
-          <div className="w-full max-w-md mx-4 mb-6" onClick={e => e.stopPropagation()}>
-            <div className="card bg-base-200 shadow-2xl border-2 border-primary/50">
-              <div className="card-body p-5 gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="bg-gradient-to-br from-primary to-secondary rounded-2xl p-3 shadow-lg">
-                    <GlobeIcon size={36} className="text-white" />
+                ) : (
+                  <div className="bg-gradient-to-r from-primary/10 to-secondary/10 rounded-xl p-4 border border-primary/20">
+                    <p className="font-bold text-sm mb-2">📱 Install on Android:</p>
+                    <ol className="list-decimal list-inside space-y-2 text-sm">
+                      <li>Tap the <strong>⋮ menu</strong> (3 dots) in the top right of Chrome</li>
+                      <li>Tap <strong>"Add to Home screen"</strong> or <strong>"Install app"</strong></li>
+                      <li>Tap <strong>"Install"</strong> to confirm</li>
+                    </ol>
                   </div>
-                  <div className="flex-1">
-                    <p className="font-extrabold text-lg">📲 Download Global Route</p>
-                    <p className="text-sm opacity-80">Install the app for offline access & quick launch</p>
-                  </div>
-                </div>
-                <div className="bg-gradient-to-r from-primary/10 to-secondary/10 rounded-xl p-3 border border-primary/20">
-                  <div className="flex items-center gap-2 text-sm">
-                    <span>✅</span><span>Works offline</span>
-                    <span className="mx-1">•</span>
-                    <span>✅</span><span>Home screen icon</span>
-                    <span className="mx-1">•</span>
-                    <span>✅</span><span>Fast launch</span>
-                  </div>
-                </div>
+                )}
                 <div className="flex gap-2">
-                  <button className="btn btn-primary flex-1 gap-2 text-base" onClick={onInstall}><DownloadIcon size={20} /> Install App</button>
-                  <button className="btn btn-ghost btn-sm self-center" onClick={onDismiss}>Later</button>
+                  {hasNativePrompt && (
+                    <button className="btn btn-primary flex-1 gap-2 text-base" onClick={onInstall}><DownloadIcon size={20} /> Install App</button>
+                  )}
+                  <button className={"btn btn-outline flex-1" + (hasNativePrompt ? " btn-sm self-center" : "")} onClick={onDismiss}>Maybe Later</button>
                 </div>
               </div>
             </div>
@@ -1295,21 +1285,21 @@
 
 
       useEffect(() => {
-        const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-        const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+        var ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        var standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
         setIsIOS(ios);
         setIsStandalone(standalone);
-        // Show install banner immediately on every visit (iOS)
-        if (ios && !standalone) {
-          setTimeout(() => setShowInstallBanner(true), 1500);
+        // Show install banner on every visit (session-only dismiss) unless already installed
+        if (!standalone) {
+          setTimeout(function() { setShowInstallBanner(true); }, 2000);
         }
       }, []);
 
       useEffect(() => {
-        // Show install banner immediately when Android/Chrome fires the event
-        const handler = (e) => { e.preventDefault(); setInstallPrompt(e); setShowInstallBanner(true); };
+        // Capture native install prompt if Chrome fires it
+        var handler = function(e) { e.preventDefault(); setInstallPrompt(e); };
         window.addEventListener('beforeinstallprompt', handler);
-        return () => window.removeEventListener('beforeinstallprompt', handler);
+        return function() { window.removeEventListener('beforeinstallprompt', handler); };
       }, []);
 
       const handleInstall = async () => {
@@ -1676,7 +1666,7 @@
 
           {/* Install Banner */}
           {showInstallBanner && !isStandalone && (
-            <InstallBanner onInstall={handleInstall} onDismiss={dismissInstall} isIOS={isIOS} />
+            <InstallBanner onInstall={handleInstall} onDismiss={dismissInstall} isIOS={isIOS} hasNativePrompt={installPrompt != null} />
           )}
         </div>
       );
