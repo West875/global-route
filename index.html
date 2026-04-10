@@ -924,10 +924,10 @@
             )}
 
             <div className="flex gap-2 mt-2">
-              <a href={directionsUrl(site)} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm flex-1"
-                onClick={onClaimEnroute}>
+              <button className="btn btn-primary btn-sm flex-1"
+                onClick={function(e) { e.preventDefault(); onClaimEnroute(function() { window.open(directionsUrl(site), '_blank', 'noopener,noreferrer'); }); }}>
                 <NavIcon size={14} /> Get Directions <ExternalIcon />
-              </a>
+              </button>
               <button className="btn btn-outline btn-info btn-sm relative" onClick={onOpenNotes} title="Notes">
                 <NoteIcon size={14} /> Notes
                 {noteCount > 0 && (
@@ -1372,21 +1372,44 @@
         return unsub;
       }, []);
 
-      // ── Listen for en-route claims (builtin route) ──
-      useEffect(() => {
-        const unsub = db.collection('sharedRoutes').doc('builtin')
-          .collection('enroute').onSnapshot((snapshot) => {
-            const claims = {};
-            snapshot.forEach(doc => {
-              claims[doc.id] = doc.data();
+      // ── Listen for en-route claims (builtin route) — auto-expire after 2 hours ──
+      useEffect(function() {
+        var TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+        var unsub = db.collection('sharedRoutes').doc('builtin')
+          .collection('enroute').onSnapshot(function(snapshot) {
+            var claims = {};
+            var now = Date.now();
+            var staleIds = [];
+            snapshot.forEach(function(doc) {
+              var data = doc.data();
+              // Check if claim is stale (older than 2 hours)
+              var startedAt = data.startedAt;
+              if (startedAt && startedAt.toDate) {
+                var ageMs = now - startedAt.toDate().getTime();
+                if (ageMs > TWO_HOURS_MS) {
+                  staleIds.push({ id: doc.id, routeKey: 'builtin' });
+                  return; // skip stale claim
+                }
+              }
+              claims[doc.id] = data;
             });
-            setEnroutes(prev => {
+            // Clean up stale claims from Firestore
+            staleIds.forEach(function(item) {
+              db.collection('sharedRoutes').doc(item.routeKey)
+                .collection('enroute').doc(item.id).delete()
+                .catch(function(err) { console.error('Stale cleanup error:', err); });
+            });
+            setEnroutes(function(prev) {
               var merged = Object.assign({}, prev, claims);
               // Remove docs that were deleted
-              snapshot.docChanges().forEach(change => {
+              snapshot.docChanges().forEach(function(change) {
                 if (change.type === 'removed') {
                   delete merged[change.doc.id];
                 }
+              });
+              // Also remove any stale ones from local state
+              staleIds.forEach(function(item) {
+                delete merged[item.id];
               });
               if (JSON.stringify(merged) === JSON.stringify(prev)) return prev;
               return merged;
@@ -1509,9 +1532,15 @@
         );
       }, []);
 
-      const claimEnroute = (siteId, site) => {
+      var claimEnroute = function(siteId, site, onConfirmed) {
         var routeKey = (!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
         var displayName = user.displayName || user.email.split('@')[0];
+        // Check if someone else is already en-route
+        var existing = enroutes[siteId];
+        if (existing && existing.userId !== user.uid) {
+          var go = confirm('Heads up — ' + existing.userName + ' is already heading to this site. Go anyway?');
+          if (!go) return; // Don't navigate and don't claim
+        }
         db.collection('sharedRoutes').doc(routeKey)
           .collection('enroute').doc(siteId).set({
             userId: user.uid,
@@ -1519,6 +1548,8 @@
             userPhoto: avatarURL || user.photoURL || null,
             startedAt: firebase.firestore.FieldValue.serverTimestamp()
           }).catch(function(err) { console.error('En-route claim error:', err); });
+        // Open navigation after claiming
+        if (onConfirmed) onConfirmed();
       };
 
       const cancelEnroute = (siteId, site) => {
@@ -1734,7 +1765,7 @@
                     noteCount={noteCounts[`${(!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_')}_${site.id}`] || 0}
                     onOpenNotes={() => setActiveNoteSite(site)}
                     enrouteInfo={enroutes[site.id]}
-                    onClaimEnroute={function() { claimEnroute(site.id, site); }}
+                    onClaimEnroute={function(cb) { claimEnroute(site.id, site, cb); }}
                     onCancelEnroute={function() { cancelEnroute(site.id, site); }} />
                 ))
               )}
