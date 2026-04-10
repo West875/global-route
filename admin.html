@@ -67,6 +67,7 @@
       completions: [],
       sites: [],
       notes: {},
+      expandedId: null,
       kmzFiles: [],
       searchQuery: '',
       editingSite: null,
@@ -554,6 +555,11 @@
         '<div style="font-size:1.75rem;font-weight:bold;">' + value + '</div></div></div></div>';
     }
 
+    // ── DETAIL TOGGLE ──
+    function toggleDetail(id) {
+      setState({ expandedId: state.expandedId === id ? null : id });
+    }
+
     // ── USERS ──
     function renderUsers() {
       var filtered = state.users.filter(function(u) {
@@ -567,28 +573,68 @@
         '<input class="search-box" placeholder="🔍 Search users..." value="' + (state.searchQuery || '') + '" oninput="setState({searchQuery:this.value})" />' +
         '</div>';
 
-      html += '<div class="stat-card" style="overflow-x:auto;"><table class="admin-table"><thead><tr>' +
-        '<th>User</th><th>Email</th><th>Role</th><th>Joined</th><th>Completions</th><th>Status</th><th>Actions</th>' +
-        '</tr></thead><tbody>';
-
       filtered.forEach(function(u) {
         var completionCount = state.completions.filter(function(c) { return c.completedBy === u.id; }).length;
         var role = u.role || 'user';
         var disabled = u.disabled || false;
-        html += '<tr>' +
-          '<td><div style="display:flex;align-items:center;gap:10px;">' + avatarHTML(u, 'sm') + '<span style="font-weight:500;">' + (u.displayName || 'No Name') + '</span></div></td>' +
-          '<td style="color:#a6adbb;font-size:0.85rem;">' + (u.email || 'N/A') + '</td>' +
-          '<td><span class="' + (role === 'admin' ? 'badge-admin' : 'badge-user') + '">' + role + '</span></td>' +
-          '<td style="font-size:0.85rem;">' + formatDate(u.createdAt) + '</td>' +
-          '<td style="text-align:center;font-weight:bold;">' + completionCount + '</td>' +
-          '<td>' + (disabled ? '<span style="color:#f87272;">Disabled</span>' : '<span style="color:#36d399;">Active</span>') + '</td>' +
-          '<td><div style="display:flex;gap:4px;">' +
-          '<button class="btn btn-ghost btn-xs" onclick="toggleUserDisabled(\'' + u.id + '\',' + disabled + ')" title="' + (disabled ? 'Enable' : 'Disable') + '">' + (disabled ? '✅' : '🚫') + '</button>' +
-          '<button class="btn btn-ghost btn-xs" onclick="deleteUser(\'' + u.id + '\',\'' + (u.email || '') + '\')" title="Delete">🗑️</button>' +
-          '</div></td></tr>';
+        var isExpanded = state.expandedId === 'user_' + u.id;
+        var userCompletions = state.completions.filter(function(c) { return c.completedBy === u.id; });
+
+        html += '<div class="stat-card" style="margin-bottom:10px;cursor:pointer;border-left:3px solid ' + (disabled ? '#f87272' : '#36d399') + ';transition:all 0.2s;" onclick="toggleDetail(\'user_' + u.id + '\')">';
+
+        // Summary row (always visible)
+        html += '<div style="display:flex;align-items:center;gap:12px;">' +
+          avatarHTML(u, 'sm') +
+          '<div style="flex:1;min-width:0;">' +
+            '<div style="font-weight:600;font-size:1rem;">' + (u.displayName || 'No Name') + '</div>' +
+            '<div style="font-size:0.8rem;color:#a6adbb;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (u.email || 'N/A') + '</div>' +
+          '</div>' +
+          '<div style="text-align:right;">' +
+            '<span class="' + (role === 'admin' ? 'badge-admin' : 'badge-user') + '">' + role + '</span>' +
+            '<div style="font-size:0.75rem;color:#a6adbb;margin-top:4px;">' + completionCount + ' ✅</div>' +
+          '</div>' +
+          '<div style="font-size:1.2rem;color:#a6adbb;transition:transform 0.2s;transform:rotate(' + (isExpanded ? '180' : '0') + 'deg);">▼</div>' +
+        '</div>';
+
+        // Expanded detail
+        if (isExpanded) {
+          html += '<div style="margin-top:14px;padding-top:14px;border-top:1px solid #2a323c;" onclick="event.stopPropagation()">';
+
+          // Info grid
+          html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">' +
+            '<div style="background:#1d232a;border-radius:8px;padding:10px;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Status</div><div style="font-weight:600;color:' + (disabled ? '#f87272' : '#36d399') + ';">' + (disabled ? '🚫 Disabled' : '✅ Active') + '</div></div>' +
+            '<div style="background:#1d232a;border-radius:8px;padding:10px;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Joined</div><div style="font-weight:500;">' + formatDate(u.createdAt) + '</div></div>' +
+            '<div style="background:#1d232a;border-radius:8px;padding:10px;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Completions</div><div style="font-weight:600;font-size:1.2rem;color:#36d399;">' + completionCount + '</div></div>' +
+            '<div style="background:#1d232a;border-radius:8px;padding:10px;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">User ID</div><div style="font-size:0.7rem;word-break:break-all;">' + u.id + '</div></div>' +
+          '</div>';
+
+          // Recent completions by this user
+          if (userCompletions.length > 0) {
+            html += '<div style="margin-bottom:14px;"><div style="font-weight:600;font-size:0.85rem;margin-bottom:8px;">📍 Completed Sites:</div>';
+            userCompletions.slice(0, 10).forEach(function(c) {
+              var siteObj = state.sites.find(function(s) { return s.id === c.siteId; });
+              var siteName = siteObj ? (siteObj.name || c.siteId) : c.siteId;
+              html += '<div style="display:flex;justify-content:space-between;padding:6px 8px;background:#1d232a;border-radius:6px;margin-bottom:4px;font-size:0.85rem;">' +
+                '<span>📍 ' + siteName + '</span><span style="color:#a6adbb;font-size:0.75rem;">' + formatDateTime(c.completedAt) + '</span></div>';
+            });
+            html += '</div>';
+          }
+
+          // Action buttons
+          html += '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+            '<button class="btn btn-sm" style="background:#2a323c;border:none;color:#fff;" onclick="toggleUserDisabled(\'' + u.id + '\',' + disabled + ')">' + (disabled ? '✅ Enable User' : '🚫 Disable User') + '</button>' +
+            '<button class="btn btn-sm" style="background:#f8727233;border:1px solid #f87272;color:#f87272;" onclick="deleteUser(\'' + u.id + '\',\'' + (u.email || '') + '\')">🗑️ Delete User</button>' +
+          '</div>';
+          html += '</div>';
+        }
+
+        html += '</div>';
       });
 
-      html += '</tbody></table></div>';
+      if (filtered.length === 0) {
+        html += '<div class="stat-card"><p style="color:#a6adbb;">No users found.</p></div>';
+      }
+
       return html;
     }
 
@@ -629,7 +675,7 @@
         html += '<div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;">';
         topUsers.forEach(function(u, i) {
           var medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '🏅';
-          html += '<div class="stat-card" style="flex:1;min-width:150px;">' +
+          html += '<div class="stat-card" style="flex:1;min-width:120px;">' +
             '<div style="text-align:center;">' + medal +
             '<div style="margin:8px 0;">' + (u.user ? avatarHTML(u.user, 'sm') : '') + '</div>' +
             '<div style="font-weight:500;font-size:0.85rem;">' + u.name + '</div>' +
@@ -639,31 +685,71 @@
         html += '</div>';
       }
 
-      // Activity log
-      html += '<div class="stat-card" style="overflow-x:auto;"><table class="admin-table"><thead><tr>' +
-        '<th>User</th><th>Site</th><th>Date</th>' +
-        '</tr></thead><tbody>';
-
-      filtered.slice(0, 50).forEach(function(c) {
+      // Activity cards
+      filtered.slice(0, 50).forEach(function(c, i) {
         var user = state.users.find(function(u) { return u.id === c.completedBy; });
         var userName = user ? (user.displayName || user.email) : (c.completedByName || 'Unknown');
         var siteName = c.siteId || 'Unknown';
         var siteObj = state.sites.find(function(s) { return s.id === c.siteId; });
         if (siteObj) siteName = siteObj.name || siteName;
+        var siteAddress = siteObj ? (siteObj.address || '') : '';
+        var siteStatus = siteObj ? (siteObj.status || '') : '';
         var photoHTML = c.completedByPhoto
-          ? '<img src="' + c.completedByPhoto + '" style="width:32px;height:32px;border-radius:50%;object-fit:cover;" />'
-          : (user ? avatarHTML(user, 'sm') : '');
-        html += '<tr><td><div style="display:flex;align-items:center;gap:8px;">' +
-          photoHTML + '<span>' + userName + '</span></div></td>' +
-          '<td>' + siteName + '</td>' +
-          '<td style="font-size:0.85rem;color:#a6adbb;">' + formatDateTime(c.completedAt) + '</td></tr>';
+          ? '<img src="' + c.completedByPhoto + '" style="width:40px;height:40px;border-radius:50%;object-fit:cover;" />'
+          : (user ? avatarHTML(user, 'md') : '<div style="width:40px;height:40px;border-radius:50%;background:#2a323c;display:flex;align-items:center;justify-content:center;">👤</div>');
+        var isExpanded = state.expandedId === 'act_' + i;
+
+        html += '<div class="stat-card" style="margin-bottom:8px;cursor:pointer;border-left:3px solid #36d399;transition:all 0.2s;" onclick="toggleDetail(\'act_' + i + '\')">';
+
+        // Summary
+        html += '<div style="display:flex;align-items:center;gap:12px;">' +
+          photoHTML +
+          '<div style="flex:1;min-width:0;">' +
+            '<div style="font-weight:600;">' + userName + '</div>' +
+            '<div style="font-size:0.8rem;color:#a6adbb;">📍 ' + siteName + '</div>' +
+          '</div>' +
+          '<div style="text-align:right;">' +
+            '<div style="font-size:0.75rem;color:#a6adbb;">' + formatDateTime(c.completedAt) + '</div>' +
+            '<div style="color:#36d399;font-size:0.85rem;">✅ Done</div>' +
+          '</div>' +
+          '<div style="font-size:1.2rem;color:#a6adbb;transition:transform 0.2s;transform:rotate(' + (isExpanded ? '180' : '0') + 'deg);">▼</div>' +
+        '</div>';
+
+        // Expanded
+        if (isExpanded) {
+          html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #2a323c;">';
+          html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+            '<div style="background:#1d232a;border-radius:8px;padding:10px;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Site ID</div><div style="font-weight:600;">' + (c.siteId || '—') + '</div></div>' +
+            '<div style="background:#1d232a;border-radius:8px;padding:10px;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Completed</div><div style="font-weight:500;font-size:0.85rem;">' + formatDateTime(c.completedAt) + '</div></div>';
+          if (siteAddress) {
+            html += '<div style="background:#1d232a;border-radius:8px;padding:10px;grid-column:span 2;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Address</div><div style="font-size:0.9rem;">' + siteAddress + '</div></div>';
+          }
+          if (siteStatus) {
+            html += '<div style="background:#1d232a;border-radius:8px;padding:10px;grid-column:span 2;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Site Status</div><div><span class="badge badge-sm ' + (siteStatus.indexOf('Existing') !== -1 ? 'badge-success' : 'badge-warning') + '">' + siteStatus + '</span></div></div>';
+          }
+          html += '</div>';
+
+          // User info
+          if (user) {
+            html += '<div style="margin-top:10px;background:#1d232a;border-radius:8px;padding:10px;display:flex;align-items:center;gap:10px;">' +
+              avatarHTML(user, 'sm') +
+              '<div><div style="font-weight:500;">' + (user.displayName || 'No Name') + '</div>' +
+              '<div style="font-size:0.75rem;color:#a6adbb;">' + (user.email || '') + '</div></div></div>';
+          }
+          html += '</div>';
+        }
+
+        html += '</div>';
       });
 
       if (filtered.length > 50) {
-        html += '<tr><td colspan="3" style="text-align:center;color:#a6adbb;">... and ' + (filtered.length - 50) + ' more</td></tr>';
+        html += '<div class="stat-card" style="text-align:center;color:#a6adbb;">... and ' + (filtered.length - 50) + ' more completions</div>';
       }
 
-      html += '</tbody></table></div>';
+      if (filtered.length === 0) {
+        html += '<div class="stat-card"><p style="color:#a6adbb;">No activity found.</p></div>';
+      }
+
       return html;
     }
 
@@ -701,27 +787,93 @@
           '</div></div>';
       }
 
-      html += '<div class="stat-card" style="overflow-x:auto;"><table class="admin-table"><thead><tr>' +
-        '<th>Site ID</th><th>Address</th><th>Coordinates</th><th>Status</th><th>Completed</th><th>Notes</th><th>Actions</th>' +
-        '</tr></thead><tbody>';
-
       filtered.forEach(function(s) {
         var completedBy = state.completions.filter(function(c) { return c.siteId === s.id; });
         var noteCount = (state.notes[s.id] || state.notes[s.name] || []).length;
-        html += '<tr>' +
-          '<td style="font-weight:500;">' + (s.name || 'Unnamed') + '</td>' +
-          '<td style="font-size:0.85rem;max-width:220px;">' + (s.address || '—') + '</td>' +
-          '<td style="font-size:0.8rem;color:#a6adbb;">' + (s.lat || '?') + ', ' + (s.lng || s.lon || '?') + '</td>' +
-          '<td><span class="badge badge-sm ' + ((s.status || '').indexOf('Existing') !== -1 ? 'badge-success' : 'badge-warning') + '">' + ((s.status || '').indexOf('Existing') !== -1 ? 'Existing' : 'RTM') + '</span></td>' +
-          '<td>' + (completedBy.length > 0 ? '<span style="color:#36d399;font-weight:bold;">' + completedBy.length + ' ✓</span>' : '<span style="color:#a6adbb;">—</span>') + '</td>' +
-          '<td>' + (noteCount > 0 ? noteCount + ' 💬' : '—') + '</td>' +
-          '<td><div style="display:flex;gap:4px;">' +
-          '<button class="btn btn-ghost btn-xs" onclick="editSite(\'' + s.id + '\')">✏️</button>' +
-          '<button class="btn btn-ghost btn-xs" onclick="deleteSite(\'' + s.id + '\',\'' + (s.name || '').replace(/'/g, "\\'") + '\')">🗑️</button>' +
-          '</div></td></tr>';
+        var isExisting = (s.status || '').indexOf('Existing') !== -1;
+        var isExpanded = state.expandedId === 'site_' + s.id;
+        var borderColor = completedBy.length > 0 ? '#36d399' : (isExisting ? '#570df8' : '#f59e0b');
+        var siteNotes = state.notes[s.id] || [];
+
+        html += '<div class="stat-card" style="margin-bottom:8px;cursor:pointer;border-left:3px solid ' + borderColor + ';transition:all 0.2s;" onclick="toggleDetail(\'site_' + s.id + '\')">';
+
+        // Summary
+        html += '<div style="display:flex;align-items:center;gap:12px;">' +
+          '<div style="font-size:1.5rem;">' + (completedBy.length > 0 ? '✅' : '📍') + '</div>' +
+          '<div style="flex:1;min-width:0;">' +
+            '<div style="font-weight:600;">' + (s.name || 'Unnamed') + '</div>' +
+            '<div style="font-size:0.8rem;color:#a6adbb;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (s.address || '—') + '</div>' +
+          '</div>' +
+          '<div style="text-align:right;">' +
+            '<span class="badge badge-sm ' + (isExisting ? 'badge-success' : 'badge-warning') + '">' + (isExisting ? 'Existing' : 'RTM') + '</span>' +
+            '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">' +
+              (completedBy.length > 0 ? '<span style="color:#36d399;font-size:0.8rem;font-weight:bold;">' + completedBy.length + ' ✓</span>' : '') +
+              (noteCount > 0 ? '<span style="font-size:0.8rem;">' + noteCount + ' 💬</span>' : '') +
+            '</div>' +
+          '</div>' +
+          '<div style="font-size:1.2rem;color:#a6adbb;transition:transform 0.2s;transform:rotate(' + (isExpanded ? '180' : '0') + 'deg);">▼</div>' +
+        '</div>';
+
+        // Expanded
+        if (isExpanded) {
+          html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #2a323c;" onclick="event.stopPropagation()">';
+
+          // Info grid
+          html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">' +
+            '<div style="background:#1d232a;border-radius:8px;padding:10px;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Site ID</div><div style="font-weight:600;">' + (s.name || s.id) + '</div></div>' +
+            '<div style="background:#1d232a;border-radius:8px;padding:10px;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Status</div><div><span class="badge badge-sm ' + (isExisting ? 'badge-success' : 'badge-warning') + '">' + (s.status || 'Unknown') + '</span></div></div>' +
+            '<div style="background:#1d232a;border-radius:8px;padding:10px;grid-column:span 2;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Address</div><div style="font-size:0.9rem;">' + (s.address || '—') + '</div></div>' +
+            '<div style="background:#1d232a;border-radius:8px;padding:10px;grid-column:span 2;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Coordinates</div><div style="font-size:0.85rem;">' + (s.lat || '?') + ', ' + (s.lng || s.lon || '?') + '</div></div>' +
+          '</div>';
+
+          // Who completed it
+          if (completedBy.length > 0) {
+            html += '<div style="margin-bottom:12px;"><div style="font-weight:600;font-size:0.85rem;margin-bottom:8px;">👷 Completed By:</div>';
+            completedBy.forEach(function(c) {
+              var user = state.users.find(function(u) { return u.id === c.completedBy; });
+              var userName = user ? (user.displayName || user.email) : (c.completedByName || 'Unknown');
+              var photoHTML = c.completedByPhoto
+                ? '<img src="' + c.completedByPhoto + '" style="width:32px;height:32px;border-radius:50%;object-fit:cover;" />'
+                : (user ? avatarHTML(user, 'sm') : '');
+              html += '<div style="display:flex;align-items:center;gap:10px;padding:8px;background:#1d232a;border-radius:8px;margin-bottom:4px;">' +
+                photoHTML +
+                '<div style="flex:1;"><div style="font-weight:500;font-size:0.9rem;">' + userName + '</div></div>' +
+                '<div style="font-size:0.75rem;color:#a6adbb;">' + formatDateTime(c.completedAt) + '</div></div>';
+            });
+            html += '</div>';
+          } else {
+            html += '<div style="background:#f59e0b22;border:1px solid #f59e0b44;border-radius:8px;padding:10px;margin-bottom:12px;text-align:center;color:#f59e0b;">⏳ Not yet completed</div>';
+          }
+
+          // Notes preview
+          if (siteNotes.length > 0) {
+            html += '<div style="margin-bottom:12px;"><div style="font-weight:600;font-size:0.85rem;margin-bottom:8px;">💬 Notes (' + siteNotes.length + '):</div>';
+            siteNotes.slice(0, 5).forEach(function(n) {
+              html += '<div style="background:#1d232a;border-radius:8px;padding:8px 10px;margin-bottom:4px;">' +
+                '<div style="display:flex;justify-content:space-between;margin-bottom:4px;">' +
+                  '<span style="font-weight:500;font-size:0.8rem;">' + (n.authorName || 'Unknown') + '</span>' +
+                  '<span style="font-size:0.7rem;color:#a6adbb;">' + formatDateTime(n.createdAt) + '</span>' +
+                '</div>' +
+                '<div style="font-size:0.85rem;color:#ccc;">' + (n.text || n.message || '') + '</div></div>';
+            });
+            html += '</div>';
+          }
+
+          // Actions
+          html += '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+            '<button class="btn btn-sm" style="background:#570df8;border:none;color:#fff;" onclick="editSite(\'' + s.id + '\')">✏️ Edit Site</button>' +
+            '<button class="btn btn-sm" style="background:#f8727233;border:1px solid #f87272;color:#f87272;" onclick="deleteSite(\'' + s.id + '\',\'' + (s.name || '').replace(/'/g, "\\'") + '\')">🗑️ Delete</button>' +
+          '</div>';
+          html += '</div>';
+        }
+
+        html += '</div>';
       });
 
-      html += '</tbody></table></div>';
+      if (filtered.length === 0) {
+        html += '<div class="stat-card"><p style="color:#a6adbb;">No sites found.</p></div>';
+      }
+
       return html;
     }
 
@@ -794,23 +946,43 @@
         return html;
       }
 
-      html += '<div class="stat-card" style="overflow-x:auto;"><table class="admin-table"><thead><tr>' +
-        '<th>File Name</th><th>Uploaded By</th><th>Sites</th><th>Date</th><th>Actions</th>' +
-        '</tr></thead><tbody>';
-
-      state.kmzFiles.forEach(function(f) {
+      state.kmzFiles.forEach(function(f, i) {
         var user = state.users.find(function(u) { return u.id === f.userId; });
         var userName = user ? (user.displayName || user.email) : (f.userName || 'Unknown');
-        html += '<tr>' +
-          '<td style="font-weight:500;">📄 ' + (f.name || f.fileName || 'Untitled') + '</td>' +
-          '<td><div style="display:flex;align-items:center;gap:8px;">' + (user ? avatarHTML(user, 'sm') : '') + userName + '</div></td>' +
-          '<td>' + (f.siteCount || '?') + ' sites</td>' +
-          '<td style="font-size:0.85rem;color:#a6adbb;">' + formatDate(f.uploadedAt || f.createdAt) + '</td>' +
-          '<td><button class="btn btn-ghost btn-xs" onclick="deleteKmz(\'' + f.id + '\',\'' + (f.name || f.fileName || '').replace(/'/g, "\\'") + '\')">🗑️</button></td>' +
-          '</tr>';
+        var isExpanded = state.expandedId === 'kmz_' + i;
+
+        html += '<div class="stat-card" style="margin-bottom:8px;cursor:pointer;border-left:3px solid #3abff8;transition:all 0.2s;" onclick="toggleDetail(\'kmz_' + i + '\')">';
+
+        // Summary
+        html += '<div style="display:flex;align-items:center;gap:12px;">' +
+          '<div style="font-size:1.5rem;">📄</div>' +
+          '<div style="flex:1;min-width:0;">' +
+            '<div style="font-weight:600;">' + (f.name || f.fileName || 'Untitled') + '</div>' +
+            '<div style="font-size:0.8rem;color:#a6adbb;">by ' + userName + '</div>' +
+          '</div>' +
+          '<div style="text-align:right;">' +
+            '<div style="font-weight:bold;color:#3abff8;">' + (f.siteCount || '?') + ' sites</div>' +
+            '<div style="font-size:0.75rem;color:#a6adbb;">' + formatDate(f.uploadedAt || f.createdAt) + '</div>' +
+          '</div>' +
+          '<div style="font-size:1.2rem;color:#a6adbb;transition:transform 0.2s;transform:rotate(' + (isExpanded ? '180' : '0') + 'deg);">▼</div>' +
+        '</div>';
+
+        // Expanded
+        if (isExpanded) {
+          html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #2a323c;" onclick="event.stopPropagation()">';
+          html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">' +
+            '<div style="background:#1d232a;border-radius:8px;padding:10px;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">File Name</div><div style="font-weight:500;word-break:break-all;">' + (f.name || f.fileName || 'Untitled') + '</div></div>' +
+            '<div style="background:#1d232a;border-radius:8px;padding:10px;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Sites</div><div style="font-weight:600;font-size:1.2rem;color:#3abff8;">' + (f.siteCount || '?') + '</div></div>' +
+            '<div style="background:#1d232a;border-radius:8px;padding:10px;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Uploaded</div><div style="font-size:0.85rem;">' + formatDate(f.uploadedAt || f.createdAt) + '</div></div>' +
+            '<div style="background:#1d232a;border-radius:8px;padding:10px;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Uploaded By</div><div style="display:flex;align-items:center;gap:6px;">' + (user ? avatarHTML(user, 'sm') : '') + '<span style="font-size:0.85rem;">' + userName + '</span></div></div>' +
+          '</div>';
+          html += '<button class="btn btn-sm" style="background:#f8727233;border:1px solid #f87272;color:#f87272;" onclick="deleteKmz(\'' + f.id + '\',\'' + (f.name || f.fileName || '').replace(/'/g, "\\'") + '\')">🗑️ Delete KMZ</button>';
+          html += '</div>';
+        }
+
+        html += '</div>';
       });
 
-      html += '</tbody></table></div>';
       return html;
     }
 
