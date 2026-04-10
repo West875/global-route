@@ -838,9 +838,13 @@
               ${closedByHtml}
               <br>
               <button onclick="(function(){
-                var s = (window.__allSites || []).find(function(x){ return x.id === '${site.id}'; });
-                if (!s) { window.open('${directionsUrl(site)}', '_blank'); return; }
-                window.__claimEnroute('${site.id}', s, function(){ window.open('${directionsUrl(site)}', '_blank'); });
+                try {
+                  alert('Button clicked for ${site.id}. __claimEnroute exists: ' + (typeof window.__claimEnroute === 'function'));
+                  var s = (window.__allSites || []).find(function(x){ return x.id === '${site.id}'; });
+                  alert('Site found: ' + (s ? 'YES' : 'NO') + ', allSites length: ' + (window.__allSites || []).length);
+                  if (!s) { window.open('${directionsUrl(site)}', '_blank'); return; }
+                  window.__claimEnroute('${site.id}', s, function(){ window.open('${directionsUrl(site)}', '_blank'); });
+                } catch(e) { alert('ERROR: ' + e.message); }
               })()"
                 style="display:inline-block;background:#570df8;color:white;padding:6px 14px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;">
                 🗺️ Get Directions
