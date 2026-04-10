@@ -819,17 +819,32 @@
               </div>`;
           }
 
+          var enrouteHtml = '';
+          if (isEnroute && !isVisited && !isSharedComplete) {
+            var erName = isEnroute.userName || 'Teammate';
+            var erPhoto = isEnroute.userPhoto;
+            var erAvatarHtml = erPhoto
+              ? '<img src="' + erPhoto + '" style="width:24px;height:24px;border-radius:50%;object-fit:cover;border:2px solid #fff;flex-shrink:0;" referrerPolicy="no-referrer" />'
+              : '<div style="width:24px;height:24px;border-radius:50%;background:#fff3;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:11px;flex-shrink:0;">' + erName.charAt(0).toUpperCase() + '</div>';
+            enrouteHtml = '<div style="background:#f59e0b;color:#fff;padding:6px 8px;border-radius:6px;margin-bottom:6px;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;">' + erAvatarHtml + ' 🚗 ' + erName + ' is en-route</div>';
+          }
+
           const popup = `
             <div style="min-width:200px;font-family:system-ui;">
               ${currentBadge}
+              ${enrouteHtml}
               <b style="font-size:14px;">${site.id}</b> ${sourceBadge}<br>
               <span style="color:#888;font-size:12px;">${site.address}</span>${distText}
               ${closedByHtml}
               <br>
-              <a href="${directionsUrl(site)}" target="_blank" rel="noopener"
-                style="display:inline-block;background:#570df8;color:white;padding:6px 14px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
+              <button onclick="(function(){
+                var s = (window.__allSites || []).find(function(x){ return x.id === '${site.id}'; });
+                if (!s) { window.open('${directionsUrl(site)}', '_blank'); return; }
+                window.__claimEnroute('${site.id}', s, function(){ window.open('${directionsUrl(site)}', '_blank'); });
+              })()"
+                style="display:inline-block;background:#570df8;color:white;padding:6px 14px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;">
                 🗺️ Get Directions
-              </a>
+              </button>
             </div>
           `;
           L.marker([site.lat, site.lon], { icon }).addTo(sitesLayerRef.current).bindPopup(popup);
@@ -1583,6 +1598,10 @@
             doClaimAndNavigate(siteId, site, onConfirmed);
           });
       };
+
+      // Expose claimEnroute globally so map popups (plain HTML) can use it
+      window.__claimEnroute = claimEnroute;
+      window.__allSites = filteredSites;
 
       const cancelEnroute = (siteId, site) => {
         var routeKey = (!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
