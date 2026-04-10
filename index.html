@@ -728,7 +728,7 @@
     }
 
     // ── Leaflet Map Component ──
-    const SiteMap = React.memo(function SiteMap({ sites, userLoc, visited, sharedCompletions, currentTargetId, myAvatarURL, myPhotoURL }) {
+    const SiteMap = React.memo(function SiteMap({ sites, userLoc, visited, sharedCompletions, currentTargetId, myAvatarURL, myPhotoURL, enroutes }) {
       const mapRef = useRef(null);
       const mapInstanceRef = useRef(null);
       const userLayerRef = useRef(null);
@@ -777,10 +777,12 @@
           const isSharedComplete = sharedCompletions[site.id];
           const isCurrent = site.id === currentTargetId;
 
+          var isEnroute = enroutes && enroutes[site.id];
           let color = isImported ? '#f59e0b' : (isExisting ? '#22c55e' : '#ef4444');
           let borderColor = 'white';
           let size = 14;
           if (isCurrent) { color = '#a855f7'; borderColor = '#fbbf24'; size = 20; }
+          if (isEnroute && !isVisited && !isSharedComplete) { color = '#f59e0b'; borderColor = '#fff'; size = 18; }
           if (isVisited || isSharedComplete) { color = '#6b7280'; }
 
           const icon = L.divIcon({
@@ -840,13 +842,13 @@
           mapInstanceRef.current.fitBounds(bounds, { padding: [30, 30] });
           hasInitFit.current = true;
         }
-      }, [sites, visited, sharedCompletions, currentTargetId]);
+      }, [sites, visited, sharedCompletions, currentTargetId, enroutes]);
 
       return <div id="map-container" ref={mapRef}></div>;
     });
 
     // ── Site Card ──
-    function SiteCard({ site, index, total, isCurrent, isVisited, sharedCompletion, onMarkVisited, onUndoVisit, myAvatarURL, myPhotoURL, noteCount, onOpenNotes, currentUserId }) {
+    function SiteCard({ site, index, total, isCurrent, isVisited, sharedCompletion, onMarkVisited, onUndoVisit, myAvatarURL, myPhotoURL, noteCount, onOpenNotes, currentUserId, enrouteInfo, onClaimEnroute, onCancelEnroute }) {
       const isExisting = site.status.includes('Existing Cabinet');
       const isImported = site.source && site.source !== 'builtin';
       const isCompleted = isVisited || sharedCompletion;
@@ -863,6 +865,17 @@
       return (
         <div className={`card bg-base-200 shadow-md fade-in ${isCurrent ? 'ring-2 ring-primary' : ''} ${isCompleted ? 'opacity-60' : ''}`}>
           <div className="card-body p-4 gap-2">
+            {enrouteInfo && (
+              <div style={{background: enrouteInfo.userId === currentUserId ? '#f59e0b' : '#3b82f6', color: '#fff', padding: '6px 10px', borderRadius: '6px', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px'}}>
+                {enrouteInfo.userPhoto && <img src={enrouteInfo.userPhoto} style={{width: '24px', height: '24px', borderRadius: '50%', border: '2px solid #fff'}} referrerPolicy="no-referrer" />}
+                <span style={{fontWeight: 600}}>
+                  {enrouteInfo.userId === currentUserId ? '🚗 You are en-route!' : '🚗 ' + enrouteInfo.userName + ' is en-route'}
+                </span>
+                {enrouteInfo.userId === currentUserId && (
+                  <button onClick={function(e) { e.stopPropagation(); onCancelEnroute(); }} style={{marginLeft: 'auto', background: 'rgba(255,255,255,0.3)', border: 'none', borderRadius: '4px', padding: '2px 8px', color: '#fff', cursor: 'pointer', fontSize: '12px'}}>Cancel</button>
+                )}
+              </div>
+            )}
             <div className="flex items-center justify-between flex-wrap gap-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="badge badge-sm badge-outline font-mono">#{index + 1} of {total}</span>
@@ -911,7 +924,8 @@
             )}
 
             <div className="flex gap-2 mt-2">
-              <a href={directionsUrl(site)} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm flex-1">
+              <a href={directionsUrl(site)} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm flex-1"
+                onClick={onClaimEnroute}>
                 <NavIcon size={14} /> Get Directions <ExternalIcon />
               </a>
               <button className="btn btn-outline btn-info btn-sm relative" onClick={onOpenNotes} title="Notes">
@@ -1286,6 +1300,7 @@
       const [isIOS, setIsIOS] = useState(false);
       const [isStandalone, setIsStandalone] = useState(false);
       const [noteCounts, setNoteCounts] = useState({});
+      const [enroutes, setEnroutes] = useState({});
       const [activeNoteSite, setActiveNoteSite] = useState(null);
 
 
@@ -1357,6 +1372,29 @@
         return unsub;
       }, []);
 
+      // ── Listen for en-route claims (builtin route) ──
+      useEffect(() => {
+        const unsub = db.collection('sharedRoutes').doc('builtin')
+          .collection('enroute').onSnapshot((snapshot) => {
+            const claims = {};
+            snapshot.forEach(doc => {
+              claims[doc.id] = doc.data();
+            });
+            setEnroutes(prev => {
+              var merged = Object.assign({}, prev, claims);
+              // Remove docs that were deleted
+              snapshot.docChanges().forEach(change => {
+                if (change.type === 'removed') {
+                  delete merged[change.doc.id];
+                }
+              });
+              if (JSON.stringify(merged) === JSON.stringify(prev)) return prev;
+              return merged;
+            });
+          });
+        return unsub;
+      }, []);
+
       // ── Listen for shared completions on imported files ──
       useEffect(() => {
         if (importedFiles.length === 0) return;
@@ -1373,6 +1411,29 @@
             });
         });
         return () => unsubs.forEach(u => u());
+      }, [importedFiles]);
+
+      // ── Listen for en-route claims on imported files ──
+      useEffect(() => {
+        if (importedFiles.length === 0) return;
+        var unsubs = importedFiles.map(function(f) {
+          return db.collection('sharedRoutes').doc(f.name.replace(/[^a-zA-Z0-9-_]/g, '_'))
+            .collection('enroute').onSnapshot(function(snapshot) {
+              var claims = {};
+              snapshot.forEach(function(doc) { claims[doc.id] = doc.data(); });
+              setEnroutes(function(prev) {
+                var merged = Object.assign({}, prev, claims);
+                snapshot.docChanges().forEach(function(change) {
+                  if (change.type === 'removed') {
+                    delete merged[change.doc.id];
+                  }
+                });
+                if (JSON.stringify(merged) === JSON.stringify(prev)) return prev;
+                return merged;
+              });
+            });
+        });
+        return function() { unsubs.forEach(function(u) { u(); }); };
       }, [importedFiles]);
 
       // ── Listen for note counts across all sites ──
@@ -1448,6 +1509,25 @@
         );
       }, []);
 
+      const claimEnroute = (siteId, site) => {
+        var routeKey = (!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
+        var displayName = user.displayName || user.email.split('@')[0];
+        db.collection('sharedRoutes').doc(routeKey)
+          .collection('enroute').doc(siteId).set({
+            userId: user.uid,
+            userName: displayName,
+            userPhoto: avatarURL || user.photoURL || null,
+            startedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }).catch(function(err) { console.error('En-route claim error:', err); });
+      };
+
+      const cancelEnroute = (siteId, site) => {
+        var routeKey = (!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
+        db.collection('sharedRoutes').doc(routeKey)
+          .collection('enroute').doc(siteId).delete()
+          .catch(function(err) { console.error('Cancel en-route error:', err); });
+      };
+
       const markVisited = (siteId, site) => {
         const newVisited = new Set(visited);
         newVisited.add(siteId);
@@ -1466,6 +1546,10 @@
         db.collection('sharedRoutes').doc(routeKey)
           .collection('completions').doc(siteId).set(completionData)
           .catch(err => console.error('Shared completion error:', err));
+        // Clear en-route claim when completing
+        db.collection('sharedRoutes').doc(routeKey)
+          .collection('enroute').doc(siteId).delete()
+          .catch(function(err) { console.error('Clear en-route error:', err); });
       };
 
       const undoVisit = (siteId, site) => {
@@ -1631,7 +1715,7 @@
 
           {/* Content */}
           {view === 'map' ? (
-            <SiteMap sites={filteredSites} userLoc={userLoc} visited={visited} sharedCompletions={sharedCompletions} currentTargetId={currentTargetId} myAvatarURL={avatarURL} myPhotoURL={user.photoURL}  />
+            <SiteMap sites={filteredSites} userLoc={userLoc} visited={visited} sharedCompletions={sharedCompletions} currentTargetId={currentTargetId} myAvatarURL={avatarURL} myPhotoURL={user.photoURL} enroutes={enroutes}  />
           ) : (
             <div className="flex flex-col gap-3 p-4 pb-24">
               {filteredSites.length === 0 ? (
@@ -1648,7 +1732,10 @@
                     currentUserId={user.uid}
                     myAvatarURL={avatarURL} myPhotoURL={user.photoURL}
                     noteCount={noteCounts[`${(!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_')}_${site.id}`] || 0}
-                    onOpenNotes={() => setActiveNoteSite(site)} />
+                    onOpenNotes={() => setActiveNoteSite(site)}
+                    enrouteInfo={enroutes[site.id]}
+                    onClaimEnroute={function() { claimEnroute(site.id, site); }}
+                    onCancelEnroute={function() { cancelEnroute(site.id, site); }} />
                 ))
               )}
             </div>
