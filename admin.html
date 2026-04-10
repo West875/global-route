@@ -245,23 +245,33 @@
         setState({ kmzFiles: files });
       }, function(err) { logDataError('kmzFiles', err); });
 
-      // Load all notes using collectionGroup query
+      // Load notes for each known site directly
       // Notes are stored as: siteNotes/{routeKey}_{siteId}/messages/{msgId}
-      // Parent docs in siteNotes may not exist as actual documents, so we query all 'messages' subcollections
-      db.collectionGroup('messages').orderBy('createdAt', 'desc').onSnapshot(function(snap) {
-        console.log('Admin: collectionGroup messages found ' + snap.size + ' notes');
-        var notesBySite = {};
-        snap.forEach(function(msgDoc) {
-          // Parent path: siteNotes/{routeKey}_{siteId}/messages/{msgId}
-          var parentPath = msgDoc.ref.parent.parent.id; // e.g. "builtin_site1"
-          var parts = parentPath.split('_');
-          var siteId = parts.length > 1 ? parts.slice(1).join('_') : parentPath;
-          if (!notesBySite[siteId]) notesBySite[siteId] = [];
-          notesBySite[siteId].push(Object.assign({ id: msgDoc.id, siteId: siteId, siteDocId: parentPath }, msgDoc.data()));
-        });
-        console.log('Admin: notes grouped by', Object.keys(notesBySite).length, 'sites');
-        setState({ notes: notesBySite });
-      }, function(err) { logDataError('notes-collectionGroup', err); });
+      // We query each site's messages subcollection individually to avoid collectionGroup index requirements
+      var siteIds = [
+        'site1','site2','site3','site4','site5','site6','site7','site8','site9','site10',
+        'site11','site12','site13','site14','site15','site16','site17','site18','site19','site20',
+        'site21','site22','site23','site24','site25','site26','site27','site28','site29'
+      ];
+      var notesBySite = {};
+      var notesLoaded = 0;
+      siteIds.forEach(function(siteId) {
+        var docId = 'builtin_' + siteId;
+        db.collection('siteNotes').doc(docId).collection('messages')
+          .orderBy('createdAt', 'desc').onSnapshot(function(msgSnap) {
+            var messages = [];
+            msgSnap.forEach(function(msgDoc) {
+              messages.push(Object.assign({ id: msgDoc.id, siteId: siteId, siteDocId: docId }, msgDoc.data()));
+            });
+            if (messages.length > 0) {
+              console.log('Admin: loaded ' + messages.length + ' notes for ' + siteId);
+            }
+            notesBySite[siteId] = messages;
+            notesLoaded++;
+            // Update state after each site loads
+            setState({ notes: Object.assign({}, notesBySite) });
+          }, function(err) { logDataError('notes-' + siteId, err); });
+      });
 
       // Also try collectionGroup query for completions as fallback diagnostic
       db.collectionGroup('completions').get().then(function(snap) {
