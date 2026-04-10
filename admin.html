@@ -3,1034 +3,877 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Global Route - Admin Back Office</title>
+  <title>Global Route - Admin</title>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; background: #1d232a; min-height: 100vh; }
-    .sidebar { width: 260px; min-height: 100vh; background: #191e24; border-right: 1px solid #2a323c; }
-    .sidebar-item { padding: 12px 20px; cursor: pointer; display: flex; align-items: center; gap: 12px; transition: all 0.15s; border-left: 3px solid transparent; }
-    .sidebar-item:hover { background: #2a323c; }
-    .sidebar-item.active { background: #2a323c; border-left-color: #570df8; color: #570df8; }
-    .stat-card { background: #191e24; border: 1px solid #2a323c; border-radius: 12px; padding: 20px; }
-    .avatar-sm { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; }
-    .avatar-md { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
-    .content-area { flex: 1; padding: 24px; overflow-y: auto; max-height: 100vh; }
-    .admin-table { width: 100%; border-collapse: collapse; }
-    .admin-table th { text-align: left; padding: 12px 16px; border-bottom: 1px solid #2a323c; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #a6adbb; }
-    .admin-table td { padding: 12px 16px; border-bottom: 1px solid #2a323c; }
-    .admin-table tr:hover { background: #2a323c40; }
-    .badge-admin { background: #570df8; color: white; padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; }
-    .badge-user { background: #2a323c; color: #a6adbb; padding: 2px 10px; border-radius: 12px; font-size: 0.75rem; }
-    .search-box { background: #191e24; border: 1px solid #2a323c; border-radius: 8px; padding: 8px 16px; color: white; width: 300px; }
-    .search-box:focus { outline: none; border-color: #570df8; }
-    .note-bubble { background: #2a323c; border-radius: 12px; padding: 12px 16px; margin-bottom: 8px; }
-    .tab-active-custom { border-bottom: 2px solid #570df8; color: #570df8; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #1d232a; min-height: 100vh; margin: 0; -webkit-tap-highlight-color: transparent; }
+    
+    /* Layout */
+    .app-shell { display: flex; height: 100vh; overflow: hidden; }
+    .sidebar { width: 250px; min-height: 100vh; background: #191e24; border-right: 1px solid #2a323c; flex-shrink: 0; display: flex; flex-direction: column; }
+    .content-area { flex: 1; padding: 20px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    
+    /* Sidebar */
+    .sb-item { padding: 11px 18px; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: background 0.15s, border-color 0.15s; border-left: 3px solid transparent; font-size: 0.9rem; }
+    .sb-item:hover { background: #2a323c; }
+    .sb-item.active { background: #2a323c; border-left-color: #570df8; color: #570df8; font-weight: 600; }
+    
+    /* Cards */
+    .card-item { background: #191e24; border: 1px solid #2a323c; border-radius: 12px; padding: 14px 16px; margin-bottom: 8px; cursor: pointer; transition: background 0.15s, transform 0.1s; border-left: 3px solid #2a323c; -webkit-user-select: none; user-select: none; }
+    .card-item:active { transform: scale(0.99); background: #1f2733; }
+    .card-item.green { border-left-color: #36d399; }
+    .card-item.purple { border-left-color: #570df8; }
+    .card-item.amber { border-left-color: #f59e0b; }
+    .card-item.blue { border-left-color: #3abff8; }
+    .card-item.red { border-left-color: #f87272; }
+    
+    /* Detail panels */
+    .detail-panel { overflow: hidden; transition: max-height 0.25s ease, opacity 0.2s ease; max-height: 0; opacity: 0; }
+    .detail-panel.open { max-height: 800px; opacity: 1; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .detail-cell { background: #1d232a; border-radius: 8px; padding: 10px; }
+    .detail-cell .label { font-size: 0.7rem; color: #a6adbb; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 2px; }
+    .detail-cell .value { font-weight: 500; }
+    .detail-cell.span2 { grid-column: span 2; }
+    
+    /* Stats */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px; }
+    .stat-box { background: #191e24; border: 1px solid #2a323c; border-radius: 12px; padding: 14px; }
+    .stat-box .icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 8px; }
+    .stat-box .num { font-size: 1.5rem; font-weight: 700; }
+    .stat-box .lbl { font-size: 0.75rem; color: #a6adbb; }
+
+    /* Avatars */
+    .av { border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+    .av-sm { width: 34px; height: 34px; }
+    .av-md { width: 44px; height: 44px; }
+    .av-init { display: flex; align-items: center; justify-content: center; font-weight: bold; color: #fff; border-radius: 50%; flex-shrink: 0; }
+    
+    /* Badges */
+    .bg-admin { background: #570df8; color: white; padding: 2px 10px; border-radius: 12px; font-size: 0.72rem; font-weight: 600; }
+    .bg-user { background: #2a323c; color: #a6adbb; padding: 2px 10px; border-radius: 12px; font-size: 0.72rem; }
+    
+    /* Buttons */
+    .btn-del { background: #f8727222; border: 1px solid #f87272; color: #f87272; }
+    .btn-del:hover { background: #f8727244; }
+    
+    /* Search */
+    .search-input { background: #191e24; border: 1px solid #2a323c; border-radius: 8px; padding: 8px 14px; color: white; width: 100%; max-width: 300px; font-size: 0.9rem; }
+    .search-input:focus { outline: none; border-color: #570df8; }
+    
+    /* Note bubbles */
+    .note-bubble { background: #2a323c; border-radius: 10px; padding: 10px 14px; margin-bottom: 6px; }
+    
+    /* Arrow */
+    .arrow { font-size: 1rem; color: #a6adbb; transition: transform 0.25s; display: inline-block; }
+    .arrow.open { transform: rotate(180deg); }
+    
+    /* Mobile */
+    .mobile-nav { display: none; background: #191e24; border-bottom: 1px solid #2a323c; padding: 6px 8px; gap: 4px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .mobile-nav::-webkit-scrollbar { display: none; }
+    .mnav { padding: 7px 14px; border-radius: 8px; font-size: 0.8rem; white-space: nowrap; cursor: pointer; flex-shrink: 0; }
+    .mnav.active { background: #570df8; color: white; font-weight: 600; }
+    
+    /* Performers row */
+    .perf-row { display: flex; gap: 10px; margin-bottom: 18px; overflow-x: auto; padding-bottom: 4px; }
+    .perf-card { background: #191e24; border: 1px solid #2a323c; border-radius: 12px; padding: 12px; text-align: center; min-width: 110px; flex-shrink: 0; }
+    
+    /* Error banner */
+    .err-banner { background: #f8727222; border: 1px solid #f87272; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; }
+    .err-banner b { color: #f87272; }
+    .err-banner .msg { font-size: 0.78rem; color: #f87272; }
+    
+    /* Loading skeleton */
+    .skel { background: linear-gradient(90deg, #2a323c 25%, #3a424c 50%, #2a323c 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 8px; height: 60px; margin-bottom: 8px; }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
     @media (max-width: 768px) {
       .sidebar { display: none; }
-      .mobile-nav { display: flex !important; }
-      .content-area { padding: 16px; }
-      .search-box { width: 100%; }
+      .mobile-nav { display: flex; }
+      .content-area { padding: 12px; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+      .detail-grid { grid-template-columns: 1fr; }
+      .detail-cell.span2 { grid-column: span 1; }
+      .search-input { max-width: 100%; }
+      .perf-row { gap: 8px; }
+      .perf-card { min-width: 90px; padding: 10px 8px; }
     }
-    .mobile-nav { display: none; background: #191e24; border-bottom: 1px solid #2a323c; padding: 8px; gap: 4px; overflow-x: auto; }
-    .mobile-nav-item { padding: 8px 16px; border-radius: 8px; font-size: 0.85rem; white-space: nowrap; cursor: pointer; }
-    .mobile-nav-item.active { background: #570df8; color: white; }
   </style>
 </head>
 <body>
   <div id="app"></div>
 
   <script>
-    // Firebase config
-    var firebaseConfig = {
+    // Firebase
+    firebase.initializeApp({
       apiKey: "AIzaSyD-s8Pg4GeSZhOzYpusiHGEEcQuav-IBOo",
       authDomain: "global-route-79e25.firebaseapp.com",
       projectId: "global-route-79e25",
       storageBucket: "global-route-79e25.firebasestorage.app",
       messagingSenderId: "780041424093",
       appId: "1:780041424093:web:43ed17f4a12764db6f5f34"
-    };
-    firebase.initializeApp(firebaseConfig);
+    });
     var auth = firebase.auth();
     var db = firebase.firestore();
 
-    // State
-    var state = {
-      user: null,
-      isAdmin: false,
-      authLoading: true,
-      currentTab: 'dashboard',
-      users: [],
-      completions: [],
-      sites: [],
-      notes: {},
-      expandedId: null,
-      kmzFiles: [],
-      searchQuery: '',
-      editingSite: null,
-      editingUser: null,
-      showAddSite: false
-    };
-
-    // Admin emails (add yours here)
     var ADMIN_EMAILS = ['d.west@globalwestgroupllc.com'];
-
-    // Built-in 29 Myrtle Beach sites for seeding Firestore
     var BUILTIN_SITES = [
-      { id: "6M141", address: "6549 Pozzallo Pl, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.750530, lon: -78.840449 },
-      { id: "6M144", address: "6099 Tramonto St, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.745662, lon: -78.844500 },
-      { id: "6M149", address: "7701 N Ocean Blvd, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.745449, lon: -78.815466 },
-      { id: "6M151", address: "US 17, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.659747, lon: -78.973617 },
-      { id: "6M152", address: "2304 N Ocean Blvd, Myrtle Beach, SC", status: "A - Existing Cabinet", lat: 33.702635, lon: -78.867421 },
-      { id: "6M154", address: "6965 Skiff Ln, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.748245, lon: -78.833054 },
-      { id: "6M158", address: "2101 S Ocean Blvd, Myrtle Beach, SC", status: "A - Existing Cabinet", lat: 33.668229, lon: -78.905800 },
-      { id: "6M159", address: "6103 Tides Way, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.742797, lon: -78.845791 },
-      { id: "6M160", address: "6085 Tides Way, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.743483, lon: -78.843621 },
-      { id: "6M161", address: "6035 Tides Way, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.741138, lon: -78.846391 },
-      { id: "6M162", address: "1406 Yaupon Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.675015, lon: -78.901795 },
-      { id: "6M201", address: "3999 Lark Hill Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.725786, lon: -78.887515 },
-      { id: "6M202", address: "1002 29th Ave N, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.718061, lon: -78.876865 },
-      { id: "6M208", address: "US 17, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.792668, lon: -78.758078 },
-      { id: "6M211", address: "1301 Pridgen Rd, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.682650, lon: -78.907350 },
-      { id: "6M214", address: "1114 3rd Ave S, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.693616, lon: -78.897323 },
-      { id: "6M232", address: "815 44th Ave N, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.724270, lon: -78.857160 },
-      { id: "6M238", address: "6928 N Kings Hwy, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.741638, lon: -78.824970 },
-      { id: "6M266", address: "3865 Spruce Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.655865, lon: -78.949911 },
-      { id: "6M267", address: "307 Flagg St, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.687116, lon: -78.885784 },
-      { id: "6M280", address: "2010 S Ocean Blvd, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.669508, lon: -78.906683 },
-      { id: "6M308", address: "890 Briarwood Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.793963, lon: -78.762701 },
-      { id: "6M366", address: "3861 Spruce Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.655766, lon: -78.949796 },
-      { id: "6M402", address: "1898 Plantation Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.727818, lon: -78.875115 },
-      { id: "6M408", address: "5308 N Ocean Blvd, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.724970, lon: -78.839376 },
-      { id: "6M906", address: "1031 Anrea St, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.743347, lon: -78.847293 },
-      { id: "6M907", address: "520 Lake Arrowhead Rd, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.770005, lon: -78.789908 },
-      { id: "6M908", address: "501 Lake Arrowhead Rd, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.768643, lon: -78.789720 },
-      { id: "6M911", address: "Goldfinch Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.664454, lon: -78.967462 }
+      {id:"6M141",address:"6549 Pozzallo Pl, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.750530,lon:-78.840449},
+      {id:"6M144",address:"6099 Tramonto St, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.745662,lon:-78.844500},
+      {id:"6M149",address:"7701 N Ocean Blvd, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.745449,lon:-78.815466},
+      {id:"6M151",address:"US 17, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.659747,lon:-78.973617},
+      {id:"6M152",address:"2304 N Ocean Blvd, Myrtle Beach, SC",status:"A - Existing Cabinet",lat:33.702635,lon:-78.867421},
+      {id:"6M154",address:"6965 Skiff Ln, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.748245,lon:-78.833054},
+      {id:"6M158",address:"2101 S Ocean Blvd, Myrtle Beach, SC",status:"A - Existing Cabinet",lat:33.668229,lon:-78.905800},
+      {id:"6M159",address:"6103 Tides Way, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.742797,lon:-78.845791},
+      {id:"6M160",address:"6085 Tides Way, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.743483,lon:-78.843621},
+      {id:"6M161",address:"6035 Tides Way, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.741138,lon:-78.846391},
+      {id:"6M162",address:"1406 Yaupon Dr, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.675015,lon:-78.901795},
+      {id:"6M201",address:"3999 Lark Hill Dr, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.725786,lon:-78.887515},
+      {id:"6M202",address:"1002 29th Ave N, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.718061,lon:-78.876865},
+      {id:"6M208",address:"US 17, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.792668,lon:-78.758078},
+      {id:"6M211",address:"1301 Pridgen Rd, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.682650,lon:-78.907350},
+      {id:"6M214",address:"1114 3rd Ave S, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.693616,lon:-78.897323},
+      {id:"6M232",address:"815 44th Ave N, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.724270,lon:-78.857160},
+      {id:"6M238",address:"6928 N Kings Hwy, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.741638,lon:-78.824970},
+      {id:"6M266",address:"3865 Spruce Dr, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.655865,lon:-78.949911},
+      {id:"6M267",address:"307 Flagg St, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.687116,lon:-78.885784},
+      {id:"6M280",address:"2010 S Ocean Blvd, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.669508,lon:-78.906683},
+      {id:"6M308",address:"890 Briarwood Dr, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.793963,lon:-78.762701},
+      {id:"6M366",address:"3861 Spruce Dr, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.655766,lon:-78.949796},
+      {id:"6M402",address:"1898 Plantation Dr, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.727818,lon:-78.875115},
+      {id:"6M408",address:"5308 N Ocean Blvd, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.724970,lon:-78.839376},
+      {id:"6M906",address:"1031 Anrea St, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.743347,lon:-78.847293},
+      {id:"6M907",address:"520 Lake Arrowhead Rd, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.770005,lon:-78.789908},
+      {id:"6M908",address:"501 Lake Arrowhead Rd, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.768643,lon:-78.789720},
+      {id:"6M911",address:"Goldfinch Dr, Myrtle Beach, SC",status:"E - Out of Scope (RTM)",lat:33.664454,lon:-78.967462}
     ];
+    var SITE_IDS = BUILTIN_SITES.map(function(s) { return s.id; });
 
-    // Seed sites into Firestore if collection is empty
-    function seedSitesIfEmpty() {
-      db.collection('sites').get().then(function(snap) {
-        if (snap.empty) {
-          console.log('Seeding ' + BUILTIN_SITES.length + ' sites into Firestore...');
-          var batch = db.batch();
-          BUILTIN_SITES.forEach(function(site) {
-            var ref = db.collection('sites').doc(site.id);
-            batch.set(ref, {
-              name: site.id,
-              address: site.address,
-              status: site.status,
-              lat: site.lat,
-              lon: site.lon,
-              source: 'builtin',
-              createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-          });
-          batch.commit().then(function() {
-            console.log('Sites seeded successfully!');
-          }).catch(function(err) {
-            console.error('Error seeding sites:', err);
-          });
-        } else {
-          console.log('Sites collection already has ' + snap.size + ' documents, skipping seed.');
-        }
-      });
+    // ── STATE ──
+    var S = {
+      user: null, isAdmin: false, authLoading: true,
+      tab: 'dashboard', q: '', expandedId: null,
+      users: [], completions: [], sites: [], notes: {}, kmzFiles: [],
+      editingSite: null, showAddSite: false,
+      dataReady: false
+    };
+    var dataErrors = [];
+    var _renderTimer = null;
+
+    function set(updates) {
+      for (var k in updates) S[k] = updates[k];
+      // Debounce renders — batch rapid state changes
+      if (_renderTimer) return;
+      _renderTimer = setTimeout(function() { _renderTimer = null; render(); }, 16);
     }
 
-    function setState(updates) {
-      Object.assign(state, updates);
-      render();
-    }
-
-    // Auth
+    // ── AUTH ──
     auth.onAuthStateChanged(function(u) {
       if (u) {
-        var isAdmin = ADMIN_EMAILS.indexOf(u.email) !== -1;
-        setState({ user: u, isAdmin: isAdmin, authLoading: false });
-        if (isAdmin) {
-          loadAllData();
-        }
+        set({ user: u, isAdmin: ADMIN_EMAILS.indexOf(u.email) !== -1, authLoading: false });
+        if (ADMIN_EMAILS.indexOf(u.email) !== -1) loadData();
       } else {
-        setState({ user: null, isAdmin: false, authLoading: false });
+        set({ user: null, isAdmin: false, authLoading: false });
       }
     });
 
-    function signInWithEmail() {
-      var email = document.getElementById('admin-email').value;
-      var pass = document.getElementById('admin-pass').value;
-      auth.signInWithEmailAndPassword(email, pass).catch(function(err) {
-        document.getElementById('auth-error').textContent = err.message;
+    function signInEmail() {
+      var em = document.getElementById('login-email').value;
+      var pw = document.getElementById('login-pass').value;
+      auth.signInWithEmailAndPassword(em, pw).catch(function(e) {
+        document.getElementById('auth-err').textContent = e.message;
       });
     }
-
-    function signInWithGoogle() {
-      var provider = new firebase.auth.GoogleAuthProvider();
-      auth.signInWithPopup(provider).catch(function(err) {
-        document.getElementById('auth-error').textContent = err.message;
+    function signInGoogle() {
+      auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(function(e) {
+        document.getElementById('auth-err').textContent = e.message;
       });
     }
+    function signOut() { auth.signOut(); }
 
-    function signOut() {
-      auth.signOut();
-    }
-
-    // Data loading
-    var dataErrors = [];
-    function logDataError(source, err) {
-      console.error('Admin data error [' + source + ']:', err);
-      dataErrors.push(source + ': ' + err.message);
+    // ── DATA ──
+    function logErr(src, err) {
+      console.error('[' + src + ']', err);
+      dataErrors.push(src + ': ' + err.message);
       render();
     }
 
-    function loadAllData() {
-      // Seed the 29 built-in sites if Firestore is empty
-      seedSitesIfEmpty();
-
-      // Load users
-      db.collection('users').onSnapshot(function(snap) {
-        var users = [];
-        snap.forEach(function(doc) { users.push(Object.assign({ id: doc.id }, doc.data())); });
-        console.log('Admin: loaded ' + users.length + ' users');
-        setState({ users: users });
-      }, function(err) { logDataError('users', err); });
-
-      // Load completions from sharedRoutes/builtin/completions
-      db.collection('sharedRoutes').doc('builtin')
-        .collection('completions').onSnapshot(function(snap) {
-          var completions = [];
-          snap.forEach(function(doc) {
-            completions.push(Object.assign({ id: doc.id, siteId: doc.id, routeKey: 'builtin' }, doc.data()));
+    function seedIfEmpty() {
+      db.collection('sites').get().then(function(snap) {
+        if (snap.empty) {
+          var batch = db.batch();
+          BUILTIN_SITES.forEach(function(s) {
+            batch.set(db.collection('sites').doc(s.id), {
+              name: s.id, address: s.address, status: s.status,
+              lat: s.lat, lon: s.lon, source: 'builtin',
+              createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
           });
-          console.log('Admin: loaded ' + completions.length + ' builtin completions');
-          // Store builtin completions and merge with any imported
-          state._builtinCompletions = completions;
-          var allCompletions = completions.concat(state._importedCompletions || []);
-          setState({ completions: allCompletions });
-        }, function(err) { logDataError('builtin-completions', err); });
+          batch.commit().then(function() { console.log('Sites seeded'); });
+        }
+      });
+    }
 
-      // Also load completions from imported KMZ routes
-      db.collection('sharedRoutes').onSnapshot(function(routeSnap) {
-        routeSnap.forEach(function(routeDoc) {
-          if (routeDoc.id === 'builtin') return;
-          routeDoc.ref.collection('completions').onSnapshot(function(compSnap) {
-            var importedCompletions = [];
-            compSnap.forEach(function(doc) {
-              importedCompletions.push(Object.assign({ id: doc.id, siteId: doc.id, routeKey: routeDoc.id }, doc.data()));
-            });
-            console.log('Admin: loaded ' + importedCompletions.length + ' completions from route ' + routeDoc.id);
-            // Properly merge: remove old entries for this route, add new ones
-            var existing = (state._importedCompletions || []).filter(function(c) { return c.routeKey !== routeDoc.id; });
-            state._importedCompletions = existing.concat(importedCompletions);
-            var allCompletions = (state._builtinCompletions || []).concat(state._importedCompletions);
-            setState({ completions: allCompletions });
-          }, function(err) { logDataError('imported-completions-' + routeDoc.id, err); });
+    function loadData() {
+      seedIfEmpty();
+
+      // Users
+      db.collection('users').onSnapshot(function(snap) {
+        var arr = [];
+        snap.forEach(function(d) { arr.push(Object.assign({id: d.id}, d.data())); });
+        set({users: arr});
+      }, function(e) { logErr('users', e); });
+
+      // Builtin completions
+      db.collection('sharedRoutes').doc('builtin').collection('completions')
+        .onSnapshot(function(snap) {
+          var arr = [];
+          snap.forEach(function(d) { arr.push(Object.assign({id:d.id, siteId:d.id, routeKey:'builtin'}, d.data())); });
+          S._bc = arr;
+          set({completions: arr.concat(S._ic || [])});
+        }, function(e) { logErr('completions', e); });
+
+      // Imported completions
+      db.collection('sharedRoutes').onSnapshot(function(snap) {
+        snap.forEach(function(rd) {
+          if (rd.id === 'builtin') return;
+          rd.ref.collection('completions').onSnapshot(function(cs) {
+            var arr = [];
+            cs.forEach(function(d) { arr.push(Object.assign({id:d.id,siteId:d.id,routeKey:rd.id}, d.data())); });
+            var prev = (S._ic || []).filter(function(c) { return c.routeKey !== rd.id; });
+            S._ic = prev.concat(arr);
+            set({completions: (S._bc || []).concat(S._ic)});
+          }, function(e) { logErr('imp-comp', e); });
         });
-      }, function(err) { logDataError('sharedRoutes', err); });
+      }, function(e) { logErr('routes', e); });
 
-      // Load sites
+      // Sites
       db.collection('sites').onSnapshot(function(snap) {
-        var sites = [];
-        snap.forEach(function(doc) { sites.push(Object.assign({ id: doc.id }, doc.data())); });
-        console.log('Admin: loaded ' + sites.length + ' sites');
-        setState({ sites: sites });
-      }, function(err) { logDataError('sites', err); });
+        var arr = [];
+        snap.forEach(function(d) { arr.push(Object.assign({id:d.id}, d.data())); });
+        set({sites: arr});
+      }, function(e) { logErr('sites', e); });
 
-      // Load KMZ files
+      // KMZ
       db.collection('kmzFiles').onSnapshot(function(snap) {
-        var files = [];
-        snap.forEach(function(doc) { files.push(Object.assign({ id: doc.id }, doc.data())); });
-        console.log('Admin: loaded ' + files.length + ' kmzFiles');
-        setState({ kmzFiles: files });
-      }, function(err) { logDataError('kmzFiles', err); });
+        var arr = [];
+        snap.forEach(function(d) { arr.push(Object.assign({id:d.id}, d.data())); });
+        set({kmzFiles: arr});
+      }, function(e) { logErr('kmz', e); });
 
-      // Load notes for each known site directly
-      // Notes are stored as: siteNotes/{routeKey}_{siteId}/messages/{msgId}
-      // We query each site's messages subcollection individually to avoid collectionGroup index requirements
-      var siteIds = [
-        '6M141','6M144','6M149','6M151','6M152','6M154','6M158','6M159','6M160','6M161',
-        '6M162','6M201','6M202','6M208','6M211','6M214','6M232','6M238','6M266','6M267',
-        '6M280','6M308','6M366','6M402','6M408','6M906','6M907','6M908','6M911'
-      ];
+      // Notes — batch all 29 listeners, single setState after all first loads
       var notesBySite = {};
-      var notesLoaded = 0;
-      siteIds.forEach(function(siteId) {
-        var docId = 'builtin_' + siteId;
+      var firstLoadCount = 0;
+      var firstLoadDone = false;
+      SITE_IDS.forEach(function(sid) {
+        var docId = 'builtin_' + sid;
         db.collection('siteNotes').doc(docId).collection('messages')
-          .onSnapshot(function(msgSnap) {
-            var messages = [];
-            msgSnap.forEach(function(msgDoc) {
-              messages.push(Object.assign({ id: msgDoc.id, siteId: siteId, siteDocId: docId }, msgDoc.data()));
+          .onSnapshot(function(snap) {
+            var msgs = [];
+            snap.forEach(function(d) {
+              msgs.push(Object.assign({id:d.id, siteId:sid, siteDocId:docId}, d.data()));
             });
-            // Sort by createdAt descending client-side
-            messages.sort(function(a, b) {
-              var ta = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : a.createdAt) : 0;
-              var tb = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : b.createdAt) : 0;
+            msgs.sort(function(a,b) {
+              var ta = a.createdAt ? (a.createdAt.toMillis ? a.createdAt.toMillis() : +new Date(a.createdAt)) : 0;
+              var tb = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : +new Date(b.createdAt)) : 0;
               return tb - ta;
             });
-            if (messages.length > 0) {
-              console.log('Admin: loaded ' + messages.length + ' notes for ' + siteId);
+            notesBySite[sid] = msgs;
+            if (!firstLoadDone) {
+              firstLoadCount++;
+              if (firstLoadCount >= SITE_IDS.length) {
+                firstLoadDone = true;
+                set({notes: Object.assign({}, notesBySite), dataReady: true});
+              }
+            } else {
+              set({notes: Object.assign({}, notesBySite)});
             }
-            notesBySite[siteId] = messages;
-            notesLoaded++;
-            // Update state after each site loads
-            setState({ notes: Object.assign({}, notesBySite) });
-          }, function(err) { logDataError('notes-' + siteId, err); });
-      });
-
-      // Also try collectionGroup query for completions as fallback diagnostic
-      db.collectionGroup('completions').get().then(function(snap) {
-        console.log('Admin diagnostic: collectionGroup completions found ' + snap.size + ' docs');
-        snap.forEach(function(doc) {
-          console.log('  completion doc path: ' + doc.ref.path + ' data:', JSON.stringify(doc.data()));
-        });
-      }).catch(function(err) {
-        console.log('Admin diagnostic: collectionGroup query failed (may need index):', err.message);
+          }, function(e) { logErr('notes-' + sid, e); });
       });
     }
 
-    // Helper functions
-    function formatDate(ts) {
-      if (!ts) return 'N/A';
+    // ── HELPERS ──
+    function fmtDate(ts) {
+      if (!ts) return '—';
       var d = ts.toDate ? ts.toDate() : new Date(ts);
-      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      return d.toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'});
     }
-
-    function formatDateTime(ts) {
-      if (!ts) return 'N/A';
+    function fmtTime(ts) {
+      if (!ts) return '—';
       var d = ts.toDate ? ts.toDate() : new Date(ts);
-      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+      return d.toLocaleDateString('en-US', {month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
     }
-
-    function getInitials(name) {
+    function initials(name) {
       if (!name) return '?';
-      return name.split(' ').map(function(w) { return w[0]; }).join('').toUpperCase().substring(0, 2);
+      return name.split(' ').map(function(w){return w[0]||'';}).join('').toUpperCase().substring(0,2);
     }
-
-    function avatarHTML(user, size) {
-      var cls = size === 'md' ? 'avatar-md' : 'avatar-sm';
+    var _avColors = ['#570df8','#f000b8','#37cdbe','#3abff8','#fbbd23'];
+    function av(user, size) {
+      var cls = size === 'md' ? 'av av-md' : 'av av-sm';
+      var px = size === 'md' ? 44 : 34;
+      var fs = size === 'md' ? 16 : 13;
       if (user.avatarURL || user.photoURL) {
         return '<img src="' + (user.avatarURL || user.photoURL) + '" class="' + cls + '" />';
       }
-      var colors = ['#570df8', '#f000b8', '#37cdbe', '#3abff8', '#fbbd23'];
-      var idx = (user.displayName || user.email || '').length % colors.length;
-      var sz = size === 'md' ? 48 : 36;
-      var fsz = size === 'md' ? 18 : 14;
-      return '<div style="width:' + sz + 'px;height:' + sz + 'px;border-radius:50%;background:' + colors[idx] + ';display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:' + fsz + 'px;color:white;">' + getInitials(user.displayName || user.email) + '</div>';
+      var n = user.displayName || user.email || '';
+      var c = _avColors[n.length % _avColors.length];
+      return '<div class="av-init" style="width:'+px+'px;height:'+px+'px;background:'+c+';font-size:'+fs+'px;">'+initials(n)+'</div>';
+    }
+    function photoOrAv(photoUrl, user, size) {
+      var px = size === 'md' ? 44 : 34;
+      if (photoUrl) return '<img src="'+photoUrl+'" class="av '+(size==='md'?'av-md':'av-sm')+'" />';
+      if (user) return av(user, size);
+      return '<div class="av-init" style="width:'+px+'px;height:'+px+'px;background:#2a323c;font-size:13px;">👤</div>';
+    }
+    function esc(s) { return (s||'').replace(/'/g, "\\'"); }
+    function toggle(id) { set({expandedId: S.expandedId === id ? null : id}); }
+    function totalNotes() {
+      return Object.keys(S.notes).reduce(function(s,k){return s + S.notes[k].length;}, 0);
     }
 
-    // User management
-    function toggleUserRole(userId, currentRole) {
-      var newRole = currentRole === 'admin' ? 'user' : 'admin';
-      db.collection('users').doc(userId).update({ role: newRole });
+    // ── ACTIONS ──
+    function toggleRole(uid, cur) { db.collection('users').doc(uid).update({role: cur==='admin'?'user':'admin'}); }
+    function toggleDisabled(uid, cur) { db.collection('users').doc(uid).update({disabled: !cur}); }
+    function deleteUser(uid, email) {
+      if (!confirm('Delete user ' + email + '?')) return;
+      db.collection('users').doc(uid).delete();
     }
-
-    function toggleUserDisabled(userId, currentDisabled) {
-      db.collection('users').doc(userId).update({ disabled: !currentDisabled });
+    function saveSite(data) {
+      if (data.id) db.collection('sites').doc(data.id).update(data);
+      else db.collection('sites').add(data);
+      set({editingSite:null, showAddSite:false});
     }
-
-    function deleteUser(userId, email) {
-      if (confirm('Delete user ' + email + '? This cannot be undone.')) {
-        db.collection('users').doc(userId).delete();
-        // Also delete their completions
-        db.collection('completions').where('userId', '==', userId).get().then(function(snap) {
-          snap.forEach(function(doc) { doc.ref.delete(); });
-        });
-      }
+    function saveSiteForm(eid) {
+      var d = {
+        name: document.getElementById('sf-name').value,
+        address: document.getElementById('sf-addr').value,
+        lat: parseFloat(document.getElementById('sf-lat').value) || 0,
+        lng: parseFloat(document.getElementById('sf-lng').value) || 0,
+        status: document.getElementById('sf-status').value,
+        source: document.getElementById('sf-src').value
+      };
+      if (eid) d.id = eid;
+      saveSite(d);
     }
-
-    // Site management
-    function saveSite(siteData) {
-      if (siteData.id) {
-        db.collection('sites').doc(siteData.id).update(siteData);
-      } else {
-        db.collection('sites').add(siteData);
-      }
-      setState({ editingSite: null, showAddSite: false });
+    function editSite(id) {
+      var s = S.sites.find(function(x){return x.id===id;});
+      if (s) set({editingSite: Object.assign({}, s), showAddSite: false});
     }
-
-    function deleteSite(siteId, siteName) {
-      if (confirm('Delete site "' + siteName + '"? This cannot be undone.')) {
-        db.collection('sites').doc(siteId).delete();
-      }
+    function deleteSite(id, name) {
+      if (confirm('Delete site "' + name + '"?')) db.collection('sites').doc(id).delete();
     }
-
-    // Delete note
-    function deleteNote(siteDocId, messageId) {
-      if (confirm('Delete this note?')) {
-        if (siteDocId && messageId) {
-          db.collection('siteNotes').doc(siteDocId).collection('messages').doc(messageId).delete();
-        }
-      }
+    function deleteNote(docId, msgId) {
+      if (confirm('Delete this note?')) db.collection('siteNotes').doc(docId).collection('messages').doc(msgId).delete();
     }
-
-    // Delete KMZ
-    function deleteKmz(kmzId, name) {
-      if (confirm('Delete KMZ file "' + name + '"?')) {
-        db.collection('kmzFiles').doc(kmzId).delete();
-      }
+    function deleteKmz(id, name) {
+      if (confirm('Delete KMZ "' + name + '"?')) db.collection('kmzFiles').doc(id).delete();
     }
 
     // ── RENDER ──
     function render() {
       var app = document.getElementById('app');
-
-      // Loading
-      if (state.authLoading) {
+      if (S.authLoading) {
         app.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;"><span class="loading loading-spinner loading-lg text-primary"></span></div>';
         return;
       }
-
-      // Not logged in
-      if (!state.user) {
-        app.innerHTML = renderLogin();
+      if (!S.user) { app.innerHTML = renderLogin(); return; }
+      if (!S.isAdmin) {
+        app.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:14px;">' +
+          '<div style="font-size:48px;">🔒</div><h2 style="font-size:1.4rem;font-weight:bold;">Access Denied</h2>' +
+          '<p style="color:#a6adbb;">Admin privileges required.</p>' +
+          '<p style="color:#a6adbb;font-size:0.85rem;">Logged in as: '+S.user.email+'</p>' +
+          '<button class="btn btn-ghost" onclick="signOut()">Sign Out</button></div>';
         return;
       }
-
-      // Not admin
-      if (!state.isAdmin) {
-        app.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:16px;">' +
-          '<div style="font-size:48px;">🔒</div>' +
-          '<h2 style="font-size:1.5rem;font-weight:bold;">Access Denied</h2>' +
-          '<p style="color:#a6adbb;">You need admin privileges to access the back office.</p>' +
-          '<p style="color:#a6adbb;font-size:0.85rem;">Logged in as: ' + state.user.email + '</p>' +
-          '<button class="btn btn-ghost" onclick="signOut()">Sign Out</button>' +
-          '</div>';
-        return;
-      }
-
-      // Admin view
-      app.innerHTML = renderAdmin();
+      app.innerHTML = renderShell();
     }
 
     function renderLogin() {
       return '<div style="display:flex;align-items:center;justify-content:center;height:100vh;">' +
-        '<div class="card bg-base-200" style="width:400px;max-width:90vw;">' +
-        '<div class="card-body">' +
-        '<div style="text-align:center;margin-bottom:16px;">' +
-        '<div style="font-size:40px;margin-bottom:8px;">🌐</div>' +
-        '<h1 style="font-size:1.5rem;font-weight:bold;">Global Route Admin</h1>' +
-        '<p style="color:#a6adbb;font-size:0.9rem;">Back Office Management</p>' +
-        '</div>' +
-        '<div id="auth-error" style="color:#f87272;font-size:0.85rem;text-align:center;"></div>' +
-        '<input id="admin-email" type="email" placeholder="Email" class="input input-bordered w-full" style="margin-bottom:8px;" />' +
-        '<input id="admin-pass" type="password" placeholder="Password" class="input input-bordered w-full" style="margin-bottom:12px;" onkeydown="if(event.key===\'Enter\')signInWithEmail()" />' +
-        '<button class="btn btn-primary w-full" onclick="signInWithEmail()">Sign In</button>' +
-        '<div class="divider" style="margin:12px 0;">OR</div>' +
-        '<button class="btn btn-outline w-full" onclick="signInWithGoogle()">🔵 Sign in with Google</button>' +
+        '<div class="card bg-base-200" style="width:380px;max-width:92vw;"><div class="card-body">' +
+        '<div style="text-align:center;margin-bottom:14px;">' +
+        '<div style="font-size:36px;margin-bottom:6px;">🌐</div>' +
+        '<h1 style="font-size:1.4rem;font-weight:bold;">Global Route Admin</h1>' +
+        '<p style="color:#a6adbb;font-size:0.85rem;">Back Office</p></div>' +
+        '<div id="auth-err" style="color:#f87272;font-size:0.85rem;text-align:center;min-height:20px;"></div>' +
+        '<input id="login-email" type="email" placeholder="Email" class="input input-bordered w-full" style="margin-bottom:8px;" />' +
+        '<input id="login-pass" type="password" placeholder="Password" class="input input-bordered w-full" style="margin-bottom:10px;" onkeydown="if(event.key===\'Enter\')signInEmail()" />' +
+        '<button class="btn btn-primary w-full" onclick="signInEmail()">Sign In</button>' +
+        '<div class="divider" style="margin:10px 0;">OR</div>' +
+        '<button class="btn btn-outline w-full" onclick="signInGoogle()">🔵 Sign in with Google</button>' +
         '</div></div></div>';
     }
 
-    function renderAdmin() {
-      var tabs = [
-        { id: 'dashboard', icon: '📊', label: 'Dashboard' },
-        { id: 'users', icon: '👥', label: 'Users' },
-        { id: 'activity', icon: '📋', label: 'Activity' },
-        { id: 'sites', icon: '📍', label: 'Sites' },
-        { id: 'notes', icon: '📝', label: 'Notes' },
-        { id: 'kmz', icon: '📁', label: 'KMZ Files' },
-        { id: 'roles', icon: '🔒', label: 'Roles' }
-      ];
+    var TABS = [
+      {id:'dashboard',icon:'📊',label:'Dashboard'},
+      {id:'users',icon:'👥',label:'Users'},
+      {id:'activity',icon:'📋',label:'Activity'},
+      {id:'sites',icon:'📍',label:'Sites'},
+      {id:'notes',icon:'📝',label:'Notes'},
+      {id:'kmz',icon:'📁',label:'KMZ'},
+      {id:'roles',icon:'🔒',label:'Roles'}
+    ];
 
-      var sidebar = '<div class="sidebar">' +
-        '<div style="padding:20px;border-bottom:1px solid #2a323c;">' +
-        '<div style="display:flex;align-items:center;gap:12px;">' +
-        '<div style="font-size:28px;">🌐</div>' +
-        '<div><div style="font-weight:bold;font-size:1.1rem;">Global Route</div><div style="color:#a6adbb;font-size:0.75rem;">Admin Panel</div></div>' +
-        '</div></div>';
-
-      tabs.forEach(function(tab) {
-        var active = state.currentTab === tab.id ? ' active' : '';
-        sidebar += '<div class="sidebar-item' + active + '" onclick="setState({currentTab:\'' + tab.id + '\'})">' +
-          '<span>' + tab.icon + '</span><span>' + tab.label + '</span></div>';
+    function renderShell() {
+      // Sidebar
+      var sb = '<div class="sidebar"><div style="padding:16px;border-bottom:1px solid #2a323c;">' +
+        '<div style="display:flex;align-items:center;gap:10px;">' +
+        '<div style="font-size:24px;">🌐</div>' +
+        '<div><div style="font-weight:bold;font-size:1rem;">Global Route</div>' +
+        '<div style="color:#a6adbb;font-size:0.7rem;">Admin Panel</div></div></div></div>';
+      TABS.forEach(function(t) {
+        sb += '<div class="sb-item'+(S.tab===t.id?' active':'')+'" onclick="set({tab:\''+t.id+'\',q:\'\',expandedId:null})">' +
+          '<span>'+t.icon+'</span><span>'+t.label+'</span></div>';
       });
-
-      sidebar += '<div style="position:absolute;bottom:0;left:0;width:260px;padding:16px;border-top:1px solid #2a323c;">' +
-        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">' +
-        avatarHTML(state.user, 'sm') +
-        '<div style="flex:1;min-width:0;"><div style="font-size:0.85rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (state.user.displayName || 'Admin') + '</div>' +
-        '<div style="font-size:0.7rem;color:#a6adbb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + state.user.email + '</div></div></div>' +
-        '<button class="btn btn-ghost btn-sm w-full" onclick="signOut()">Sign Out</button></div>';
-      sidebar += '</div>';
+      sb += '<div style="margin-top:auto;padding:14px;border-top:1px solid #2a323c;">' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'+av(S.user,'sm') +
+        '<div style="flex:1;min-width:0;"><div style="font-size:0.82rem;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(S.user.displayName||'Admin')+'</div>' +
+        '<div style="font-size:0.68rem;color:#a6adbb;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+S.user.email+'</div></div></div>' +
+        '<button class="btn btn-ghost btn-sm w-full" onclick="signOut()">Sign Out</button></div></div>';
 
       // Mobile nav
-      var mobileNav = '<div class="mobile-nav">';
-      tabs.forEach(function(tab) {
-        var active = state.currentTab === tab.id ? ' active' : '';
-        mobileNav += '<div class="mobile-nav-item' + active + '" onclick="setState({currentTab:\'' + tab.id + '\'})">' + tab.icon + ' ' + tab.label + '</div>';
+      var mn = '<div class="mobile-nav">';
+      TABS.forEach(function(t) {
+        mn += '<div class="mnav'+(S.tab===t.id?' active':'')+'" onclick="set({tab:\''+t.id+'\',q:\'\',expandedId:null})">'+t.icon+' '+t.label+'</div>';
       });
-      mobileNav += '</div>';
+      mn += '</div>';
 
       var content = '';
-      switch(state.currentTab) {
-        case 'dashboard': content = renderDashboard(); break;
-        case 'users': content = renderUsers(); break;
-        case 'activity': content = renderActivity(); break;
-        case 'sites': content = renderSites(); break;
-        case 'notes': content = renderNotes(); break;
-        case 'kmz': content = renderKmz(); break;
-        case 'roles': content = renderRoles(); break;
+      switch(S.tab) {
+        case 'dashboard': content = rDash(); break;
+        case 'users': content = rUsers(); break;
+        case 'activity': content = rActivity(); break;
+        case 'sites': content = rSites(); break;
+        case 'notes': content = rNotes(); break;
+        case 'kmz': content = rKmz(); break;
+        case 'roles': content = rRoles(); break;
       }
 
-      var errorBanner = '';
+      var errHtml = '';
       if (dataErrors.length > 0) {
-        errorBanner = '<div style="background:#f8727233;border:1px solid #f87272;border-radius:8px;padding:12px;margin-bottom:16px;">' +
-          '<div style="font-weight:bold;color:#f87272;margin-bottom:4px;">⚠️ Data Loading Errors:</div>' +
-          '<div style="font-size:0.8rem;color:#f87272;">' + dataErrors.join('<br>') + '</div></div>';
+        errHtml = '<div class="err-banner"><b>⚠️ Data Errors:</b><div class="msg">'+dataErrors.join('<br>')+'</div></div>';
       }
-      return mobileNav + '<div style="display:flex;height:100vh;">' + sidebar + '<div class="content-area">' + errorBanner + content + '</div></div>';
+
+      return mn + '<div class="app-shell">' + sb + '<div class="content-area">'+errHtml+content+'</div></div>';
     }
 
     // ── DASHBOARD ──
-    function renderDashboard() {
-      var totalUsers = state.users.length;
-      var totalCompletions = state.completions.length;
-      var totalSites = state.sites.length;
-      var totalNotes = Object.keys(state.notes).reduce(function(sum, key) { return sum + state.notes[key].length; }, 0);
-
-      // Completions today
-      var today = new Date();
-      today.setHours(0, 0, 0, 0);
-      var todayCompletions = state.completions.filter(function(c) {
+    function rDash() {
+      var tc = S.completions.length;
+      var tn = totalNotes();
+      var today = new Date(); today.setHours(0,0,0,0);
+      var todayC = S.completions.filter(function(c) {
         var d = c.completedAt ? (c.completedAt.toDate ? c.completedAt.toDate() : new Date(c.completedAt)) : null;
         return d && d >= today;
       }).length;
+      var pct = S.sites.length > 0 ? Math.round(tc / S.sites.length * 100) : 0;
 
-      // Completion rate
-      var completionRate = totalSites > 0 ? Math.round((totalCompletions / totalSites) * 100) : 0;
+      var h = '<h2 style="font-size:1.3rem;font-weight:bold;margin-bottom:16px;">📊 Dashboard</h2>';
+      h += '<div class="stats-grid">';
+      h += sBox('👥','Users',S.users.length,'#570df8');
+      h += sBox('✅','Completions',tc,'#36d399');
+      h += sBox('📍','Sites',S.sites.length,'#f59e0b');
+      h += sBox('📝','Notes',tn,'#3abff8');
+      h += sBox('🔥','Today',todayC,'#f87272');
+      h += sBox('📈','Done',pct+'%','#a78bfa');
+      h += '</div>';
 
-      // Recent activity (last 5)
-      var recentCompletions = state.completions.slice().sort(function(a, b) {
-        var ta = a.completedAt ? (a.completedAt.toDate ? a.completedAt.toDate().getTime() : new Date(a.completedAt).getTime()) : 0;
-        var tb = b.completedAt ? (b.completedAt.toDate ? b.completedAt.toDate().getTime() : new Date(b.completedAt).getTime()) : 0;
-        return tb - ta;
-      }).slice(0, 8);
+      // Recent
+      var recent = S.completions.slice().sort(function(a,b) {
+        var ta = a.completedAt?(a.completedAt.toDate?a.completedAt.toDate().getTime():+new Date(a.completedAt)):0;
+        var tb = b.completedAt?(b.completedAt.toDate?b.completedAt.toDate().getTime():+new Date(b.completedAt)):0;
+        return tb-ta;
+      }).slice(0,8);
 
-      var html = '<h2 style="font-size:1.5rem;font-weight:bold;margin-bottom:20px;">📊 Dashboard</h2>';
-
-      // Stats grid
-      html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:24px;">';
-      html += statCard('👥', 'Total Users', totalUsers, '#570df8');
-      html += statCard('✅', 'Completions', totalCompletions, '#36d399');
-      html += statCard('📍', 'Total Sites', totalSites, '#f59e0b');
-      html += statCard('📝', 'Total Notes', totalNotes, '#3abff8');
-      html += statCard('🔥', 'Today', todayCompletions, '#f87272');
-      html += statCard('📈', 'Completion %', completionRate + '%', '#a78bfa');
-      html += '</div>';
-
-      // Recent activity
-      html += '<div class="stat-card"><h3 style="font-weight:bold;margin-bottom:16px;">🕐 Recent Activity</h3>';
-      if (recentCompletions.length === 0) {
-        html += '<p style="color:#a6adbb;">No completions yet.</p>';
-      } else {
-        recentCompletions.forEach(function(c) {
-          var user = state.users.find(function(u) { return u.id === c.completedBy; });
-          var userName = user ? (user.displayName || user.email) : (c.completedByName || 'Unknown');
-          var siteName = c.siteId || 'Unknown Site';
-          // Try to find site name from sites list
-          var siteObj = state.sites.find(function(s) { return s.id === c.siteId; });
-          if (siteObj) siteName = siteObj.name || siteName;
-          var photoHTML = c.completedByPhoto
-            ? '<img src="' + c.completedByPhoto + '" style="width:36px;height:36px;border-radius:50%;object-fit:cover;" />'
-            : (user ? avatarHTML(user, 'sm') : '<div style="width:36px;height:36px;border-radius:50%;background:#2a323c;display:flex;align-items:center;justify-content:center;">?</div>');
-          html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #2a323c;">' +
-            photoHTML +
-            '<div style="flex:1;"><div style="font-weight:500;">' + userName + '</div>' +
-            '<div style="font-size:0.8rem;color:#a6adbb;">Completed: ' + siteName + '</div></div>' +
-            '<div style="font-size:0.75rem;color:#a6adbb;">' + formatDateTime(c.completedAt) + '</div></div>';
+      h += '<div class="stat-box"><h3 style="font-weight:bold;margin-bottom:12px;">🕐 Recent Activity</h3>';
+      if (recent.length === 0) { h += '<p style="color:#a6adbb;">No completions yet.</p>'; }
+      else {
+        recent.forEach(function(c) {
+          var u = S.users.find(function(x){return x.id===c.completedBy;});
+          var name = u?(u.displayName||u.email):(c.completedByName||'Unknown');
+          var site = S.sites.find(function(x){return x.id===c.siteId;});
+          var sn = site?(site.name||c.siteId):c.siteId;
+          h += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #2a323c;">' +
+            photoOrAv(c.completedByPhoto,u,'sm') +
+            '<div style="flex:1;min-width:0;"><div style="font-weight:500;font-size:0.9rem;">'+name+'</div>' +
+            '<div style="font-size:0.78rem;color:#a6adbb;">📍 '+sn+'</div></div>' +
+            '<div style="font-size:0.72rem;color:#a6adbb;white-space:nowrap;">'+fmtTime(c.completedAt)+'</div></div>';
         });
       }
-      html += '</div>';
-
-      return html;
+      h += '</div>';
+      return h;
     }
 
-    function statCard(icon, label, value, color) {
-      return '<div class="stat-card">' +
-        '<div style="display:flex;align-items:center;gap:12px;">' +
-        '<div style="width:48px;height:48px;border-radius:12px;background:' + color + '20;display:flex;align-items:center;justify-content:center;font-size:24px;">' + icon + '</div>' +
-        '<div><div style="font-size:0.8rem;color:#a6adbb;">' + label + '</div>' +
-        '<div style="font-size:1.75rem;font-weight:bold;">' + value + '</div></div></div></div>';
-    }
-
-    // ── DETAIL TOGGLE ──
-    function toggleDetail(id) {
-      setState({ expandedId: state.expandedId === id ? null : id });
+    function sBox(icon, label, val, color) {
+      return '<div class="stat-box"><div class="icon" style="background:'+color+'20;">'+icon+'</div>' +
+        '<div class="num">'+val+'</div><div class="lbl">'+label+'</div></div>';
     }
 
     // ── USERS ──
-    function renderUsers() {
-      var filtered = state.users.filter(function(u) {
-        if (!state.searchQuery) return true;
-        var q = state.searchQuery.toLowerCase();
-        return (u.displayName || '').toLowerCase().indexOf(q) !== -1 || (u.email || '').toLowerCase().indexOf(q) !== -1;
+    function rUsers() {
+      var filtered = S.users.filter(function(u) {
+        if (!S.q) return true;
+        var q = S.q.toLowerCase();
+        return (u.displayName||'').toLowerCase().indexOf(q)!==-1 || (u.email||'').toLowerCase().indexOf(q)!==-1;
       });
 
-      var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">' +
-        '<h2 style="font-size:1.5rem;font-weight:bold;">👥 Users (' + state.users.length + ')</h2>' +
-        '<input class="search-box" placeholder="🔍 Search users..." value="' + (state.searchQuery || '') + '" oninput="setState({searchQuery:this.value})" />' +
-        '</div>';
+      var h = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">' +
+        '<h2 style="font-size:1.3rem;font-weight:bold;">👥 Users ('+S.users.length+')</h2>' +
+        '<input class="search-input" placeholder="🔍 Search users..." value="'+(S.q||'')+'" oninput="set({q:this.value})" /></div>';
 
       filtered.forEach(function(u) {
-        var completionCount = state.completions.filter(function(c) { return c.completedBy === u.id; }).length;
+        var cc = S.completions.filter(function(c){return c.completedBy===u.id;}).length;
         var role = u.role || 'user';
-        var disabled = u.disabled || false;
-        var isExpanded = state.expandedId === 'user_' + u.id;
-        var userCompletions = state.completions.filter(function(c) { return c.completedBy === u.id; });
+        var dis = u.disabled || false;
+        var ex = S.expandedId === 'u_'+u.id;
+        var uc = S.completions.filter(function(c){return c.completedBy===u.id;});
 
-        html += '<div class="stat-card" style="margin-bottom:10px;cursor:pointer;border-left:3px solid ' + (disabled ? '#f87272' : '#36d399') + ';transition:all 0.2s;" onclick="toggleDetail(\'user_' + u.id + '\')">';
-
-        // Summary row (always visible)
-        html += '<div style="display:flex;align-items:center;gap:12px;">' +
-          avatarHTML(u, 'sm') +
+        h += '<div class="card-item '+(dis?'red':'green')+'" onclick="toggle(\'u_'+u.id+'\')">';
+        h += '<div style="display:flex;align-items:center;gap:10px;">' + av(u,'sm') +
           '<div style="flex:1;min-width:0;">' +
-            '<div style="font-weight:600;font-size:1rem;">' + (u.displayName || 'No Name') + '</div>' +
-            '<div style="font-size:0.8rem;color:#a6adbb;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (u.email || 'N/A') + '</div>' +
+            '<div style="font-weight:600;">'+(u.displayName||'No Name')+'</div>' +
+            '<div style="font-size:0.78rem;color:#a6adbb;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(u.email||'—')+'</div>' +
           '</div>' +
           '<div style="text-align:right;">' +
-            '<span class="' + (role === 'admin' ? 'badge-admin' : 'badge-user') + '">' + role + '</span>' +
-            '<div style="font-size:0.75rem;color:#a6adbb;margin-top:4px;">' + completionCount + ' ✅</div>' +
+            '<span class="'+(role==='admin'?'bg-admin':'bg-user')+'">'+role+'</span>' +
+            '<div style="font-size:0.72rem;color:#a6adbb;margin-top:3px;">'+cc+' ✅</div>' +
           '</div>' +
-          '<div style="font-size:1.2rem;color:#a6adbb;transition:transform 0.2s;transform:rotate(' + (isExpanded ? '180' : '0') + 'deg);">▼</div>' +
-        '</div>';
+          '<span class="arrow'+(ex?' open':'')+'">▼</span></div>';
 
-        // Expanded detail
-        if (isExpanded) {
-          html += '<div style="margin-top:14px;padding-top:14px;border-top:1px solid #2a323c;" onclick="event.stopPropagation()">';
-
-          // Info grid
-          html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">' +
-            '<div style="background:#1d232a;border-radius:8px;padding:10px;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Status</div><div style="font-weight:600;color:' + (disabled ? '#f87272' : '#36d399') + ';">' + (disabled ? '🚫 Disabled' : '✅ Active') + '</div></div>' +
-            '<div style="background:#1d232a;border-radius:8px;padding:10px;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Joined</div><div style="font-weight:500;">' + formatDate(u.createdAt) + '</div></div>' +
-            '<div style="background:#1d232a;border-radius:8px;padding:10px;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Completions</div><div style="font-weight:600;font-size:1.2rem;color:#36d399;">' + completionCount + '</div></div>' +
-            '<div style="background:#1d232a;border-radius:8px;padding:10px;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">User ID</div><div style="font-size:0.7rem;word-break:break-all;">' + u.id + '</div></div>' +
+        h += '<div class="detail-panel'+(ex?' open':'')+'">';
+        if (ex) {
+          h += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #2a323c;" onclick="event.stopPropagation()">';
+          h += '<div class="detail-grid">' +
+            '<div class="detail-cell"><div class="label">Status</div><div class="value" style="color:'+(dis?'#f87272':'#36d399')+';">'+(dis?'🚫 Disabled':'✅ Active')+'</div></div>' +
+            '<div class="detail-cell"><div class="label">Joined</div><div class="value">'+fmtDate(u.createdAt)+'</div></div>' +
+            '<div class="detail-cell"><div class="label">Completions</div><div class="value" style="font-size:1.2rem;color:#36d399;">'+cc+'</div></div>' +
+            '<div class="detail-cell"><div class="label">User ID</div><div style="font-size:0.68rem;word-break:break-all;">'+u.id+'</div></div>' +
           '</div>';
-
-          // Recent completions by this user
-          if (userCompletions.length > 0) {
-            html += '<div style="margin-bottom:14px;"><div style="font-weight:600;font-size:0.85rem;margin-bottom:8px;">📍 Completed Sites:</div>';
-            userCompletions.slice(0, 10).forEach(function(c) {
-              var siteObj = state.sites.find(function(s) { return s.id === c.siteId; });
-              var siteName = siteObj ? (siteObj.name || c.siteId) : c.siteId;
-              html += '<div style="display:flex;justify-content:space-between;padding:6px 8px;background:#1d232a;border-radius:6px;margin-bottom:4px;font-size:0.85rem;">' +
-                '<span>📍 ' + siteName + '</span><span style="color:#a6adbb;font-size:0.75rem;">' + formatDateTime(c.completedAt) + '</span></div>';
+          if (uc.length > 0) {
+            h += '<div style="margin-bottom:12px;"><div style="font-weight:600;font-size:0.82rem;margin-bottom:6px;">📍 Completed Sites:</div>';
+            uc.slice(0,10).forEach(function(c) {
+              var so = S.sites.find(function(x){return x.id===c.siteId;});
+              h += '<div style="display:flex;justify-content:space-between;padding:5px 8px;background:#1d232a;border-radius:6px;margin-bottom:3px;font-size:0.82rem;">' +
+                '<span>📍 '+(so?so.name||c.siteId:c.siteId)+'</span><span style="color:#a6adbb;font-size:0.72rem;">'+fmtTime(c.completedAt)+'</span></div>';
             });
-            html += '</div>';
+            h += '</div>';
           }
-
-          // Action buttons
-          html += '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
-            '<button class="btn btn-sm" style="background:#2a323c;border:none;color:#fff;" onclick="toggleUserDisabled(\'' + u.id + '\',' + disabled + ')">' + (disabled ? '✅ Enable User' : '🚫 Disable User') + '</button>' +
-            '<button class="btn btn-sm" style="background:#f8727233;border:1px solid #f87272;color:#f87272;" onclick="deleteUser(\'' + u.id + '\',\'' + (u.email || '') + '\')">🗑️ Delete User</button>' +
-          '</div>';
-          html += '</div>';
+          h += '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+            '<button class="btn btn-sm btn-ghost" onclick="toggleDisabled(\''+u.id+'\','+dis+')">'+(dis?'✅ Enable':'🚫 Disable')+'</button>' +
+            '<button class="btn btn-sm btn-del" onclick="deleteUser(\''+u.id+'\',\''+esc(u.email)+'\')">🗑️ Delete</button></div>';
+          h += '</div>';
         }
-
-        html += '</div>';
+        h += '</div></div>';
       });
 
-      if (filtered.length === 0) {
-        html += '<div class="stat-card"><p style="color:#a6adbb;">No users found.</p></div>';
-      }
-
-      return html;
+      if (filtered.length===0) h += '<div class="stat-box"><p style="color:#a6adbb;">No users found.</p></div>';
+      return h;
     }
 
     // ── ACTIVITY ──
-    function renderActivity() {
-      var sorted = state.completions.slice().sort(function(a, b) {
-        var ta = a.completedAt ? (a.completedAt.toDate ? a.completedAt.toDate().getTime() : new Date(a.completedAt).getTime()) : 0;
-        var tb = b.completedAt ? (b.completedAt.toDate ? b.completedAt.toDate().getTime() : new Date(b.completedAt).getTime()) : 0;
-        return tb - ta;
+    function rActivity() {
+      var sorted = S.completions.slice().sort(function(a,b) {
+        var ta = a.completedAt?(a.completedAt.toDate?a.completedAt.toDate().getTime():+new Date(a.completedAt)):0;
+        var tb = b.completedAt?(b.completedAt.toDate?b.completedAt.toDate().getTime():+new Date(b.completedAt)):0;
+        return tb-ta;
       });
-
       var filtered = sorted.filter(function(c) {
-        if (!state.searchQuery) return true;
-        var q = state.searchQuery.toLowerCase();
-        var user = state.users.find(function(u) { return u.id === c.completedBy; });
-        var userName = user ? (user.displayName || user.email || '') : (c.completedByName || '');
-        return userName.toLowerCase().indexOf(q) !== -1 || (c.siteId || '').toLowerCase().indexOf(q) !== -1;
+        if (!S.q) return true;
+        var q = S.q.toLowerCase();
+        var u = S.users.find(function(x){return x.id===c.completedBy;});
+        var n = u?(u.displayName||u.email||''):(c.completedByName||'');
+        return n.toLowerCase().indexOf(q)!==-1 || (c.siteId||'').toLowerCase().indexOf(q)!==-1;
       });
-
-      // Per-user stats
-      var userStats = {};
-      state.completions.forEach(function(c) {
-        if (!userStats[c.completedBy]) userStats[c.completedBy] = 0;
-        userStats[c.completedBy]++;
-      });
-      var topUsers = Object.keys(userStats).map(function(uid) {
-        var user = state.users.find(function(u) { return u.id === uid; });
-        return { userId: uid, count: userStats[uid], name: user ? (user.displayName || user.email) : 'Unknown', user: user };
-      }).sort(function(a, b) { return b.count - a.count; }).slice(0, 5);
-
-      var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">' +
-        '<h2 style="font-size:1.5rem;font-weight:bold;">📋 Activity (' + state.completions.length + ' completions)</h2>' +
-        '<input class="search-box" placeholder="🔍 Search by user or site..." value="' + (state.searchQuery || '') + '" oninput="setState({searchQuery:this.value})" />' +
-        '</div>';
 
       // Top performers
-      if (topUsers.length > 0) {
-        html += '<div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;">';
-        topUsers.forEach(function(u, i) {
-          var medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : '🏅';
-          html += '<div class="stat-card" style="flex:1;min-width:120px;">' +
-            '<div style="text-align:center;">' + medal +
-            '<div style="margin:8px 0;">' + (u.user ? avatarHTML(u.user, 'sm') : '') + '</div>' +
-            '<div style="font-weight:500;font-size:0.85rem;">' + u.name + '</div>' +
-            '<div style="font-size:1.25rem;font-weight:bold;color:#36d399;">' + u.count + '</div>' +
-            '<div style="font-size:0.7rem;color:#a6adbb;">completions</div></div></div>';
+      var stats = {};
+      S.completions.forEach(function(c) { stats[c.completedBy] = (stats[c.completedBy]||0)+1; });
+      var top = Object.keys(stats).map(function(uid) {
+        var u = S.users.find(function(x){return x.id===uid;});
+        return {uid:uid, count:stats[uid], name:u?(u.displayName||u.email):'Unknown', user:u};
+      }).sort(function(a,b){return b.count-a.count;}).slice(0,5);
+
+      var h = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">' +
+        '<h2 style="font-size:1.3rem;font-weight:bold;">📋 Activity ('+S.completions.length+')</h2>' +
+        '<input class="search-input" placeholder="🔍 Search..." value="'+(S.q||'')+'" oninput="set({q:this.value})" /></div>';
+
+      if (top.length > 0) {
+        var medals = ['🥇','🥈','🥉','🏅','🏅'];
+        h += '<div class="perf-row">';
+        top.forEach(function(t,i) {
+          h += '<div class="perf-card">'+medals[i] +
+            '<div style="margin:6px 0;">'+(t.user?av(t.user,'sm'):'')+'</div>' +
+            '<div style="font-weight:500;font-size:0.8rem;">'+t.name+'</div>' +
+            '<div style="font-size:1.2rem;font-weight:bold;color:#36d399;">'+t.count+'</div></div>';
         });
-        html += '</div>';
+        h += '</div>';
       }
 
-      // Activity cards
-      filtered.slice(0, 50).forEach(function(c, i) {
-        var user = state.users.find(function(u) { return u.id === c.completedBy; });
-        var userName = user ? (user.displayName || user.email) : (c.completedByName || 'Unknown');
-        var siteName = c.siteId || 'Unknown';
-        var siteObj = state.sites.find(function(s) { return s.id === c.siteId; });
-        if (siteObj) siteName = siteObj.name || siteName;
-        var siteAddress = siteObj ? (siteObj.address || '') : '';
-        var siteStatus = siteObj ? (siteObj.status || '') : '';
-        var photoHTML = c.completedByPhoto
-          ? '<img src="' + c.completedByPhoto + '" style="width:40px;height:40px;border-radius:50%;object-fit:cover;" />'
-          : (user ? avatarHTML(user, 'md') : '<div style="width:40px;height:40px;border-radius:50%;background:#2a323c;display:flex;align-items:center;justify-content:center;">👤</div>');
-        var isExpanded = state.expandedId === 'act_' + i;
+      filtered.slice(0,50).forEach(function(c, i) {
+        var u = S.users.find(function(x){return x.id===c.completedBy;});
+        var name = u?(u.displayName||u.email):(c.completedByName||'Unknown');
+        var so = S.sites.find(function(x){return x.id===c.siteId;});
+        var sn = so?(so.name||c.siteId):c.siteId;
+        var ex = S.expandedId === 'a_'+i;
 
-        html += '<div class="stat-card" style="margin-bottom:8px;cursor:pointer;border-left:3px solid #36d399;transition:all 0.2s;" onclick="toggleDetail(\'act_' + i + '\')">';
+        h += '<div class="card-item green" onclick="toggle(\'a_'+i+'\')">';
+        h += '<div style="display:flex;align-items:center;gap:10px;">' +
+          photoOrAv(c.completedByPhoto,u,'sm') +
+          '<div style="flex:1;min-width:0;"><div style="font-weight:600;font-size:0.92rem;">'+name+'</div>' +
+          '<div style="font-size:0.78rem;color:#a6adbb;">📍 '+sn+'</div></div>' +
+          '<div style="text-align:right;"><div style="font-size:0.72rem;color:#a6adbb;">'+fmtTime(c.completedAt)+'</div>' +
+          '<div style="color:#36d399;font-size:0.82rem;">✅</div></div>' +
+          '<span class="arrow'+(ex?' open':'')+'">▼</span></div>';
 
-        // Summary
-        html += '<div style="display:flex;align-items:center;gap:12px;">' +
-          photoHTML +
-          '<div style="flex:1;min-width:0;">' +
-            '<div style="font-weight:600;">' + userName + '</div>' +
-            '<div style="font-size:0.8rem;color:#a6adbb;">📍 ' + siteName + '</div>' +
-          '</div>' +
-          '<div style="text-align:right;">' +
-            '<div style="font-size:0.75rem;color:#a6adbb;">' + formatDateTime(c.completedAt) + '</div>' +
-            '<div style="color:#36d399;font-size:0.85rem;">✅ Done</div>' +
-          '</div>' +
-          '<div style="font-size:1.2rem;color:#a6adbb;transition:transform 0.2s;transform:rotate(' + (isExpanded ? '180' : '0') + 'deg);">▼</div>' +
-        '</div>';
-
-        // Expanded
-        if (isExpanded) {
-          html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #2a323c;">';
-          html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
-            '<div style="background:#1d232a;border-radius:8px;padding:10px;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Site ID</div><div style="font-weight:600;">' + (c.siteId || '—') + '</div></div>' +
-            '<div style="background:#1d232a;border-radius:8px;padding:10px;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Completed</div><div style="font-weight:500;font-size:0.85rem;">' + formatDateTime(c.completedAt) + '</div></div>';
-          if (siteAddress) {
-            html += '<div style="background:#1d232a;border-radius:8px;padding:10px;grid-column:span 2;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Address</div><div style="font-size:0.9rem;">' + siteAddress + '</div></div>';
+        h += '<div class="detail-panel'+(ex?' open':'')+'">';
+        if (ex) {
+          h += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #2a323c;">';
+          h += '<div class="detail-grid">' +
+            '<div class="detail-cell"><div class="label">Site ID</div><div class="value">'+(c.siteId||'—')+'</div></div>' +
+            '<div class="detail-cell"><div class="label">Completed</div><div class="value" style="font-size:0.85rem;">'+fmtTime(c.completedAt)+'</div></div>';
+          if (so && so.address) h += '<div class="detail-cell span2"><div class="label">Address</div><div class="value" style="font-size:0.88rem;">'+so.address+'</div></div>';
+          if (so && so.status) h += '<div class="detail-cell span2"><div class="label">Status</div><div><span class="badge badge-sm '+(so.status.indexOf('Existing')!==-1?'badge-success':'badge-warning')+'">'+so.status+'</span></div></div>';
+          h += '</div>';
+          if (u) {
+            h += '<div style="background:#1d232a;border-radius:8px;padding:10px;display:flex;align-items:center;gap:8px;">'+av(u,'sm') +
+              '<div><div style="font-weight:500;font-size:0.88rem;">'+(u.displayName||'—')+'</div>' +
+              '<div style="font-size:0.72rem;color:#a6adbb;">'+(u.email||'')+'</div></div></div>';
           }
-          if (siteStatus) {
-            html += '<div style="background:#1d232a;border-radius:8px;padding:10px;grid-column:span 2;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Site Status</div><div><span class="badge badge-sm ' + (siteStatus.indexOf('Existing') !== -1 ? 'badge-success' : 'badge-warning') + '">' + siteStatus + '</span></div></div>';
-          }
-          html += '</div>';
-
-          // User info
-          if (user) {
-            html += '<div style="margin-top:10px;background:#1d232a;border-radius:8px;padding:10px;display:flex;align-items:center;gap:10px;">' +
-              avatarHTML(user, 'sm') +
-              '<div><div style="font-weight:500;">' + (user.displayName || 'No Name') + '</div>' +
-              '<div style="font-size:0.75rem;color:#a6adbb;">' + (user.email || '') + '</div></div></div>';
-          }
-          html += '</div>';
+          h += '</div>';
         }
-
-        html += '</div>';
+        h += '</div></div>';
       });
 
-      if (filtered.length > 50) {
-        html += '<div class="stat-card" style="text-align:center;color:#a6adbb;">... and ' + (filtered.length - 50) + ' more completions</div>';
-      }
-
-      if (filtered.length === 0) {
-        html += '<div class="stat-card"><p style="color:#a6adbb;">No activity found.</p></div>';
-      }
-
-      return html;
+      if (filtered.length>50) h += '<div class="stat-box" style="text-align:center;color:#a6adbb;">... and '+(filtered.length-50)+' more</div>';
+      if (filtered.length===0) h += '<div class="stat-box"><p style="color:#a6adbb;">No activity found.</p></div>';
+      return h;
     }
 
     // ── SITES ──
-    function renderSites() {
-      var filtered = state.sites.filter(function(s) {
-        if (!state.searchQuery) return true;
-        var q = state.searchQuery.toLowerCase();
-        return (s.name || '').toLowerCase().indexOf(q) !== -1 || (s.address || '').toLowerCase().indexOf(q) !== -1;
+    function rSites() {
+      var filtered = S.sites.filter(function(s) {
+        if (!S.q) return true;
+        var q = S.q.toLowerCase();
+        return (s.name||'').toLowerCase().indexOf(q)!==-1 || (s.address||'').toLowerCase().indexOf(q)!==-1;
       });
 
-      var html = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">' +
-        '<h2 style="font-size:1.5rem;font-weight:bold;">📍 Sites (' + state.sites.length + ')</h2>' +
-        '<div style="display:flex;gap:8px;">' +
-        '<input class="search-box" placeholder="🔍 Search sites..." value="' + (state.searchQuery || '') + '" oninput="setState({searchQuery:this.value})" />' +
-        '<button class="btn btn-primary btn-sm" onclick="setState({showAddSite:true})">+ Add Site</button>' +
-        '</div></div>';
+      var h = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">' +
+        '<h2 style="font-size:1.3rem;font-weight:bold;">📍 Sites ('+S.sites.length+')</h2>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+        '<input class="search-input" placeholder="🔍 Search sites..." value="'+(S.q||'')+'" oninput="set({q:this.value})" />' +
+        '<button class="btn btn-primary btn-sm" onclick="set({showAddSite:true})">+ Add</button></div></div>';
 
-      // Add/edit site modal
-      if (state.showAddSite || state.editingSite) {
-        var site = state.editingSite || {};
-        html += '<div class="stat-card" style="margin-bottom:16px;border-color:#570df8;">' +
-          '<h3 style="font-weight:bold;margin-bottom:12px;">' + (site.id ? '✏️ Edit Site' : '➕ Add New Site') + '</h3>' +
+      // Add/edit form
+      if (S.showAddSite || S.editingSite) {
+        var s = S.editingSite || {};
+        h += '<div class="stat-box" style="margin-bottom:14px;border:1px solid #570df8;">' +
+          '<h3 style="font-weight:bold;margin-bottom:10px;">'+(s.id?'✏️ Edit':'➕ Add')+' Site</h3>' +
           '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
-          '<input id="site-name" class="input input-bordered input-sm" placeholder="Site Name" value="' + (site.name || '') + '" />' +
-          '<input id="site-address" class="input input-bordered input-sm" placeholder="Address" value="' + (site.address || '') + '" />' +
-          '<input id="site-lat" class="input input-bordered input-sm" placeholder="Latitude" value="' + (site.lat || '') + '" type="number" step="any" />' +
-          '<input id="site-lng" class="input input-bordered input-sm" placeholder="Longitude" value="' + (site.lng || site.lon || '') + '" type="number" step="any" />' +
-          '<input id="site-status" class="input input-bordered input-sm" placeholder="Status (e.g. Existing Cabinet)" value="' + (site.status || '') + '" />' +
-          '<select id="site-source" class="select select-bordered select-sm"><option value="default">Default</option><option value="imported">Imported</option></select>' +
-          '</div>' +
-          '<div style="display:flex;gap:8px;margin-top:12px;">' +
-          '<button class="btn btn-primary btn-sm" onclick="saveSiteForm(\'' + (site.id || '') + '\')">💾 Save</button>' +
-          '<button class="btn btn-ghost btn-sm" onclick="setState({editingSite:null,showAddSite:false})">Cancel</button>' +
-          '</div></div>';
+          '<input id="sf-name" class="input input-bordered input-sm" placeholder="Name" value="'+(s.name||'')+'" />' +
+          '<input id="sf-addr" class="input input-bordered input-sm" placeholder="Address" value="'+(s.address||'')+'" />' +
+          '<input id="sf-lat" class="input input-bordered input-sm" placeholder="Lat" value="'+(s.lat||'')+'" type="number" step="any" />' +
+          '<input id="sf-lng" class="input input-bordered input-sm" placeholder="Lng" value="'+(s.lng||s.lon||'')+'" type="number" step="any" />' +
+          '<input id="sf-status" class="input input-bordered input-sm" placeholder="Status" value="'+(s.status||'')+'" />' +
+          '<select id="sf-src" class="select select-bordered select-sm"><option value="default">Default</option><option value="imported">Imported</option></select>' +
+          '</div><div style="display:flex;gap:8px;margin-top:10px;">' +
+          '<button class="btn btn-primary btn-sm" onclick="saveSiteForm(\''+(s.id||'')+'\')">💾 Save</button>' +
+          '<button class="btn btn-ghost btn-sm" onclick="set({editingSite:null,showAddSite:false})">Cancel</button></div></div>';
       }
 
       filtered.forEach(function(s) {
-        var completedBy = state.completions.filter(function(c) { return c.siteId === s.id; });
-        var noteCount = (state.notes[s.id] || state.notes[s.name] || []).length;
-        var isExisting = (s.status || '').indexOf('Existing') !== -1;
-        var isExpanded = state.expandedId === 'site_' + s.id;
-        var borderColor = completedBy.length > 0 ? '#36d399' : (isExisting ? '#570df8' : '#f59e0b');
-        var siteNotes = state.notes[s.id] || [];
+        var cb = S.completions.filter(function(c){return c.siteId===s.id;});
+        var nc = (S.notes[s.id]||[]).length;
+        var isEx = (s.status||'').indexOf('Existing')!==-1;
+        var ex = S.expandedId === 's_'+s.id;
+        var bc = cb.length>0?'green':(isEx?'purple':'amber');
+        var sn = S.notes[s.id]||[];
 
-        html += '<div class="stat-card" style="margin-bottom:8px;cursor:pointer;border-left:3px solid ' + borderColor + ';transition:all 0.2s;" onclick="toggleDetail(\'site_' + s.id + '\')">';
-
-        // Summary
-        html += '<div style="display:flex;align-items:center;gap:12px;">' +
-          '<div style="font-size:1.5rem;">' + (completedBy.length > 0 ? '✅' : '📍') + '</div>' +
+        h += '<div class="card-item '+bc+'" onclick="toggle(\'s_'+s.id+'\')">';
+        h += '<div style="display:flex;align-items:center;gap:10px;">' +
+          '<div style="font-size:1.3rem;">'+(cb.length>0?'✅':'📍')+'</div>' +
           '<div style="flex:1;min-width:0;">' +
-            '<div style="font-weight:600;">' + (s.name || 'Unnamed') + '</div>' +
-            '<div style="font-size:0.8rem;color:#a6adbb;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (s.address || '—') + '</div>' +
+            '<div style="font-weight:600;">'+(s.name||'Unnamed')+'</div>' +
+            '<div style="font-size:0.78rem;color:#a6adbb;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(s.address||'—')+'</div>' +
           '</div>' +
           '<div style="text-align:right;">' +
-            '<span class="badge badge-sm ' + (isExisting ? 'badge-success' : 'badge-warning') + '">' + (isExisting ? 'Existing' : 'RTM') + '</span>' +
-            '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px;">' +
-              (completedBy.length > 0 ? '<span style="color:#36d399;font-size:0.8rem;font-weight:bold;">' + completedBy.length + ' ✓</span>' : '') +
-              (noteCount > 0 ? '<span style="font-size:0.8rem;">' + noteCount + ' 💬</span>' : '') +
+            '<span class="badge badge-sm '+(isEx?'badge-success':'badge-warning')+'">'+(isEx?'Existing':'RTM')+'</span>' +
+            '<div style="display:flex;gap:6px;justify-content:flex-end;margin-top:3px;">' +
+              (cb.length>0?'<span style="color:#36d399;font-size:0.78rem;font-weight:bold;">'+cb.length+' ✓</span>':'') +
+              (nc>0?'<span style="font-size:0.78rem;">'+nc+' 💬</span>':'') +
             '</div>' +
           '</div>' +
-          '<div style="font-size:1.2rem;color:#a6adbb;transition:transform 0.2s;transform:rotate(' + (isExpanded ? '180' : '0') + 'deg);">▼</div>' +
-        '</div>';
+          '<span class="arrow'+(ex?' open':'')+'">▼</span></div>';
 
-        // Expanded
-        if (isExpanded) {
-          html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #2a323c;" onclick="event.stopPropagation()">';
-
-          // Info grid
-          html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">' +
-            '<div style="background:#1d232a;border-radius:8px;padding:10px;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Site ID</div><div style="font-weight:600;">' + (s.name || s.id) + '</div></div>' +
-            '<div style="background:#1d232a;border-radius:8px;padding:10px;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Status</div><div><span class="badge badge-sm ' + (isExisting ? 'badge-success' : 'badge-warning') + '">' + (s.status || 'Unknown') + '</span></div></div>' +
-            '<div style="background:#1d232a;border-radius:8px;padding:10px;grid-column:span 2;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Address</div><div style="font-size:0.9rem;">' + (s.address || '—') + '</div></div>' +
-            '<div style="background:#1d232a;border-radius:8px;padding:10px;grid-column:span 2;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Coordinates</div><div style="font-size:0.85rem;">' + (s.lat || '?') + ', ' + (s.lng || s.lon || '?') + '</div></div>' +
+        h += '<div class="detail-panel'+(ex?' open':'')+'">';
+        if (ex) {
+          h += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #2a323c;" onclick="event.stopPropagation()">';
+          h += '<div class="detail-grid">' +
+            '<div class="detail-cell"><div class="label">Site ID</div><div class="value">'+(s.name||s.id)+'</div></div>' +
+            '<div class="detail-cell"><div class="label">Status</div><div><span class="badge badge-sm '+(isEx?'badge-success':'badge-warning')+'">'+(s.status||'Unknown')+'</span></div></div>' +
+            '<div class="detail-cell span2"><div class="label">Address</div><div class="value" style="font-size:0.88rem;">'+(s.address||'—')+'</div></div>' +
+            '<div class="detail-cell span2"><div class="label">Coordinates</div><div style="font-size:0.82rem;">'+(s.lat||'?')+', '+(s.lng||s.lon||'?')+'</div></div>' +
           '</div>';
 
-          // Who completed it
-          if (completedBy.length > 0) {
-            html += '<div style="margin-bottom:12px;"><div style="font-weight:600;font-size:0.85rem;margin-bottom:8px;">👷 Completed By:</div>';
-            completedBy.forEach(function(c) {
-              var user = state.users.find(function(u) { return u.id === c.completedBy; });
-              var userName = user ? (user.displayName || user.email) : (c.completedByName || 'Unknown');
-              var photoHTML = c.completedByPhoto
-                ? '<img src="' + c.completedByPhoto + '" style="width:32px;height:32px;border-radius:50%;object-fit:cover;" />'
-                : (user ? avatarHTML(user, 'sm') : '');
-              html += '<div style="display:flex;align-items:center;gap:10px;padding:8px;background:#1d232a;border-radius:8px;margin-bottom:4px;">' +
-                photoHTML +
-                '<div style="flex:1;"><div style="font-weight:500;font-size:0.9rem;">' + userName + '</div></div>' +
-                '<div style="font-size:0.75rem;color:#a6adbb;">' + formatDateTime(c.completedAt) + '</div></div>';
+          if (cb.length>0) {
+            h += '<div style="margin-bottom:12px;"><div style="font-weight:600;font-size:0.82rem;margin-bottom:6px;">👷 Completed By:</div>';
+            cb.forEach(function(c) {
+              var u = S.users.find(function(x){return x.id===c.completedBy;});
+              var name = u?(u.displayName||u.email):(c.completedByName||'Unknown');
+              h += '<div style="display:flex;align-items:center;gap:8px;padding:7px;background:#1d232a;border-radius:8px;margin-bottom:3px;">' +
+                photoOrAv(c.completedByPhoto,u,'sm') +
+                '<div style="flex:1;font-weight:500;font-size:0.88rem;">'+name+'</div>' +
+                '<div style="font-size:0.72rem;color:#a6adbb;">'+fmtTime(c.completedAt)+'</div></div>';
             });
-            html += '</div>';
+            h += '</div>';
           } else {
-            html += '<div style="background:#f59e0b22;border:1px solid #f59e0b44;border-radius:8px;padding:10px;margin-bottom:12px;text-align:center;color:#f59e0b;">⏳ Not yet completed</div>';
+            h += '<div style="background:#f59e0b22;border:1px solid #f59e0b44;border-radius:8px;padding:10px;margin-bottom:12px;text-align:center;color:#f59e0b;">⏳ Not yet completed</div>';
           }
 
-          // Notes preview
-          if (siteNotes.length > 0) {
-            html += '<div style="margin-bottom:12px;"><div style="font-weight:600;font-size:0.85rem;margin-bottom:8px;">💬 Notes (' + siteNotes.length + '):</div>';
-            siteNotes.slice(0, 5).forEach(function(n) {
-              html += '<div style="background:#1d232a;border-radius:8px;padding:8px 10px;margin-bottom:4px;">' +
-                '<div style="display:flex;justify-content:space-between;margin-bottom:4px;">' +
-                  '<span style="font-weight:500;font-size:0.8rem;">' + (n.authorName || 'Unknown') + '</span>' +
-                  '<span style="font-size:0.7rem;color:#a6adbb;">' + formatDateTime(n.createdAt) + '</span>' +
-                '</div>' +
-                '<div style="font-size:0.85rem;color:#ccc;">' + (n.text || n.message || '') + '</div></div>';
+          if (sn.length>0) {
+            h += '<div style="margin-bottom:12px;"><div style="font-weight:600;font-size:0.82rem;margin-bottom:6px;">💬 Notes ('+sn.length+'):</div>';
+            sn.slice(0,5).forEach(function(n) {
+              h += '<div class="note-bubble"><div style="display:flex;justify-content:space-between;margin-bottom:3px;">' +
+                '<span style="font-weight:500;font-size:0.78rem;">'+(n.authorName||'Unknown')+'</span>' +
+                '<span style="font-size:0.68rem;color:#a6adbb;">'+fmtTime(n.createdAt)+'</span></div>' +
+                '<div style="font-size:0.85rem;color:#ccc;">'+(n.text||n.message||'')+'</div></div>';
             });
-            html += '</div>';
+            h += '</div>';
           }
 
-          // Actions
-          html += '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
-            '<button class="btn btn-sm" style="background:#570df8;border:none;color:#fff;" onclick="editSite(\'' + s.id + '\')">✏️ Edit Site</button>' +
-            '<button class="btn btn-sm" style="background:#f8727233;border:1px solid #f87272;color:#f87272;" onclick="deleteSite(\'' + s.id + '\',\'' + (s.name || '').replace(/'/g, "\\'") + '\')">🗑️ Delete</button>' +
-          '</div>';
-          html += '</div>';
+          h += '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+            '<button class="btn btn-sm btn-primary" onclick="editSite(\''+s.id+'\')">✏️ Edit</button>' +
+            '<button class="btn btn-sm btn-del" onclick="deleteSite(\''+s.id+'\',\''+esc(s.name)+'\')">🗑️ Delete</button></div>';
+          h += '</div>';
         }
-
-        html += '</div>';
+        h += '</div></div>';
       });
 
-      if (filtered.length === 0) {
-        html += '<div class="stat-card"><p style="color:#a6adbb;">No sites found.</p></div>';
-      }
-
-      return html;
-    }
-
-    function editSite(siteId) {
-      var site = state.sites.find(function(s) { return s.id === siteId; });
-      if (site) setState({ editingSite: Object.assign({}, site), showAddSite: false });
-    }
-
-    function saveSiteForm(existingId) {
-      var data = {
-        name: document.getElementById('site-name').value,
-        address: document.getElementById('site-address').value,
-        lat: parseFloat(document.getElementById('site-lat').value) || 0,
-        lng: parseFloat(document.getElementById('site-lng').value) || 0,
-        status: document.getElementById('site-status').value,
-        source: document.getElementById('site-source').value
-      };
-      if (existingId) data.id = existingId;
-      saveSite(data);
+      if (filtered.length===0) h += '<div class="stat-box"><p style="color:#a6adbb;">No sites found.</p></div>';
+      return h;
     }
 
     // ── NOTES ──
-    function renderNotes() {
-      var allSiteIds = Object.keys(state.notes);
-      var totalNotes = allSiteIds.reduce(function(sum, key) { return sum + state.notes[key].length; }, 0);
+    function rNotes() {
+      var allKeys = Object.keys(S.notes).filter(function(k) { return S.notes[k].length > 0; });
+      var tn = totalNotes();
 
-      var html = '<h2 style="font-size:1.5rem;font-weight:bold;margin-bottom:20px;">📝 Notes (' + totalNotes + ')</h2>';
+      var h = '<h2 style="font-size:1.3rem;font-weight:bold;margin-bottom:16px;">📝 Notes ('+tn+')</h2>';
 
-      if (allSiteIds.length === 0) {
-        html += '<div class="stat-card"><p style="color:#a6adbb;">No notes yet.</p></div>';
-        return html;
+      if (allKeys.length === 0) {
+        h += '<div class="stat-box"><p style="color:#a6adbb;">No notes yet. Notes appear here when team members leave messages at sites.</p></div>';
+        return h;
       }
 
-      allSiteIds.forEach(function(siteId) {
-        var notes = state.notes[siteId];
-        var site = state.sites.find(function(s) { return s.id === siteId || s.name === siteId; });
-        var siteName = site ? site.name : siteId;
+      allKeys.forEach(function(sid) {
+        var notes = S.notes[sid];
+        var site = S.sites.find(function(x){return x.id===sid||x.name===sid;});
+        var sn = site?site.name:sid;
 
-        html += '<div class="stat-card" style="margin-bottom:12px;">' +
-          '<h3 style="font-weight:bold;margin-bottom:12px;">📍 ' + siteName + ' <span style="color:#a6adbb;font-weight:normal;font-size:0.85rem;">(' + notes.length + ' notes)</span></h3>';
+        h += '<div class="stat-box" style="margin-bottom:10px;">' +
+          '<h3 style="font-weight:bold;margin-bottom:10px;">📍 '+sn+' <span style="color:#a6adbb;font-weight:normal;font-size:0.82rem;">('+notes.length+')</span></h3>';
 
         notes.forEach(function(n) {
-          var user = state.users.find(function(u) { return u.id === (n.authorId || n.userId); });
-          var userName = user ? (user.displayName || user.email) : (n.authorName || n.userName || 'Unknown');
-          var photoHTML = n.authorPhoto
-            ? '<img src="' + n.authorPhoto + '" style="width:32px;height:32px;border-radius:50%;object-fit:cover;" />'
-            : (user ? avatarHTML(user, 'sm') : '<div style="width:32px;height:32px;border-radius:50%;background:#2a323c;display:flex;align-items:center;justify-content:center;font-size:14px;color:#fff;">?</div>');
-          html += '<div class="note-bubble">' +
-            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
-            photoHTML +
-            '<span style="font-weight:500;font-size:0.9rem;">' + userName + '</span>' +
-            '<span style="font-size:0.75rem;color:#a6adbb;margin-left:auto;">' + formatDateTime(n.createdAt || n.timestamp) + '</span>' +
-            '<button class="btn btn-ghost btn-xs" onclick="deleteNote(\'' + (n.siteDocId || '') + '\',\'' + n.id + '\')" title="Delete note">🗑️</button>' +
-            '</div>' +
-            '<div style="font-size:0.9rem;padding-left:44px;">' + (n.text || n.message || '') + '</div></div>';
+          var u = S.users.find(function(x){return x.id===(n.authorId||n.userId);});
+          var name = u?(u.displayName||u.email):(n.authorName||'Unknown');
+          h += '<div class="note-bubble">' +
+            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">' +
+            photoOrAv(n.authorPhoto,u,'sm') +
+            '<span style="font-weight:500;font-size:0.88rem;">'+name+'</span>' +
+            '<span style="font-size:0.72rem;color:#a6adbb;margin-left:auto;">'+fmtTime(n.createdAt||n.timestamp)+'</span>' +
+            '<button class="btn btn-ghost btn-xs" onclick="deleteNote(\''+esc(n.siteDocId)+'\',\''+n.id+'\')" title="Delete">🗑️</button></div>' +
+            '<div style="font-size:0.88rem;padding-left:42px;color:#ddd;">'+(n.text||n.message||'')+'</div></div>';
         });
-
-        html += '</div>';
+        h += '</div>';
       });
-
-      return html;
+      return h;
     }
 
-    // ── KMZ FILES ──
-    function renderKmz() {
-      var html = '<h2 style="font-size:1.5rem;font-weight:bold;margin-bottom:20px;">📁 KMZ Files (' + state.kmzFiles.length + ')</h2>';
-
-      if (state.kmzFiles.length === 0) {
-        html += '<div class="stat-card"><p style="color:#a6adbb;">No KMZ files imported by users yet.</p></div>';
-        return html;
+    // ── KMZ ──
+    function rKmz() {
+      var h = '<h2 style="font-size:1.3rem;font-weight:bold;margin-bottom:16px;">📁 KMZ Files ('+S.kmzFiles.length+')</h2>';
+      if (S.kmzFiles.length===0) {
+        h += '<div class="stat-box"><p style="color:#a6adbb;">No KMZ files imported yet.</p></div>';
+        return h;
       }
 
-      state.kmzFiles.forEach(function(f, i) {
-        var user = state.users.find(function(u) { return u.id === f.userId; });
-        var userName = user ? (user.displayName || user.email) : (f.userName || 'Unknown');
-        var isExpanded = state.expandedId === 'kmz_' + i;
+      S.kmzFiles.forEach(function(f,i) {
+        var u = S.users.find(function(x){return x.id===f.userId;});
+        var name = u?(u.displayName||u.email):(f.userName||'Unknown');
+        var ex = S.expandedId==='k_'+i;
 
-        html += '<div class="stat-card" style="margin-bottom:8px;cursor:pointer;border-left:3px solid #3abff8;transition:all 0.2s;" onclick="toggleDetail(\'kmz_' + i + '\')">';
-
-        // Summary
-        html += '<div style="display:flex;align-items:center;gap:12px;">' +
-          '<div style="font-size:1.5rem;">📄</div>' +
+        h += '<div class="card-item blue" onclick="toggle(\'k_'+i+'\')">';
+        h += '<div style="display:flex;align-items:center;gap:10px;">' +
+          '<div style="font-size:1.3rem;">📄</div>' +
           '<div style="flex:1;min-width:0;">' +
-            '<div style="font-weight:600;">' + (f.name || f.fileName || 'Untitled') + '</div>' +
-            '<div style="font-size:0.8rem;color:#a6adbb;">by ' + userName + '</div>' +
+            '<div style="font-weight:600;">'+(f.name||f.fileName||'Untitled')+'</div>' +
+            '<div style="font-size:0.78rem;color:#a6adbb;">by '+name+'</div>' +
           '</div>' +
           '<div style="text-align:right;">' +
-            '<div style="font-weight:bold;color:#3abff8;">' + (f.siteCount || '?') + ' sites</div>' +
-            '<div style="font-size:0.75rem;color:#a6adbb;">' + formatDate(f.uploadedAt || f.createdAt) + '</div>' +
+            '<div style="font-weight:bold;color:#3abff8;">'+(f.siteCount||'?')+' sites</div>' +
+            '<div style="font-size:0.72rem;color:#a6adbb;">'+fmtDate(f.uploadedAt||f.createdAt)+'</div>' +
           '</div>' +
-          '<div style="font-size:1.2rem;color:#a6adbb;transition:transform 0.2s;transform:rotate(' + (isExpanded ? '180' : '0') + 'deg);">▼</div>' +
-        '</div>';
+          '<span class="arrow'+(ex?' open':'')+'">▼</span></div>';
 
-        // Expanded
-        if (isExpanded) {
-          html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid #2a323c;" onclick="event.stopPropagation()">';
-          html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">' +
-            '<div style="background:#1d232a;border-radius:8px;padding:10px;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">File Name</div><div style="font-weight:500;word-break:break-all;">' + (f.name || f.fileName || 'Untitled') + '</div></div>' +
-            '<div style="background:#1d232a;border-radius:8px;padding:10px;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Sites</div><div style="font-weight:600;font-size:1.2rem;color:#3abff8;">' + (f.siteCount || '?') + '</div></div>' +
-            '<div style="background:#1d232a;border-radius:8px;padding:10px;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Uploaded</div><div style="font-size:0.85rem;">' + formatDate(f.uploadedAt || f.createdAt) + '</div></div>' +
-            '<div style="background:#1d232a;border-radius:8px;padding:10px;"><div style="font-size:0.7rem;color:#a6adbb;text-transform:uppercase;">Uploaded By</div><div style="display:flex;align-items:center;gap:6px;">' + (user ? avatarHTML(user, 'sm') : '') + '<span style="font-size:0.85rem;">' + userName + '</span></div></div>' +
+        h += '<div class="detail-panel'+(ex?' open':'')+'">';
+        if (ex) {
+          h += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #2a323c;" onclick="event.stopPropagation()">';
+          h += '<div class="detail-grid">' +
+            '<div class="detail-cell"><div class="label">File</div><div class="value" style="word-break:break-all;">'+(f.name||f.fileName||'Untitled')+'</div></div>' +
+            '<div class="detail-cell"><div class="label">Sites</div><div class="value" style="font-size:1.2rem;color:#3abff8;">'+(f.siteCount||'?')+'</div></div>' +
+            '<div class="detail-cell"><div class="label">Uploaded</div><div class="value">'+fmtDate(f.uploadedAt||f.createdAt)+'</div></div>' +
+            '<div class="detail-cell"><div class="label">By</div><div style="display:flex;align-items:center;gap:6px;">'+(u?av(u,'sm'):'')+'<span style="font-size:0.85rem;">'+name+'</span></div></div>' +
           '</div>';
-          html += '<button class="btn btn-sm" style="background:#f8727233;border:1px solid #f87272;color:#f87272;" onclick="deleteKmz(\'' + f.id + '\',\'' + (f.name || f.fileName || '').replace(/'/g, "\\'") + '\')">🗑️ Delete KMZ</button>';
-          html += '</div>';
+          h += '<button class="btn btn-sm btn-del" onclick="deleteKmz(\''+f.id+'\',\''+esc(f.name||f.fileName)+'\')">🗑️ Delete KMZ</button>';
+          h += '</div>';
         }
-
-        html += '</div>';
+        h += '</div></div>';
       });
-
-      return html;
+      return h;
     }
 
     // ── ROLES ──
-    function renderRoles() {
-      var admins = state.users.filter(function(u) { return u.role === 'admin' || ADMIN_EMAILS.indexOf(u.email) !== -1; });
-      var regularUsers = state.users.filter(function(u) { return u.role !== 'admin' && ADMIN_EMAILS.indexOf(u.email) === -1; });
+    function rRoles() {
+      var admins = S.users.filter(function(u){return u.role==='admin'||ADMIN_EMAILS.indexOf(u.email)!==-1;});
+      var regs = S.users.filter(function(u){return u.role!=='admin'&&ADMIN_EMAILS.indexOf(u.email)===-1;});
 
-      var html = '<h2 style="font-size:1.5rem;font-weight:bold;margin-bottom:20px;">🔒 Role Management</h2>';
+      var h = '<h2 style="font-size:1.3rem;font-weight:bold;margin-bottom:16px;">🔒 Role Management</h2>';
 
-      html += '<div class="stat-card" style="margin-bottom:16px;">' +
-        '<h3 style="font-weight:bold;margin-bottom:4px;">Administrators (' + admins.length + ')</h3>' +
-        '<p style="font-size:0.8rem;color:#a6adbb;margin-bottom:12px;">Admins can access the back office and manage all data</p>';
-
+      h += '<div class="stat-box" style="margin-bottom:14px;">' +
+        '<h3 style="font-weight:bold;margin-bottom:4px;">Administrators ('+admins.length+')</h3>' +
+        '<p style="font-size:0.78rem;color:#a6adbb;margin-bottom:10px;">Full back office access</p>';
       admins.forEach(function(u) {
-        var isHardcoded = ADMIN_EMAILS.indexOf(u.email) !== -1;
-        html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #2a323c;">' +
-          avatarHTML(u, 'sm') +
-          '<div style="flex:1;"><div style="font-weight:500;">' + (u.displayName || 'No Name') + '</div>' +
-          '<div style="font-size:0.8rem;color:#a6adbb;">' + (u.email || '') + '</div></div>' +
-          (isHardcoded ? '<span style="font-size:0.75rem;color:#a6adbb;">🔐 Owner</span>' :
-          '<button class="btn btn-ghost btn-xs" onclick="toggleUserRole(\'' + u.id + '\',\'admin\')">Remove Admin</button>') +
-          '</div>';
+        var hard = ADMIN_EMAILS.indexOf(u.email)!==-1;
+        h += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #2a323c;">' +
+          av(u,'sm') +
+          '<div style="flex:1;min-width:0;"><div style="font-weight:500;">'+(u.displayName||'No Name')+'</div>' +
+          '<div style="font-size:0.78rem;color:#a6adbb;">'+(u.email||'')+'</div></div>' +
+          (hard?'<span style="font-size:0.72rem;color:#a6adbb;">🔐 Owner</span>' :
+          '<button class="btn btn-ghost btn-xs" onclick="toggleRole(\''+u.id+'\',\'admin\')">Remove</button>') + '</div>';
       });
-      html += '</div>';
+      h += '</div>';
 
-      html += '<div class="stat-card">' +
-        '<h3 style="font-weight:bold;margin-bottom:4px;">Regular Users (' + regularUsers.length + ')</h3>' +
-        '<p style="font-size:0.8rem;color:#a6adbb;margin-bottom:12px;">Click "Make Admin" to promote a user</p>';
-
-      regularUsers.forEach(function(u) {
-        html += '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #2a323c;">' +
-          avatarHTML(u, 'sm') +
-          '<div style="flex:1;"><div style="font-weight:500;">' + (u.displayName || 'No Name') + '</div>' +
-          '<div style="font-size:0.8rem;color:#a6adbb;">' + (u.email || '') + '</div></div>' +
-          '<button class="btn btn-primary btn-xs" onclick="toggleUserRole(\'' + u.id + '\',\'user\')">Make Admin</button>' +
-          '</div>';
+      h += '<div class="stat-box">' +
+        '<h3 style="font-weight:bold;margin-bottom:4px;">Regular Users ('+regs.length+')</h3>' +
+        '<p style="font-size:0.78rem;color:#a6adbb;margin-bottom:10px;">Tap "Make Admin" to promote</p>';
+      regs.forEach(function(u) {
+        h += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #2a323c;">' +
+          av(u,'sm') +
+          '<div style="flex:1;min-width:0;"><div style="font-weight:500;">'+(u.displayName||'No Name')+'</div>' +
+          '<div style="font-size:0.78rem;color:#a6adbb;">'+(u.email||'')+'</div></div>' +
+          '<button class="btn btn-primary btn-xs" onclick="toggleRole(\''+u.id+'\',\'user\')">Make Admin</button></div>';
       });
-
-      if (regularUsers.length === 0) {
-        html += '<p style="color:#a6adbb;">No regular users yet.</p>';
-      }
-      html += '</div>';
-
-      return html;
+      if (regs.length===0) h += '<p style="color:#a6adbb;">No regular users yet.</p>';
+      h += '</div>';
+      return h;
     }
 
-    // Initial render
+    // Boot
     render();
   </script>
 </body>
