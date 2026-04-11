@@ -1131,6 +1131,33 @@
 
       const handleKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendNote(); } };
 
+      const [editingId, setEditingId] = useState(null);
+      const [editText, setEditText] = useState('');
+
+      const startEdit = (note) => { setEditingId(note.id); setEditText(note.text); };
+      const cancelEdit = () => { setEditingId(null); setEditText(''); };
+
+      const saveEdit = async (noteId) => {
+        const text = editText.trim();
+        if (!text) return;
+        try {
+          await db.collection('siteNotes').doc(routeKey + '_' + site.id)
+            .collection('messages').doc(noteId).update({
+              text: text,
+              editedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+          setEditingId(null);
+          setEditText('');
+        } catch (err) { console.error('Edit note error:', err); }
+      };
+
+      const deleteNote = async (noteId) => {
+        try {
+          await db.collection('siteNotes').doc(routeKey + '_' + site.id)
+            .collection('messages').doc(noteId).delete();
+        } catch (err) { console.error('Delete note error:', err); }
+      };
+
       const formatTime = (ts) => {
         if (!ts) return '';
         try { const d = ts.toDate ? ts.toDate() : new Date(ts); return d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch(e) { return ''; }
@@ -1169,10 +1196,32 @@
                           {note.authorName ? note.authorName.charAt(0).toUpperCase() : '?'}
                         </div>
                       )}
-                      <div className={`max-w-[75%] ${isMe ? 'items-end' : 'items-start'}`}>
-                        <div className={`rounded-2xl px-3 py-2 text-sm ${isMe ? 'bg-primary text-primary-content rounded-br-sm' : 'bg-base-300 rounded-bl-sm'}`}>
-                          {note.text}
-                        </div>
+                      <div className={`max-w-[75%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
+                        {editingId === note.id ? (
+                          <div className="w-full">
+                            <textarea className="textarea textarea-bordered w-full text-sm min-h-[40px] resize-none"
+                              value={editText} onChange={function(e) { setEditText(e.target.value); }}
+                              onKeyDown={function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(note.id); } if (e.key === 'Escape') cancelEdit(); }}
+                              rows={2} autoFocus />
+                            <div className="flex gap-1 mt-1 justify-end">
+                              <button className="btn btn-xs btn-ghost" onClick={cancelEdit}>Cancel</button>
+                              <button className="btn btn-xs btn-primary" onClick={function() { saveEdit(note.id); }} disabled={!editText.trim()}>Save</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="group relative">
+                            <div className={`rounded-2xl px-3 py-2 text-sm ${isMe ? 'bg-primary text-primary-content rounded-br-sm' : 'bg-base-300 rounded-bl-sm'}`}>
+                              {note.text}
+                              {note.editedAt && <span className="text-xs opacity-50 ml-1">(edited)</span>}
+                            </div>
+                            {isMe && (
+                              <div className={`flex gap-1 mt-0.5 ${isMe ? 'justify-end' : ''}`}>
+                                <button className="btn btn-xs btn-ghost opacity-50 hover:opacity-100 px-1 h-5 min-h-0" onClick={function() { startEdit(note); }}>✏️</button>
+                                <button className="btn btn-xs btn-ghost opacity-50 hover:opacity-100 px-1 h-5 min-h-0 text-error" onClick={function() { if (window.confirm('Delete this note?')) deleteNote(note.id); }}>🗑️</button>
+                              </div>
+                            )}
+                          </div>
+                        )}
                         <div className={`flex items-center gap-1 mt-0.5 text-xs opacity-40 ${isMe ? 'justify-end' : ''}`}>
                           <span className="font-medium">{isMe ? 'You' : note.authorName}</span>
                           {note.createdAt && <span>· {formatTime(note.createdAt)}</span>}
