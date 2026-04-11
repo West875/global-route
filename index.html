@@ -1863,8 +1863,6 @@
 
       // Expose claimEnroute globally so map popups (plain HTML) can use it
       window.__claimEnroute = claimEnroute;
-      window.__flagRevisit = flagRevisit;
-      window.__clearRevisit = clearRevisit;
       window.__allSites = filteredSites;
 
       var cancelEnroute = function(siteId, site) {
@@ -1913,7 +1911,7 @@
           .catch(function(err) { console.error('Undo completion error:', err); });
       };
 
-      const flagRevisit = function(siteId, site) {
+      var flagRevisit = function(siteId, site) {
         var routeKey = (!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
         var displayName = user.displayName || user.email.split('@')[0];
         db.collection('sharedRoutes').doc(routeKey)
@@ -1927,12 +1925,16 @@
           .catch(function(err) { console.error('Flag revisit error:', err); });
       };
 
-      const clearRevisit = function(siteId, site) {
+      var clearRevisit = function(siteId, site) {
         var routeKey = (!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
         db.collection('sharedRoutes').doc(routeKey)
           .collection('revisits').doc(siteId).delete()
           .catch(function(err) { console.error('Clear revisit error:', err); });
       };
+
+      // Expose flag functions globally so map popups (plain HTML) can call them
+      window.__flagRevisit = flagRevisit;
+      window.__clearRevisit = clearRevisit;
 
       var resetProgress = function() {
         if (confirm('Reset all YOUR visited sites? This cannot be undone.')) {
@@ -2042,7 +2044,7 @@
           <div className="sticky top-0 z-[1000] bg-base-100 border-b border-base-300 px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <NavIcon size={18} className="text-primary shrink-0" />
-              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v23</span></span>
+              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v24</span></span>
               <span className="text-xs opacity-50">({visited.size} you • {teamCompletedCount} team)</span>
             </div>
             <div className="flex gap-2 flex-wrap">
