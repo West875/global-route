@@ -968,7 +968,7 @@
     }
 
     // ── KMZ Manager Panel ──
-    function KMZManager({ importedFiles, onImport, onRemoveFile, onClose }) {
+    function KMZManager({ importedFiles, sharedFiles, onImport, onRemoveFile, onClose }) {
       const fileInputRef = useRef(null);
       const [importing, setImporting] = useState(false);
       const [error, setError] = useState(null);
@@ -1029,8 +1029,25 @@
                     </div>
                   </div>
                 ))}
-                {importedFiles.length === 0 && (
+                {importedFiles.length === 0 && (!sharedFiles || sharedFiles.length === 0) && (
                   <p className="text-xs opacity-40 text-center py-2">No imported files yet. Tap "Import" above to add KMZ files.</p>
+                )}
+                {sharedFiles && sharedFiles.length > 0 && (
+                  <div className="mt-3">
+                    <h3 className="text-sm font-semibold opacity-70 mb-2">👥 Team Shared Files</h3>
+                    {sharedFiles.map(function(f) { return (
+                      <div key={'shared-' + f.name} className="card bg-base-300 mb-2">
+                        <div className="card-body p-3 flex-row items-center gap-3">
+                          <div className="bg-info/20 rounded-lg p-2"><MapPinIcon size={18} className="text-info" /></div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm truncate">{f.name}</p>
+                            <p className="text-xs opacity-50">{f.siteCount} sites · by {f.uploadedBy}</p>
+                          </div>
+                          <span className="badge badge-sm badge-info">Team</span>
+                        </div>
+                      </div>
+                    ); })}
+                  </div>
                 )}
               </div>
             </div>
@@ -1304,10 +1321,20 @@
       const [showKMZManager, setShowKMZManager] = useState(false);
       const [importedFiles, setImportedFiles] = useState([]);
       const [importedSites, setImportedSites] = useState([]);
+      const [sharedKMZFiles, setSharedKMZFiles] = useState([]);
+      const [sharedKMZSites, setSharedKMZSites] = useState([]);
       const [sharedCompletions, setSharedCompletions] = useState({});
       const [dataLoaded, setDataLoaded] = useState(false);
 
-      const allSites = [...BUILTIN_SITES, ...importedSites];
+      // Merge all sites, deduplicating by id (builtin > personal > shared)
+      var allSites = (function() {
+        var seen = {};
+        var result = [];
+        BUILTIN_SITES.forEach(function(s) { if (!seen[s.id]) { seen[s.id] = true; result.push(s); } });
+        importedSites.forEach(function(s) { if (!seen[s.id]) { seen[s.id] = true; result.push(s); } });
+        sharedKMZSites.forEach(function(s) { if (!seen[s.id]) { seen[s.id] = true; result.push(s); } });
+        return result;
+      })();
       const [sortedSites, setSortedSites] = useState(allSites);
       const [sourceFilter, setSourceFilter] = useState('all');
 
@@ -1372,6 +1399,31 @@
         });
         return unsub;
       }, [user.uid]);
+
+      // ── Listen for shared KMZ files (team-wide) ──
+      useEffect(function() {
+        var unsub = db.collection('sharedKMZ').onSnapshot(function(snapshot) {
+          var files = [];
+          var sites = [];
+          snapshot.forEach(function(doc) {
+            var data = doc.data();
+            files.push({ name: doc.id, siteCount: (data.sites || []).length, uploadedBy: data.uploadedByName || 'Unknown' });
+            (data.sites || []).forEach(function(s) {
+              var exists = sites.some(function(x) { return x.id === s.id; });
+              if (!exists) sites.push(s);
+            });
+          });
+          setSharedKMZFiles(function(prev) {
+            if (JSON.stringify(prev) === JSON.stringify(files)) return prev;
+            return files;
+          });
+          setSharedKMZSites(function(prev) {
+            if (JSON.stringify(prev) === JSON.stringify(sites)) return prev;
+            return sites;
+          });
+        });
+        return unsub;
+      }, []);
 
       // ── Listen for shared route completions (builtin route) ──
       useEffect(() => {
@@ -1509,11 +1561,11 @@
       }, [user.uid]);
 
       // Re-sort when sites or location change
-      useEffect(() => {
-        const all = [...BUILTIN_SITES, ...importedSites];
+      useEffect(function() {
+        var all = [].concat(BUILTIN_SITES, importedSites, sharedKMZSites);
         if (userLoc) { setSortedSites(sortByNearest(all, userLoc)); }
         else { setSortedSites(all); }
-      }, [importedSites, userLoc]);
+      }, [importedSites, sharedKMZSites, userLoc]);
 
       const applyLocation = useCallback((loc, isDefault) => {
         setUserLoc(loc); setUsingDefault(isDefault || false); setPermissionGranted(true); setLoading(false);
@@ -1660,21 +1712,32 @@
         }
       };
 
-      const handleKMZImport = (fileName, sites) => {
-        const sourceName = fileName.replace(/\.[^.]+$/, '');
-        const newImported = importedSites.filter(s => s.source !== sourceName);
-        const newFiles = importedFiles.filter(f => f.name !== sourceName);
-        const updatedSites = [...newImported, ...sites];
-        const updatedFiles = [...newFiles, { name: sourceName, siteCount: sites.length }];
+      const handleKMZImport = function(fileName, sites) {
+        var sourceName = fileName.replace(/\.[^.]+$/, '');
+        // Save to shared collection so whole team can see
+        db.collection('sharedKMZ').doc(sourceName).set({
+          sites: sites,
+          uploadedBy: user.uid,
+          uploadedByName: user.displayName || user.email || 'Unknown',
+          uploadedAt: firebase.firestore.FieldValue.serverTimestamp()
+        }).catch(function(err) { console.error('Shared KMZ save error:', err); });
+        // Also save to personal data for backward compat
+        var newImported = importedSites.filter(function(s) { return s.source !== sourceName; });
+        var newFiles = importedFiles.filter(function(f) { return f.name !== sourceName; });
+        var updatedSites = [].concat(newImported, sites);
+        var updatedFiles = [].concat(newFiles, [{ name: sourceName, siteCount: sites.length }]);
         setImportedSites(updatedSites);
         setImportedFiles(updatedFiles);
         saveToFirestore(visited, updatedFiles, updatedSites);
       };
 
-      const handleRemoveFile = (sourceName) => {
-        if (confirm(`Remove all sites from "${sourceName}"?`)) {
-          const updatedSites = importedSites.filter(s => s.source !== sourceName);
-          const updatedFiles = importedFiles.filter(f => f.name !== sourceName);
+      var handleRemoveFile = function(sourceName) {
+        if (confirm('Remove all sites from "' + sourceName + '"?')) {
+          // Remove from shared collection too
+          db.collection('sharedKMZ').doc(sourceName).delete()
+            .catch(function(err) { console.error('Shared KMZ delete error:', err); });
+          var updatedSites = importedSites.filter(function(s) { return s.source !== sourceName; });
+          var updatedFiles = importedFiles.filter(function(f) { return f.name !== sourceName; });
           setImportedSites(updatedSites);
           setImportedFiles(updatedFiles);
           saveToFirestore(visited, updatedFiles, updatedSites);
@@ -1839,7 +1902,7 @@
 
           {/* KMZ Manager Modal */}
           {showKMZManager && (
-            <KMZManager importedFiles={importedFiles} onImport={handleKMZImport} onRemoveFile={handleRemoveFile} onClose={() => setShowKMZManager(false)} />
+            <KMZManager importedFiles={importedFiles} sharedFiles={sharedKMZFiles} onImport={handleKMZImport} onRemoveFile={handleRemoveFile} onClose={function() { setShowKMZManager(false); }} />
           )}
 
           {/* Notes Panel */}
