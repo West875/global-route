@@ -1137,25 +1137,23 @@
       var startEdit = function(note) { setEditingId(note.id); setEditText(note.text); };
       var cancelEdit = function() { setEditingId(null); setEditText(''); };
 
-      var saveEdit = async function(noteId) {
-        const text = editText.trim();
+      var saveEdit = function(noteId) {
+        var text = editText.trim();
         if (!text) return;
-        try {
-          await db.collection('siteNotes').doc(routeKey + '_' + site.id)
-            .collection('messages').doc(noteId).update({
-              text: text,
-              editedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-          setEditingId(null);
-          setEditText('');
-        } catch (err) { console.error('Edit note error:', err); }
+        db.collection('siteNotes').doc(routeKey + '_' + site.id)
+          .collection('messages').doc(noteId).update({
+            text: text,
+            editedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }).then(function() {
+            setEditingId(null);
+            setEditText('');
+          }).catch(function(err) { console.error('Edit note error:', err); });
       };
 
-      var deleteNote = async function(noteId) {
-        try {
-          await db.collection('siteNotes').doc(routeKey + '_' + site.id)
-            .collection('messages').doc(noteId).delete();
-        } catch (err) { console.error('Delete note error:', err); }
+      var deleteNote = function(noteId) {
+        db.collection('siteNotes').doc(routeKey + '_' + site.id)
+          .collection('messages').doc(noteId).delete()
+          .catch(function(err) { console.error('Delete note error:', err); });
       };
 
       var formatTime = function(ts) {
@@ -1216,8 +1214,8 @@
                             </div>
                             {isMe && (
                               <div className={`flex gap-1 mt-0.5 ${isMe ? 'justify-end' : ''}`}>
-                                <button className="btn btn-xs btn-ghost opacity-50 hover:opacity-100 px-1 h-5 min-h-0" onClick={function() { startEdit(note); }}>✏️</button>
-                                <button className="btn btn-xs btn-ghost opacity-50 hover:opacity-100 px-1 h-5 min-h-0 text-error" onClick={function() { if (window.confirm('Delete this note?')) deleteNote(note.id); }}>🗑️</button>
+                                <button className="btn btn-xs btn-ghost px-1 h-6 min-h-0" onClick={function() { startEdit(note); }}>✏️ Edit</button>
+                                <button className="btn btn-xs btn-ghost px-1 h-6 min-h-0 text-error" onClick={function() { if (window.confirm('Delete this note?')) deleteNote(note.id); }}>🗑️ Delete</button>
                               </div>
                             )}
                           </div>
@@ -1954,7 +1952,7 @@
           <div className="sticky top-0 z-[1000] bg-base-100 border-b border-base-300 px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <NavIcon size={18} className="text-primary shrink-0" />
-              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v19</span></span>
+              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v21</span></span>
               <span className="text-xs opacity-50">({visited.size} you • {teamCompletedCount} team)</span>
             </div>
             <div className="flex gap-2 flex-wrap">
