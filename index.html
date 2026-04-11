@@ -54,7 +54,7 @@
 
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
+      navigator.serviceWorker.register('sw.js').catch(function() {});
     }
 
     // ── Firebase Init ──
@@ -114,7 +114,7 @@
       let kmlText;
       try {
         const zip = await JSZip.loadAsync(arrayBuffer);
-        const kmlFile = Object.keys(zip.files).find(name => name.endsWith('.kml'));
+        const kmlFile = Object.keys(zip.files).find(function(name) { return name.endsWith('.kml'); });
         if (kmlFile) kmlText = await zip.files[kmlFile].async('text');
       } catch (e) {
         kmlText = new TextDecoder().decode(arrayBuffer);
@@ -124,7 +124,7 @@
       const doc = parser.parseFromString(kmlText, 'text/xml');
       const placemarks = doc.querySelectorAll('Placemark');
       const sites = [];
-      placemarks.forEach((pm, idx) => {
+      placemarks.forEach(function(pm, idx) {
         const nameEl = pm.querySelector('name');
         const name = nameEl ? nameEl.textContent.trim() : `Site ${idx + 1}`;
         const descEl = pm.querySelector('description');
@@ -150,7 +150,7 @@
         if (coords && !isNaN(coords.lat) && !isNaN(coords.lon)) {
           let status = 'Imported';
           const extData = pm.querySelectorAll('ExtendedData Data, ExtendedData SimpleData');
-          extData.forEach(d => {
+          extData.forEach(function(d) {
             const dName = (d.getAttribute('name') || '').toLowerCase();
             if (dName.includes('status') || dName.includes('type')) {
               const val = d.querySelector('value') || d;
@@ -173,7 +173,7 @@
       return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
     function sortByNearest(sites, userLoc) {
-      return sites.map((s) => ({ ...s, distance: haversineDistance(userLoc, { lat: s.lat, lon: s.lon }) })).sort((a, b) => a.distance - b.distance);
+      return sites.map(function(s) { return { ...s, distance: haversineDistance(userLoc, { lat: s.lat, lon: s.lon }) }; }).sort(function(a, b) { return a.distance - b.distance; });
     }
     function directionsUrl(site) {
       return `https://www.google.com/maps/dir/?api=1&destination=${site.lat},${site.lon}`;
@@ -211,23 +211,23 @@
       const [error, setError] = useState(null);
       const [cameraReady, setCameraReady] = useState(false);
 
-      const startCamera = useCallback(async () => {
+      const startCamera = useCallback(async function() {
         setError(null);
         try {
           const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 480 } }, audio: false });
           setStream(s);
           if (videoRef.current) {
             videoRef.current.srcObject = s;
-            videoRef.current.onloadedmetadata = () => setCameraReady(true);
+            videoRef.current.onloadedmetadata = function() { setCameraReady(true); };
           }
         } catch (err) {
           setError('Camera access denied. Please allow camera access and try again.');
         }
       }, []);
 
-      useEffect(() => { startCamera(); return () => { if (stream) stream.getTracks().forEach(t => t.stop()); }; }, []);
+      useEffect(function() { startCamera(); return function() { if (stream) stream.getTracks().forEach(function(t) { t.stop(); }); }; }, []);
 
-      const capturePhoto = () => {
+      var capturePhoto = function() {
         if (!videoRef.current || !canvasRef.current) return;
         const video = videoRef.current;
         const canvas = canvasRef.current;
@@ -243,16 +243,16 @@
         ctx.drawImage(video, sx, sy, size, size, 0, 0, 150, 150);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
         setCaptured(dataUrl);
-        if (stream) stream.getTracks().forEach(t => t.stop());
+        if (stream) stream.getTracks().forEach(function(t) { t.stop(); });
       };
 
-      const retake = async () => {
+      var retake = async function() {
         setCaptured(null);
         setCameraReady(false);
         await startCamera();
       };
 
-      const saveAvatar = async () => {
+      var saveAvatar = async function() {
         if (!captured) return;
         setSaving(true);
         try {
@@ -267,13 +267,13 @@
         }
       };
 
-      const handleFileUpload = (e) => {
+      var handleFileUpload = function(e) {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = (ev) => {
+        reader.onload = function(ev) {
           const img = new Image();
-          img.onload = () => {
+          img.onload = function() {
             const canvas = canvasRef.current;
             canvas.width = 150;
             canvas.height = 150;
@@ -283,7 +283,7 @@
             const sy = (img.height - size) / 2;
             ctx.drawImage(img, sx, sy, size, size, 0, 0, 150, 150);
             setCaptured(canvas.toDataURL('image/jpeg', 0.7));
-            if (stream) stream.getTracks().forEach(t => t.stop());
+            if (stream) stream.getTracks().forEach(function(t) { t.stop(); });
           };
           img.src = ev.target.result;
         };
@@ -364,7 +364,7 @@
       const [cameraActive, setCameraActive] = useState(false);
       const [cameraReady, setCameraReady] = useState(false);
 
-      const startCamera = useCallback(async () => {
+      const startCamera = useCallback(async function() {
         setError(null);
         setCameraActive(true);
         try {
@@ -372,7 +372,7 @@
           setStream(s);
           if (videoRef.current) {
             videoRef.current.srcObject = s;
-            videoRef.current.onloadedmetadata = () => setCameraReady(true);
+            videoRef.current.onloadedmetadata = function() { setCameraReady(true); };
           }
         } catch (err) {
           setError('Camera access denied. Please use the upload option.');
@@ -380,20 +380,20 @@
         }
       }, []);
 
-      useEffect(() => {
+      useEffect(function() {
         startCamera();
-        return () => { if (stream) stream.getTracks().forEach(t => t.stop()); };
+        return function() { if (stream) stream.getTracks().forEach(function(t) { t.stop(); }); };
       }, []);
 
       // Re-attach stream when videoRef becomes available
-      useEffect(() => {
+      useEffect(function() {
         if (stream && videoRef.current && !videoRef.current.srcObject) {
           videoRef.current.srcObject = stream;
-          videoRef.current.onloadedmetadata = () => setCameraReady(true);
+          videoRef.current.onloadedmetadata = function() { setCameraReady(true); };
         }
       }, [stream, cameraActive]);
 
-      const capturePhoto = () => {
+      var capturePhoto = function() {
         if (!videoRef.current || !canvasRef.current) return;
         const video = videoRef.current;
         const canvas = canvasRef.current;
@@ -409,17 +409,17 @@
         ctx.drawImage(video, sx, sy, size, size, 0, 0, 400, 400);
         ctx.restore();
         setCaptured(canvas.toDataURL('image/jpeg', 0.85));
-        if (stream) stream.getTracks().forEach(t => t.stop());
+        if (stream) stream.getTracks().forEach(function(t) { t.stop(); });
         setCameraActive(false);
       };
 
-      const retake = async () => {
+      var retake = async function() {
         setCaptured(null);
         setCameraReady(false);
-        setTimeout(() => startCamera(), 100);
+        setTimeout(function() { startCamera(); }, 100);
       };
 
-      const saveID = async () => {
+      var saveID = async function() {
         if (!captured) return;
         setSaving(true);
         try {
@@ -434,15 +434,15 @@
         }
       };
 
-      const handleFileUpload = (e) => {
+      var handleFileUpload = function(e) {
         const file = e.target.files[0];
         if (!file) return;
-        if (stream) stream.getTracks().forEach(t => t.stop());
+        if (stream) stream.getTracks().forEach(function(t) { t.stop(); });
         setCameraActive(false);
         const reader = new FileReader();
-        reader.onload = (ev) => {
+        reader.onload = function(ev) {
           const img = new Image();
-          img.onload = () => {
+          img.onload = function() {
             const canvas = canvasRef.current;
             const size = Math.min(img.width, img.height);
             canvas.width = 400;
@@ -543,7 +543,7 @@
       const [loading, setLoading] = useState(false);
       const [resetSent, setResetSent] = useState(false);
 
-      const handleEmailAuth = async (e) => {
+      var handleEmailAuth = async function(e) {
         e.preventDefault();
         setError(null);
         setLoading(true);
@@ -582,7 +582,7 @@
         setLoading(false);
       };
 
-      const handleGoogleSignIn = async () => {
+      var handleGoogleSignIn = async function() {
         setError(null);
         setLoading(true);
         try {
@@ -628,7 +628,7 @@
                   <div className="alert alert-success text-sm py-2">
                     <span>✅ Password reset email sent! Check your inbox.</span>
                   </div>
-                  <button className="btn btn-ghost btn-sm" onClick={() => { setMode('login'); setResetSent(false); }}>
+                  <button className="btn btn-ghost btn-sm" onClick={function() { setMode('login'); setResetSent(false); }}>
                     ← Back to login
                   </button>
                 </div>
@@ -638,19 +638,19 @@
                     <div className="form-control">
                       <label className="label py-1"><span className="label-text text-xs">Full Name</span></label>
                       <input type="text" placeholder="John Smith" className="input input-bordered input-sm"
-                        value={displayName} onChange={e => setDisplayName(e.target.value)} />
+                        value={displayName} onChange={function(e) { setDisplayName(e.target.value); }} />
                     </div>
                   )}
                   <div className="form-control">
                     <label className="label py-1"><span className="label-text text-xs">Email</span></label>
                     <input type="email" placeholder="you@example.com" className="input input-bordered input-sm"
-                      value={email} onChange={e => setEmail(e.target.value)} required />
+                      value={email} onChange={function(e) { setEmail(e.target.value); }} required />
                   </div>
                   {mode !== 'reset' && (
                     <div className="form-control">
                       <label className="label py-1"><span className="label-text text-xs">Password</span></label>
                       <input type="password" placeholder="••••••••" className="input input-bordered input-sm"
-                        value={password} onChange={e => setPassword(e.target.value)} required minLength={6} />
+                        value={password} onChange={function(e) { setPassword(e.target.value); }} required minLength={6} />
                     </div>
                   )}
                   <button type="submit" className={`btn btn-primary w-full btn-sm ${loading ? 'loading' : ''}`} disabled={loading}>
@@ -673,15 +673,15 @@
               <div className="text-center text-xs space-y-1 mt-2">
                 {mode === 'login' && (
                   <>
-                    <p>Don't have an account? <button className="link link-primary" onClick={() => { setMode('signup'); setError(null); }}>Sign Up</button></p>
-                    <p><button className="link link-ghost opacity-60" onClick={() => { setMode('reset'); setError(null); }}>Forgot password?</button></p>
+                    <p>Don't have an account? <button className="link link-primary" onClick={function() { setMode('signup'); setError(null); }}>Sign Up</button></p>
+                    <p><button className="link link-ghost opacity-60" onClick={function() { setMode('reset'); setError(null); }}>Forgot password?</button></p>
                   </>
                 )}
                 {mode === 'signup' && (
-                  <p>Already have an account? <button className="link link-primary" onClick={() => { setMode('login'); setError(null); }}>Sign In</button></p>
+                  <p>Already have an account? <button className="link link-primary" onClick={function() { setMode('login'); setError(null); }}>Sign In</button></p>
                 )}
                 {mode === 'reset' && (
-                  <p><button className="link link-primary" onClick={() => { setMode('login'); setError(null); setResetSent(false); }}>← Back to login</button></p>
+                  <p><button className="link link-primary" onClick={function() { setMode('login'); setError(null); setResetSent(false); }}>← Back to login</button></p>
                 )}
               </div>
             </div>
@@ -699,7 +699,7 @@
 
       return (
         <div className="relative">
-          <button className="btn btn-ghost p-0" style={{minWidth:'44px',minHeight:'44px'}} onClick={() => setOpen(!open)} title={displayName}>
+          <button className="btn btn-ghost p-0" style={{minWidth:'44px',minHeight:'44px'}} onClick={function() { setOpen(!open); }} title={displayName}>
             {photoSrc ? (
               <img src={photoSrc} alt="" className="w-10 h-10 rounded-full object-cover ring-2 ring-white/50" referrerPolicy="no-referrer" />
             ) : (
@@ -710,17 +710,17 @@
           </button>
           {open && (
             <>
-              <div className="fixed inset-0 z-[3000]" onClick={() => setOpen(false)}></div>
+              <div className="fixed inset-0 z-[3000]" onClick={function() { setOpen(false); }}></div>
               <div className="absolute right-0 top-full mt-1 z-[3001] bg-base-200 rounded-lg shadow-xl border border-base-300 min-w-[220px] fade-in">
                 <div className="p-3 border-b border-base-300">
                   <p className="font-semibold text-sm">{displayName}</p>
                   <p className="text-xs opacity-50">{user.email}</p>
                 </div>
                 <div className="p-1">
-                  <button className="btn btn-sm btn-ghost w-full justify-start gap-2" onClick={() => { setOpen(false); onChangePhoto(); }}>
+                  <button className="btn btn-sm btn-ghost w-full justify-start gap-2" onClick={function() { setOpen(false); onChangePhoto(); }}>
                     📷 {photoSrc ? 'Change Photo' : 'Take Photo'}
                   </button>
-                  <button className="btn btn-sm btn-ghost w-full justify-start gap-2 text-error" onClick={() => { setOpen(false); onLogout(); }}>
+                  <button className="btn btn-sm btn-ghost w-full justify-start gap-2 text-error" onClick={function() { setOpen(false); onLogout(); }}>
                     <LogOutIcon size={14} /> Sign Out
                   </button>
                 </div>
@@ -740,7 +740,7 @@
       const hasInitFit = useRef(false);
 
       // Initialize map once
-      useEffect(() => {
+      useEffect(function() {
         if (mapInstanceRef.current) return;
         const center = [33.6891, -78.8867];
         const map = L.map(mapRef.current, { zoomControl: true }).setView(center, 12);
@@ -754,11 +754,11 @@
           style.textContent = '@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.3); } }';
           document.head.appendChild(style);
         }
-        return () => { if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; } };
+        return function() { if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; } };
       }, []);
 
       // Update user location marker (smooth — no map rebuild)
-      useEffect(() => {
+      useEffect(function() {
         if (!userLayerRef.current) return;
         userLayerRef.current.clearLayers();
         if (userLoc) {
@@ -770,11 +770,11 @@
 
 
       // Update site markers
-      useEffect(() => {
+      useEffect(function() {
         if (!sitesLayerRef.current) return;
         sitesLayerRef.current.clearLayers();
 
-        sites.forEach((site) => {
+        sites.forEach(function(site) {
           const isExisting = site.status.includes('Existing Cabinet');
           const isImported = site.source && site.source !== 'builtin';
           const isVisited = visited.has(site.id);
@@ -858,7 +858,7 @@
 
         // Fit bounds only on first load
         if (!hasInitFit.current && sites.length > 0 && mapInstanceRef.current) {
-          const bounds = L.latLngBounds(sites.map(s => [s.lat, s.lon]));
+          const bounds = L.latLngBounds(sites.map(function(s) [s.lat, s.lon]));
           if (userLoc) bounds.extend([userLoc.lat, userLoc.lon]);
           mapInstanceRef.current.fitBounds(bounds, { padding: [30, 30] });
           hasInitFit.current = true;
@@ -937,7 +937,7 @@
                   </p>
                   {completedAt && (
                     <p className="text-xs opacity-60 mt-1">
-                      🕐 {(() => { try { return new Date(completedAt.toDate()).toLocaleString(); } catch(e) { return ''; } })()}
+                      🕐 {(function() { try { return new Date(completedAt.toDate()).toLocaleString(); } catch(e) { return ''; } })()}
                     </p>
                   )}
                 </div>
@@ -1005,7 +1005,7 @@
       const [importing, setImporting] = useState(false);
       const [error, setError] = useState(null);
       const [lastResult, setLastResult] = useState(null);
-      const handleFileSelect = async (e) => {
+      var handleFileSelect = async function(e) {
         const file = e.target.files[0];
         if (!file) return;
         setImporting(true); setError(null); setLastResult(null);
@@ -1019,7 +1019,7 @@
       };
       return (
         <div className="fixed inset-0 z-[2000] bg-black/60 flex items-end sm:items-center justify-center" onClick={onClose}>
-          <div className="bg-base-200 w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[80vh] overflow-auto" onClick={e => e.stopPropagation()}>
+          <div className="bg-base-200 w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[80vh] overflow-auto" onClick={function(e) { e.stopPropagation(); }}>
             <div className="p-4 border-b border-base-300 flex items-center justify-between">
               <h2 className="font-bold text-lg flex items-center gap-2"><FolderIcon size={20} /> KMZ Files</h2>
               <button className="btn btn-sm btn-ghost btn-circle" onClick={onClose}>✕</button>
@@ -1027,7 +1027,7 @@
             <div className="p-4 space-y-4">
               <div>
                 <input ref={fileInputRef} type="file" accept=".kmz,.kml" className="hidden" onChange={handleFileSelect} />
-                <button className="btn btn-primary w-full gap-2" onClick={() => fileInputRef.current && fileInputRef.current.click()} disabled={importing}>
+                <button className="btn btn-primary w-full gap-2" onClick={function() { fileInputRef.current && fileInputRef.current.click(); }} disabled={importing}>
                   {importing ? <span className="loading loading-spinner loading-sm"></span> : <UploadIcon size={18} />}
                   {importing ? 'Importing...' : 'Import KMZ / KML File'}
                 </button>
@@ -1047,7 +1047,7 @@
                     <span className="badge badge-sm badge-ghost">Default</span>
                   </div>
                 </div>
-                {importedFiles.map(f => (
+                {importedFiles.map(function(f) (
                   <div key={f.name} className="card bg-base-300">
                     <div className="card-body p-3 flex-row items-center gap-3">
                       <div className="bg-warning/20 rounded-lg p-2"><MapPinIcon size={18} className="text-warning" /></div>
@@ -1055,7 +1055,7 @@
                         <p className="font-semibold text-sm truncate">{f.name}</p>
                         <p className="text-xs opacity-50">{f.siteCount} sites</p>
                       </div>
-                      <button className="btn btn-sm btn-ghost btn-circle text-error" onClick={() => onRemoveFile(f.name)} title="Remove">
+                      <button className="btn btn-sm btn-ghost btn-circle text-error" onClick={function() { onRemoveFile(f.name); }} title="Remove">
                         <TrashIcon size={16} />
                       </button>
                     </div>
@@ -1097,20 +1097,20 @@
       const routeKey = (!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
 
       // Listen for notes in real-time
-      useEffect(() => {
+      useEffect(function() {
         const unsub = db.collection('siteNotes').doc(`${routeKey}_${site.id}`)
           .collection('messages')
           .orderBy('createdAt', 'asc')
-          .onSnapshot((snapshot) => {
+          .onSnapshot(function(snapshot) {
             const msgs = [];
-            snapshot.forEach(doc => msgs.push({ id: doc.id, ...doc.data() }));
+            snapshot.forEach(function(doc) msgs.push({ id: doc.id, ...doc.data() }));
             setNotes(msgs);
-            setTimeout(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, 100);
+            setTimeout(function() { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, 100);
           });
         return unsub;
       }, [site.id, routeKey]);
 
-      const sendNote = async () => {
+      var sendNote = async function() {
         const text = newNote.trim();
         if (!text) return;
         setSending(true);
@@ -1129,15 +1129,15 @@
         setSending(false);
       };
 
-      const handleKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendNote(); } };
+      var handleKeyDown = function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendNote(); } };
 
       const [editingId, setEditingId] = useState(null);
       const [editText, setEditText] = useState('');
 
-      const startEdit = (note) => { setEditingId(note.id); setEditText(note.text); };
-      const cancelEdit = () => { setEditingId(null); setEditText(''); };
+      var startEdit = function(note) { setEditingId(note.id); setEditText(note.text); };
+      var cancelEdit = function() { setEditingId(null); setEditText(''); };
 
-      const saveEdit = async (noteId) => {
+      var saveEdit = async function(noteId) {
         const text = editText.trim();
         if (!text) return;
         try {
@@ -1151,21 +1151,21 @@
         } catch (err) { console.error('Edit note error:', err); }
       };
 
-      const deleteNote = async (noteId) => {
+      var deleteNote = async function(noteId) {
         try {
           await db.collection('siteNotes').doc(routeKey + '_' + site.id)
             .collection('messages').doc(noteId).delete();
         } catch (err) { console.error('Delete note error:', err); }
       };
 
-      const formatTime = (ts) => {
+      var formatTime = function(ts) {
         if (!ts) return '';
         try { const d = ts.toDate ? ts.toDate() : new Date(ts); return d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch(e) { return ''; }
       };
 
       return (
         <div className="fixed inset-0 z-[2000] bg-black/60 flex items-end sm:items-center justify-center" onClick={onClose}>
-          <div className="bg-base-200 w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+          <div className="bg-base-200 w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[85vh] flex flex-col" onClick={function(e) { e.stopPropagation(); }}>
             {/* Header */}
             <div className="p-4 border-b border-base-300 flex items-center gap-3 shrink-0">
               <div className="bg-primary/20 rounded-lg p-2"><NoteIcon size={20} className="text-primary" /></div>
@@ -1185,7 +1185,7 @@
                   <p className="text-xs">Be the first to leave a note!</p>
                 </div>
               ) : (
-                notes.map(note => {
+                notes.map(function(note) {
                   const isMe = note.authorId === user.uid;
                   return (
                     <div key={note.id} className={`flex gap-2 ${isMe ? 'flex-row-reverse' : ''}`}>
@@ -1237,7 +1237,7 @@
             <div className="p-3 border-t border-base-300 shrink-0">
               <div className="flex gap-2 items-end">
                 <textarea className="textarea textarea-bordered flex-1 text-sm min-h-[40px] max-h-[100px] resize-none"
-                  placeholder="Write a note..." value={newNote} onChange={e => setNewNote(e.target.value)}
+                  placeholder="Write a note..." value={newNote} onChange={function(e) { setNewNote(e.target.value); }}
                   onKeyDown={handleKeyDown} rows={1} />
                 <button className={`btn btn-primary btn-sm btn-circle ${sending ? 'loading' : ''}`} onClick={sendNote} disabled={!newNote.trim() || sending}>
                   {!sending && <SendIcon size={16} />}
@@ -1320,8 +1320,8 @@
       const [idPhotoURL, setIdPhotoURL] = useState(null);
       const [profileChecked, setProfileChecked] = useState(false);
 
-      useEffect(() => {
-        const unsub = auth.onAuthStateChanged(async (u) => {
+      useEffect(function() {
+        const unsub = auth.onAuthStateChanged(async function(u) {
           setUser(u);
           setAuthLoading(false);
           if (u) {
@@ -1344,7 +1344,7 @@
         return unsub;
       }, []);
 
-      const handleLogout = async () => {
+      var handleLogout = async function() {
         if (confirm('Sign out of Global Route?')) {
           await auth.signOut();
           setAvatarURL(null);
@@ -1380,7 +1380,7 @@
 
       // Step 1: Show avatar setup if user hasn't set one (and not Google photo)
       if (!avatarURL && !user.photoURL) {
-        return <AvatarSetup user={user} onComplete={(url) => setAvatarURL(url)} />;
+        return <AvatarSetup user={user} onComplete={function(url) { setAvatarURL(url); }} />;
       }
 
       // ID photo is now the same as the avatar selfie — no separate step needed
@@ -1431,7 +1431,7 @@
       const [activeNoteSite, setActiveNoteSite] = useState(null);
 
 
-      useEffect(() => {
+      useEffect(function() {
         var ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
         var standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
         setIsIOS(ios);
@@ -1442,36 +1442,36 @@
         }
       }, []);
 
-      useEffect(() => {
+      useEffect(function() {
         // Capture native install prompt if Chrome fires it
         var handler = function(e) { e.preventDefault(); setInstallPrompt(e); };
         window.addEventListener('beforeinstallprompt', handler);
         return function() { window.removeEventListener('beforeinstallprompt', handler); };
       }, []);
 
-      const handleInstall = async () => {
+      var handleInstall = async function() {
         if (installPrompt) { installPrompt.prompt(); const result = await installPrompt.userChoice; if (result.outcome === 'accepted') setShowInstallBanner(false); setInstallPrompt(null); }
       };
       // Session-only dismiss — banner comes back on next visit until app is installed
-      const dismissInstall = () => { setShowInstallBanner(false); };
+      var dismissInstall = function() { setShowInstallBanner(false); };
 
       // ── Load user data from Firestore ──
-      useEffect(() => {
+      useEffect(function() {
         const uid = user.uid;
-        const unsub = db.collection('userData').doc(uid).onSnapshot((doc) => {
+        const unsub = db.collection('userData').doc(uid).onSnapshot(function(doc) {
           if (doc.exists) {
             const data = doc.data();
             const newVisitedArr = data.visited || [];
-            setVisited(prev => {
-              if (newVisitedArr.length === prev.size && newVisitedArr.every(v => prev.has(v))) return prev;
+            setVisited(function(prev) {
+              if (newVisitedArr.length === prev.size && newVisitedArr.every(function(v) { return prev.has(v; }))) return prev;
               return new Set(newVisitedArr);
             });
-            setImportedFiles(prev => {
+            setImportedFiles(function(prev) {
               const newVal = data.importedFiles || [];
               if (JSON.stringify(newVal) === JSON.stringify(prev)) return prev;
               return newVal;
             });
-            setImportedSites(prev => {
+            setImportedSites(function(prev) {
               const newVal = data.importedSites || [];
               if (JSON.stringify(newVal) === JSON.stringify(prev)) return prev;
               return newVal;
@@ -1530,14 +1530,14 @@
       }, []);
 
       // ── Listen for shared route completions (builtin route) ──
-      useEffect(() => {
+      useEffect(function() {
         const unsub = db.collection('sharedRoutes').doc('builtin')
-          .collection('completions').onSnapshot((snapshot) => {
+          .collection('completions').onSnapshot(function(snapshot) {
             const completions = {};
-            snapshot.forEach(doc => {
+            snapshot.forEach(function(doc) {
               completions[doc.id] = doc.data();
             });
-            setSharedCompletions(prev => {
+            setSharedCompletions(function(prev) {
               const merged = { ...prev, ...completions };
               if (JSON.stringify(merged) === JSON.stringify(prev)) return prev;
               return merged;
@@ -1607,25 +1607,25 @@
       }, []);
 
       // ── Listen for shared completions on imported files ──
-      useEffect(() => {
+      useEffect(function() {
         if (importedFiles.length === 0) return;
-        const unsubs = importedFiles.map(f => {
+        const unsubs = importedFiles.map(function(f) {
           return db.collection('sharedRoutes').doc(f.name.replace(/[^a-zA-Z0-9-_]/g, '_'))
-            .collection('completions').onSnapshot((snapshot) => {
+            .collection('completions').onSnapshot(function(snapshot) {
               const completions = {};
-              snapshot.forEach(doc => { completions[doc.id] = doc.data(); });
-              setSharedCompletions(prev => {
+              snapshot.forEach(function(doc) { completions[doc.id] = doc.data(); });
+              setSharedCompletions(function(prev) {
                 const merged = { ...prev, ...completions };
                 if (JSON.stringify(merged) === JSON.stringify(prev)) return prev;
                 return merged;
               });
             });
         });
-        return () => unsubs.forEach(u => u());
+        return function() { unsubs.forEach(function(u) { u(); }); };
       }, [importedFiles]);
 
       // ── Listen for en-route claims on imported files ──
-      useEffect(() => {
+      useEffect(function() {
         if (importedFiles.length === 0) return;
         var unsubs = importedFiles.map(function(f) {
           return db.collection('sharedRoutes').doc(f.name.replace(/[^a-zA-Z0-9-_]/g, '_'))
@@ -1648,15 +1648,15 @@
       }, [importedFiles]);
 
       // ── Listen for note counts across all sites ──
-      useEffect(() => {
+      useEffect(function() {
         const unsub = db.collectionGroup('messages')
-          .onSnapshot((snapshot) => {
+          .onSnapshot(function(snapshot) {
             const counts = {};
-            snapshot.forEach(doc => {
+            snapshot.forEach(function(doc) {
               const parentId = doc.ref.parent.parent.id;
               counts[parentId] = (counts[parentId] || 0) + 1;
             });
-            setNoteCounts(prev => {
+            setNoteCounts(function(prev) {
               if (JSON.stringify(counts) === JSON.stringify(prev)) return prev;
               return counts;
             });
@@ -1666,15 +1666,15 @@
 
       // ── Save user data to Firestore (debounced) ──
       const saveTimeoutRef = useRef(null);
-      const saveToFirestore = useCallback((newVisited, newImportedFiles, newImportedSites) => {
+      const saveToFirestore = useCallback(function(newVisited, newImportedFiles, newImportedSites) {
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-        saveTimeoutRef.current = setTimeout(() => {
+        saveTimeoutRef.current = setTimeout(function() {
           db.collection('userData').doc(user.uid).set({
             visited: [...newVisited],
             importedFiles: newImportedFiles,
             importedSites: newImportedSites,
             lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-          }, { merge: true }).catch(err => console.error('Save error:', err));
+          }, { merge: true }).catch(function(err) { console.error('Save error:', err); });
         }, 500);
       }, [user.uid]);
 
@@ -1689,18 +1689,18 @@
         else { setSortedSites(all); }
       }, [importedSites, sharedKMZSites, userLoc]);
 
-      const applyLocation = useCallback((loc, isDefault) => {
+      const applyLocation = useCallback(function(loc, isDefault) {
         setUserLoc(loc); setUsingDefault(isDefault || false); setPermissionGranted(true); setLoading(false);
       }, []);
 
-      const useDefaultLocation = useCallback(() => { applyLocation(MYRTLE_BEACH_CENTER, true); }, [applyLocation]);
+      const useDefaultLocation = useCallback(function() { applyLocation(MYRTLE_BEACH_CENTER, true); }, [applyLocation]);
 
-      const requestLocation = useCallback(() => {
+      const requestLocation = useCallback(function() {
         if (!navigator.geolocation) { setGeoError('Geolocation is not supported.'); return; }
         setLoading(true); setGeoError(null);
         navigator.geolocation.getCurrentPosition(
-          (pos) => { applyLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }, false); },
-          (err) => {
+          function(pos) { applyLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }, false); },
+          function(err) {
             const msg = err.code === 1 ? 'Location denied — tap below to use Myrtle Beach center instead.' : 'Could not get location: ' + err.message;
             setGeoError(msg); setLoading(false);
           },
@@ -1709,14 +1709,14 @@
       }, [applyLocation]);
 
       // ── Get user location once on load ──
-      useEffect(() => {
+      useEffect(function() {
         if (!navigator.geolocation) { setGeoError('Geolocation is not supported.'); setLoading(false); return; }
         setLoading(true); setGeoError(null);
         navigator.geolocation.getCurrentPosition(
-          (pos) => {
+          function(pos) {
             applyLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }, false);
           },
-          (err) => {
+          function(err) {
             const msg = err.code === 1 ? 'Location denied — tap below to use Myrtle Beach center instead.' : `Could not get location: ${err.message}`;
             setGeoError(msg); setLoading(false);
           },
@@ -1779,14 +1779,14 @@
       window.__claimEnroute = claimEnroute;
       window.__allSites = filteredSites;
 
-      const cancelEnroute = (siteId, site) => {
+      var cancelEnroute = function(siteId, site) {
         var routeKey = (!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
         db.collection('sharedRoutes').doc(routeKey)
           .collection('enroute').doc(siteId).delete()
           .catch(function(err) { console.error('Cancel en-route error:', err); });
       };
 
-      const markVisited = (siteId, site) => {
+      var markVisited = function(siteId, site) {
         const newVisited = new Set(visited);
         newVisited.add(siteId);
         setVisited(newVisited);
@@ -1803,14 +1803,14 @@
         };
         db.collection('sharedRoutes').doc(routeKey)
           .collection('completions').doc(siteId).set(completionData)
-          .catch(err => console.error('Shared completion error:', err));
+          .catch(function(err) { console.error('Shared completion error:', err); });
         // Clear en-route claim when completing
         db.collection('sharedRoutes').doc(routeKey)
           .collection('enroute').doc(siteId).delete()
           .catch(function(err) { console.error('Clear en-route error:', err); });
       };
 
-      const undoVisit = (siteId, site) => {
+      var undoVisit = function(siteId, site) {
         if (!confirm('Undo this completion? It will be removed for the whole team.')) return;
         // Remove from local visited set
         const newVisited = new Set(visited);
@@ -1822,7 +1822,7 @@
         const routeKey = (site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
         db.collection('sharedRoutes').doc(routeKey)
           .collection('completions').doc(siteId).delete()
-          .catch(err => console.error('Undo completion error:', err));
+          .catch(function(err) { console.error('Undo completion error:', err); });
       };
 
       const flagRevisit = function(siteId, site) {
@@ -1846,7 +1846,7 @@
           .catch(function(err) { console.error('Clear revisit error:', err); });
       };
 
-      const resetProgress = () => {
+      var resetProgress = function() {
         if (confirm('Reset all YOUR visited sites? This cannot be undone.')) {
           const newVisited = new Set();
           setVisited(newVisited);
@@ -1889,7 +1889,7 @@
       };
 
       // Apply source and status filters (memoized to prevent map flicker)
-      const filteredSites = useMemo(() => sortedSites.filter((s) => {
+      const filteredSites = useMemo(function() sortedSites.filter(function(s) {
         if (sourceFilter !== 'all') {
           if (sourceFilter === 'builtin' && s.source !== 'builtin') return false;
           if (sourceFilter !== 'builtin' && s.source !== sourceFilter) return false;
@@ -1901,9 +1901,9 @@
         return true;
       }), [sortedSites, sourceFilter, filter, visited, sharedCompletions]);
 
-      const currentTargetId = useMemo(() => { const found = sortedSites.find((s) => !visited.has(s.id) && !sharedCompletions[s.id]); return found ? found.id : null; }, [sortedSites, visited, sharedCompletions]);
-      const remainingCount = useMemo(() => sortedSites.filter(s => !visited.has(s.id) && !sharedCompletions[s.id]).length, [sortedSites, visited, sharedCompletions]);
-      const teamCompletedCount = useMemo(() => Object.keys(sharedCompletions).length, [sharedCompletions]);
+      const currentTargetId = useMemo(function() { const found = sortedSites.find(function(s) !visited.has(s.id) && !sharedCompletions[s.id]); return found ? found.id : null; }, [sortedSites, visited, sharedCompletions]);
+      const remainingCount = useMemo(function() sortedSites.filter(function(s) !visited.has(s.id) && !sharedCompletions[s.id]).length, [sortedSites, visited, sharedCompletions]);
+      const teamCompletedCount = useMemo(function() Object.keys(sharedCompletions).length, [sharedCompletions]);
       const revisitCount = useMemo(function() { return Object.keys(revisits).length; }, [revisits]);
 
       // Loading screen
@@ -1943,7 +1943,7 @@
               <h1 className="text-lg font-bold flex items-center gap-2">
                 <GlobeIcon size={22} /> Global Route
               </h1>
-              <UserMenu user={user} avatarURL={avatarURL} onLogout={onLogout} onChangePhoto={() => setShowAvatarSetup(true)} />
+              <UserMenu user={user} avatarURL={avatarURL} onLogout={onLogout} onChangePhoto={function() { setShowAvatarSetup(true); }} />
             </div>
             <p className="text-xs opacity-80 text-center">
               {allSites.length} sites total • {teamCompletedCount} completed by team • Nearest-First Routing
@@ -1958,16 +1958,16 @@
               <span className="text-xs opacity-50">({visited.size} you • {teamCompletedCount} team)</span>
             </div>
             <div className="flex gap-2 flex-wrap">
-              <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={() => setShowKMZManager(true)} title="Import KMZ">
+              <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
                 <FolderIcon size={14} />
                 {importedFiles.length > 0 && <span className="badge badge-xs badge-warning">{importedFiles.length}</span>}
               </button>
               <div className="join">
-                <button className={`join-item btn btn-sm ${view === 'list' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setView('list')} title="List view"><ListIcon size={14} /></button>
-                <button className={`join-item btn btn-sm ${view === 'map' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setView('map')} title="Map view"><MapIcon size={14} /></button>
+                <button className={`join-item btn btn-sm ${view === 'list' ? 'btn-primary' : 'btn-ghost'}`} onClick={function() { setView('list'); }} title="List view"><ListIcon size={14} /></button>
+                <button className={`join-item btn btn-sm ${view === 'map' ? 'btn-primary' : 'btn-ghost'}`} onClick={function() { setView('map'); }} title="Map view"><MapIcon size={14} /></button>
               </div>
               {view === 'list' && (
-                <select className="select select-bordered select-sm" value={filter} onChange={(e) => setFilter(e.target.value)}>
+                <select className="select select-bordered select-sm" value={filter} onChange={function(e) { setFilter(e.target.value); }}>
                   <option value="all">All ({sortedSites.length})</option>
                   <option value="remaining">Remaining ({remainingCount})</option>
                   <option value="visited">My Visited ({visited.size})</option>
@@ -1983,10 +1983,10 @@
           {/* Source filter bar */}
           {(importedFiles.length > 0 || sharedKMZFiles.length > 0) && (
             <div className="px-4 py-2 bg-base-200 border-b border-base-300 flex gap-2 overflow-x-auto">
-              <button className={`btn btn-xs ${sourceFilter === 'all' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setSourceFilter('all')}>All Sources ({allSites.length})</button>
-              <button className={`btn btn-xs ${sourceFilter === 'builtin' ? 'btn-success' : 'btn-ghost'}`} onClick={() => setSourceFilter('builtin')}>Myrtle Beach ({BUILTIN_SITES.length})</button>
-              {importedFiles.map(f => (
-                <button key={f.name} className={`btn btn-xs ${sourceFilter === f.name ? 'btn-warning' : 'btn-ghost'}`} onClick={() => setSourceFilter(f.name)}>{f.name} ({f.siteCount})</button>
+              <button className={`btn btn-xs ${sourceFilter === 'all' ? 'btn-primary' : 'btn-ghost'}`} onClick={function() { setSourceFilter('all'); }}>All Sources ({allSites.length})</button>
+              <button className={`btn btn-xs ${sourceFilter === 'builtin' ? 'btn-success' : 'btn-ghost'}`} onClick={function() { setSourceFilter('builtin'); }}>Myrtle Beach ({BUILTIN_SITES.length})</button>
+              {importedFiles.map(function(f) (
+                <button key={f.name} className={`btn btn-xs ${sourceFilter === f.name ? 'btn-warning' : 'btn-ghost'}`} onClick={function() { setSourceFilter(f.name); }}>{f.name} ({f.siteCount})</button>
               ))}
               {sharedKMZFiles.filter(function(sf) { return !importedFiles.some(function(pf) { return pf.name === sf.name; }); }).map(function(sf) { return (
                 <button key={'shared-' + sf.name} className={'btn btn-xs ' + (sourceFilter === sf.name ? 'btn-info' : 'btn-ghost')} onClick={function() { setSourceFilter(sf.name); }}>👥 {sf.name} ({sf.siteCount})</button>
@@ -2019,23 +2019,23 @@
                   {filter === 'visited' ? 'No sites visited yet.' : filter === 'completed' ? 'No team completions yet.' : '🎉 All sites completed! Great work team!'}
                 </div>
               ) : (
-                filteredSites.map((site, idx) => (
+                filteredSites.map(function(site, idx) { return (
                   <SiteCard key={`${site.source}-${site.id}`} site={site} index={idx} total={filteredSites.length}
                     isCurrent={site.id === currentTargetId} isVisited={visited.has(site.id)}
                     sharedCompletion={sharedCompletions[site.id]}
-                    onMarkVisited={() => markVisited(site.id, site)}
-                    onUndoVisit={() => undoVisit(site.id, site)}
+                    onMarkVisited={function() { markVisited(site.id, site); }}
+                    onUndoVisit={function() { undoVisit(site.id, site); }}
                     currentUserId={user.uid}
                     myAvatarURL={avatarURL} myPhotoURL={user.photoURL}
                     noteCount={noteCounts[`${(!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_')}_${site.id}`] || 0}
-                    onOpenNotes={() => setActiveNoteSite(site)}
+                    onOpenNotes={function() { setActiveNoteSite(site); }}
                     enrouteInfo={enroutes[site.id]}
                     onClaimEnroute={function(cb) { claimEnroute(site.id, site, cb); }}
                     onCancelEnroute={function() { cancelEnroute(site.id, site); }}
                     revisitInfo={revisits[site.id]}
                     onFlagRevisit={function() { flagRevisit(site.id, site); }}
                     onClearRevisit={function() { clearRevisit(site.id, site); }} />
-                ))
+                ); })
               )}
             </div>
           )}
@@ -2059,15 +2059,15 @@
 
           {/* Notes Panel */}
           {activeNoteSite && (
-            <NotesPanel site={activeNoteSite} user={user} avatarURL={avatarURL} onClose={() => setActiveNoteSite(null)} />
+            <NotesPanel site={activeNoteSite} user={user} avatarURL={avatarURL} onClose={function() { setActiveNoteSite(null); }} />
           )}
 
           {/* Avatar Setup Overlay */}
           {showAvatarSetup && (
             <div className="fixed inset-0 z-[2000] bg-black/80 flex items-center justify-center">
               <div className="relative w-full max-w-sm mx-4">
-                <button className="absolute -top-10 right-0 btn btn-sm btn-ghost text-white" onClick={() => setShowAvatarSetup(false)}>✕ Cancel</button>
-                <AvatarSetup user={user} onComplete={(url) => { setAvatarURL(url); setShowAvatarSetup(false); }} />
+                <button className="absolute -top-10 right-0 btn btn-sm btn-ghost text-white" onClick={function() { setShowAvatarSetup(false); }}>✕ Cancel</button>
+                <AvatarSetup user={user} onComplete={function(url) { { setAvatarURL(url); setShowAvatarSetup(false); ; }}} />
               </div>
             </div>
           )}
@@ -2113,7 +2113,7 @@
           return React.createElement('div', { style: { padding: 40, color: 'white', background: '#1d232a', minHeight: '100vh' } },
             React.createElement('h2', null, '⚠️ App Error'),
             React.createElement('pre', { style: { whiteSpace: 'pre-wrap', color: '#f87171', fontSize: 14 } }, String(this.state.error)),
-            React.createElement('button', { onClick: () => { if ('caches' in window) caches.keys().then(k => k.forEach(c => caches.delete(c))); location.reload(); }, style: { marginTop: 20, padding: '10px 20px', background: '#570df8', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer' } }, 'Clear Cache & Reload')
+            React.createElement('button', { onClick: function() { if ('caches' in window) caches.keys().then(function(k) { k.forEach(function(c) { caches.delete(c); }); }); location.reload(); }, style: { marginTop: 20, padding: '10px 20px', background: '#570df8', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer' } }, 'Clear Cache & Reload')
           );
         }
         return this.props.children;
