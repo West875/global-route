@@ -128,7 +128,11 @@
         const nameEl = pm.querySelector('name');
         const name = nameEl ? nameEl.textContent.trim() : `Site ${idx + 1}`;
         const descEl = pm.querySelector('description');
-        const description = descEl ? descEl.textContent.trim() : '';
+        var rawDesc = descEl ? descEl.textContent.trim() : '';
+        // Strip HTML tags and extract clean address text
+        var tempDiv = document.createElement('div');
+        tempDiv.innerHTML = rawDesc;
+        var description = tempDiv.textContent.trim().replace(/\s+/g, ' ');
         let coords = null;
         const pointCoords = pm.querySelector('Point coordinates');
         if (pointCoords) {
@@ -1582,9 +1586,13 @@
         }, 500);
       }, [user.uid]);
 
-      // Re-sort when sites or location change
+      // Re-sort when sites or location change (with dedup)
       useEffect(function() {
-        var all = [].concat(BUILTIN_SITES, importedSites, sharedKMZSites);
+        var seen = {};
+        var all = [];
+        BUILTIN_SITES.forEach(function(s) { if (!seen[s.id]) { seen[s.id] = true; all.push(s); } });
+        importedSites.forEach(function(s) { if (!seen[s.id]) { seen[s.id] = true; all.push(s); } });
+        sharedKMZSites.forEach(function(s) { if (!seen[s.id]) { seen[s.id] = true; all.push(s); } });
         if (userLoc) { setSortedSites(sortByNearest(all, userLoc)); }
         else { setSortedSites(all); }
       }, [importedSites, sharedKMZSites, userLoc]);
