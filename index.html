@@ -847,8 +847,8 @@
           }
 
           var flagBtnHtml = revisitData
-            ? '<button onclick="(function(){ try { var s = (window.__allSites || []).find(function(x){ return x.id === \\'' + site.id + '\\'; }); if(s) window.__clearRevisit(\\'' + site.id + '\\', s); } catch(e){} })()" style="display:inline-block;background:#22c55e;color:white;padding:6px 10px;border-radius:8px;border:none;font-size:12px;font-weight:600;cursor:pointer;margin-left:4px;">✓ Clear Flag</button>'
-            : '<button onclick="(function(){ try { var s = (window.__allSites || []).find(function(x){ return x.id === \\'' + site.id + '\\'; }); if(s) window.__flagRevisit(\\'' + site.id + '\\', s); } catch(e){} })()" style="display:inline-block;background:#f59e0b;color:white;padding:6px 10px;border-radius:8px;border:none;font-size:12px;font-weight:600;cursor:pointer;margin-left:4px;">🔄 Flag Issue</button>';
+            ? '<button onclick="(function(){ try { var sid=&quot;' + site.id + '&quot;; var s=(window.__allSites||[]).find(function(x){return x.id===sid;}); if(s) window.__clearRevisit(sid,s); } catch(e){} })()" style="display:inline-block;background:#22c55e;color:white;padding:6px 10px;border-radius:8px;border:none;font-size:12px;font-weight:600;cursor:pointer;margin-left:4px;">✓ Clear Flag</button>'
+            : '<button onclick="(function(){ try { var sid=&quot;' + site.id + '&quot;; var s=(window.__allSites||[]).find(function(x){return x.id===sid;}); if(s) window.__flagRevisit(sid,s); } catch(e){} })()" style="display:inline-block;background:#f59e0b;color:white;padding:6px 10px;border-radius:8px;border:none;font-size:12px;font-weight:600;cursor:pointer;margin-left:4px;">🔄 Flag Issue</button>';
 
           const popup = `
             <div style="min-width:200px;font-family:system-ui;">
