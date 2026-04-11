@@ -732,7 +732,7 @@
     }
 
     // ── Leaflet Map Component ──
-    const SiteMap = React.memo(function SiteMap({ sites, userLoc, visited, sharedCompletions, currentTargetId, myAvatarURL, myPhotoURL, enroutes }) {
+    const SiteMap = React.memo(function SiteMap({ sites, userLoc, visited, sharedCompletions, currentTargetId, myAvatarURL, myPhotoURL, enroutes, revisits }) {
       const mapRef = useRef(null);
       const mapInstanceRef = useRef(null);
       const userLayerRef = useRef(null);
@@ -782,12 +782,14 @@
           const isCurrent = site.id === currentTargetId;
 
           var isEnroute = enroutes && enroutes[site.id];
+          var isFlagged = revisits && revisits[site.id];
           let color = isImported ? '#f59e0b' : (isExisting ? '#22c55e' : '#ef4444');
           let borderColor = 'white';
           let size = 14;
           if (isCurrent) { color = '#a855f7'; borderColor = '#fbbf24'; size = 20; }
           if (isEnroute && !isVisited && !isSharedComplete) { color = '#f59e0b'; borderColor = '#fff'; size = 18; }
           if (isVisited || isSharedComplete) { color = '#6b7280'; }
+          if (isFlagged) { color = '#f97316'; borderColor = '#fbbf24'; size = 16; }
 
           const icon = L.divIcon({
             html: `<div style="width:${size}px;height:${size}px;background:${color};border:${isCurrent ? '3' : '2'}px solid ${borderColor};border-radius:50%;box-shadow:0 0 ${isCurrent ? '12px' : '4px'} ${color}80;${isCurrent ? 'animation:pulse 1.5s infinite;' : ''}"></div>`,
@@ -833,10 +835,26 @@
             enrouteHtml = '<div style="background:#f59e0b;color:#fff;padding:6px 8px;border-radius:6px;margin-bottom:6px;display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;">' + erAvatarHtml + ' 🚗 ' + erName + ' is en-route</div>';
           }
 
+          var revisitData = revisits && revisits[site.id];
+          var revisitHtml = '';
+          if (revisitData) {
+            var rvName = revisitData.flaggedByName || 'Someone';
+            var rvPhoto = revisitData.flaggedByPhoto;
+            var rvAvatarHtml = rvPhoto
+              ? '<img src="' + rvPhoto + '" style="width:22px;height:22px;border-radius:50%;object-fit:cover;border:2px solid #f59e0b;flex-shrink:0;" referrerPolicy="no-referrer" />'
+              : '<div style="width:22px;height:22px;border-radius:50%;background:#f59e0b;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:10px;flex-shrink:0;">' + rvName.charAt(0).toUpperCase() + '</div>';
+            revisitHtml = '<div style="background:#fef3c7;border:1px solid #f59e0b80;border-radius:6px;padding:6px 8px;margin:6px 0;display:flex;align-items:center;gap:6px;">' + rvAvatarHtml + '<span style="font-size:12px;font-weight:600;color:#92400e;">🔄 Flagged by ' + rvName + '</span></div>';
+          }
+
+          var flagBtnHtml = revisitData
+            ? '<button onclick="(function(){ try { var s = (window.__allSites || []).find(function(x){ return x.id === \\'' + site.id + '\\'; }); if(s) window.__clearRevisit(\\'' + site.id + '\\', s); } catch(e){} })()" style="display:inline-block;background:#22c55e;color:white;padding:6px 10px;border-radius:8px;border:none;font-size:12px;font-weight:600;cursor:pointer;margin-left:4px;">✓ Clear Flag</button>'
+            : '<button onclick="(function(){ try { var s = (window.__allSites || []).find(function(x){ return x.id === \\'' + site.id + '\\'; }); if(s) window.__flagRevisit(\\'' + site.id + '\\', s); } catch(e){} })()" style="display:inline-block;background:#f59e0b;color:white;padding:6px 10px;border-radius:8px;border:none;font-size:12px;font-weight:600;cursor:pointer;margin-left:4px;">🔄 Flag Issue</button>';
+
           const popup = `
             <div style="min-width:200px;font-family:system-ui;">
               ${currentBadge}
               ${enrouteHtml}
+              ${revisitHtml}
               <b style="font-size:14px;">${site.id}</b> ${sourceBadge}<br>
               <span style="color:#888;font-size:12px;">${site.address}</span>${distText}
               ${closedByHtml}
@@ -851,6 +869,7 @@
                 style="display:inline-block;background:#570df8;color:white;padding:6px 14px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;">
                 🗺️ Get Directions
               </button>
+              ${flagBtnHtml}
             </div>
           `;
           L.marker([site.lat, site.lon], { icon }).addTo(sitesLayerRef.current).bindPopup(popup);
@@ -863,7 +882,7 @@
           mapInstanceRef.current.fitBounds(bounds, { padding: [30, 30] });
           hasInitFit.current = true;
         }
-      }, [sites, visited, sharedCompletions, currentTargetId, enroutes]);
+      }, [sites, visited, sharedCompletions, currentTargetId, enroutes, revisits]);
 
       return <div id="map-container" ref={mapRef}></div>;
     });
@@ -1844,6 +1863,8 @@
 
       // Expose claimEnroute globally so map popups (plain HTML) can use it
       window.__claimEnroute = claimEnroute;
+      window.__flagRevisit = flagRevisit;
+      window.__clearRevisit = clearRevisit;
       window.__allSites = filteredSites;
 
       var cancelEnroute = function(siteId, site) {
@@ -2021,7 +2042,7 @@
           <div className="sticky top-0 z-[1000] bg-base-100 border-b border-base-300 px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <NavIcon size={18} className="text-primary shrink-0" />
-              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v22</span></span>
+              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v23</span></span>
               <span className="text-xs opacity-50">({visited.size} you • {teamCompletedCount} team)</span>
             </div>
             <div className="flex gap-2 flex-wrap">
@@ -2081,7 +2102,7 @@
           {view === 'team' ? (
             <TeamActivity sharedCompletions={sharedCompletions} allSites={sortedSites} currentUserId={user.uid} />
           ) : view === 'map' ? (
-            <SiteMap sites={filteredSites} userLoc={userLoc} visited={visited} sharedCompletions={sharedCompletions} currentTargetId={currentTargetId} myAvatarURL={avatarURL} myPhotoURL={user.photoURL} enroutes={enroutes}  />
+            <SiteMap sites={filteredSites} userLoc={userLoc} visited={visited} sharedCompletions={sharedCompletions} currentTargetId={currentTargetId} myAvatarURL={avatarURL} myPhotoURL={user.photoURL} enroutes={enroutes} revisits={revisits} />
           ) : (
             <div className="flex flex-col gap-3 p-4 pb-24">
               {filteredSites.length === 0 ? (
