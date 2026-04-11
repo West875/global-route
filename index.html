@@ -1463,7 +1463,7 @@
             const data = doc.data();
             const newVisitedArr = data.visited || [];
             setVisited(function(prev) {
-              if (newVisitedArr.length === prev.size && newVisitedArr.every(function(v) { return prev.has(v; }))) return prev;
+              if (newVisitedArr.length === prev.size && newVisitedArr.every(function(v) { return prev.has(v); })) return prev;
               return new Set(newVisitedArr);
             });
             setImportedFiles(function(prev) {
