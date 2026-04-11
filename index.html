@@ -869,7 +869,7 @@
     });
 
     // ── Site Card ──
-    function SiteCard({ site, index, total, isCurrent, isVisited, sharedCompletion, onMarkVisited, onUndoVisit, myAvatarURL, myPhotoURL, noteCount, onOpenNotes, currentUserId, enrouteInfo, onClaimEnroute, onCancelEnroute }) {
+    function SiteCard({ site, index, total, isCurrent, isVisited, sharedCompletion, onMarkVisited, onUndoVisit, myAvatarURL, myPhotoURL, noteCount, onOpenNotes, currentUserId, enrouteInfo, onClaimEnroute, onCancelEnroute, revisitInfo, onFlagRevisit, onClearRevisit }) {
       const isExisting = site.status.includes('Existing Cabinet');
       const isImported = site.source && site.source !== 'builtin';
       const isCompleted = isVisited || sharedCompletion;
@@ -944,7 +944,30 @@
               </div>
             )}
 
-            <div className="flex gap-2 mt-2">
+            {/* Revisit needed banner */}
+            {revisitInfo && (
+              <div className="mt-2 rounded-xl p-4 flex items-center gap-4 bg-warning/20 border-2 border-warning/40">
+                {revisitInfo.flaggedByPhoto ? (
+                  <img src={revisitInfo.flaggedByPhoto} alt="" className="w-10 h-10 rounded-full object-cover shrink-0 border-2 shadow-lg" style={{ borderColor: '#f59e0b', borderWidth: '2px' }} referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold shrink-0 shadow-lg bg-warning text-warning-content">
+                    {revisitInfo.flaggedByName ? revisitInfo.flaggedByName.charAt(0).toUpperCase() : '🔄'}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-sm text-warning">🔄 Revisit Needed</p>
+                  <p className="text-xs opacity-70">Flagged by {revisitInfo.flaggedByName || 'Team Member'}</p>
+                  {revisitInfo.flaggedAt && (
+                    <p className="text-xs opacity-50">
+                      {(function() { try { return new Date(revisitInfo.flaggedAt.toDate()).toLocaleString(); } catch(e) { return ''; } })()}
+                    </p>
+                  )}
+                </div>
+                <button className="btn btn-xs btn-success" onClick={onClearRevisit}>✓ Done</button>
+              </div>
+            )}
+
+            <div className="flex gap-2 mt-2 flex-wrap">
               <button className="btn btn-primary btn-sm flex-1"
                 onClick={function(e) { e.preventDefault(); onClaimEnroute(function() { window.open(directionsUrl(site), '_blank', 'noopener,noreferrer'); }); }}>
                 <NavIcon size={14} /> Get Directions <ExternalIcon />
@@ -958,6 +981,11 @@
               {!isCompleted && (
                 <button className="btn btn-outline btn-success btn-sm" onClick={onMarkVisited}>
                   <CheckIcon size={14} /> Done
+                </button>
+              )}
+              {isCompleted && !revisitInfo && (
+                <button className="btn btn-outline btn-accent btn-sm" onClick={onFlagRevisit}>
+                  🔄 Revisit
                 </button>
               )}
               {isCompleted && (
@@ -1328,6 +1356,7 @@
       const [sharedKMZFiles, setSharedKMZFiles] = useState([]);
       const [sharedKMZSites, setSharedKMZSites] = useState([]);
       const [sharedCompletions, setSharedCompletions] = useState({});
+      const [revisits, setRevisits] = useState({});
       const [dataLoaded, setDataLoaded] = useState(false);
 
       // Merge all sites, deduplicating by id (builtin > personal > shared)
@@ -1463,6 +1492,20 @@
               const merged = { ...prev, ...completions };
               if (JSON.stringify(merged) === JSON.stringify(prev)) return prev;
               return merged;
+            });
+          });
+        return unsub;
+      }, []);
+
+      // ── Listen for revisit flags (builtin route) ──
+      useEffect(function() {
+        var unsub = db.collection('sharedRoutes').doc('builtin')
+          .collection('revisits').onSnapshot(function(snapshot) {
+            var revs = {};
+            snapshot.forEach(function(doc) { revs[doc.id] = doc.data(); });
+            setRevisits(function(prev) {
+              if (JSON.stringify(revs) === JSON.stringify(prev)) return prev;
+              return revs;
             });
           });
         return unsub;
@@ -1733,6 +1776,27 @@
           .catch(err => console.error('Undo completion error:', err));
       };
 
+      const flagRevisit = function(siteId, site) {
+        var routeKey = (!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
+        var displayName = user.displayName || user.email.split('@')[0];
+        db.collection('sharedRoutes').doc(routeKey)
+          .collection('revisits').doc(siteId).set({
+            flaggedBy: user.uid,
+            flaggedByName: displayName,
+            flaggedByPhoto: avatarURL || user.photoURL || null,
+            flaggedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            reason: 'Needs revisit'
+          })
+          .catch(function(err) { console.error('Flag revisit error:', err); });
+      };
+
+      const clearRevisit = function(siteId, site) {
+        var routeKey = (!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
+        db.collection('sharedRoutes').doc(routeKey)
+          .collection('revisits').doc(siteId).delete()
+          .catch(function(err) { console.error('Clear revisit error:', err); });
+      };
+
       const resetProgress = () => {
         if (confirm('Reset all YOUR visited sites? This cannot be undone.')) {
           const newVisited = new Set();
@@ -1784,12 +1848,14 @@
         if (filter === 'remaining') return !visited.has(s.id) && !sharedCompletions[s.id];
         if (filter === 'visited') return visited.has(s.id);
         if (filter === 'completed') return !!sharedCompletions[s.id];
+        if (filter === 'revisit') return !!revisits[s.id];
         return true;
       }), [sortedSites, sourceFilter, filter, visited, sharedCompletions]);
 
       const currentTargetId = useMemo(() => { const found = sortedSites.find((s) => !visited.has(s.id) && !sharedCompletions[s.id]); return found ? found.id : null; }, [sortedSites, visited, sharedCompletions]);
       const remainingCount = useMemo(() => sortedSites.filter(s => !visited.has(s.id) && !sharedCompletions[s.id]).length, [sortedSites, visited, sharedCompletions]);
       const teamCompletedCount = useMemo(() => Object.keys(sharedCompletions).length, [sharedCompletions]);
+      const revisitCount = useMemo(function() { return Object.keys(revisits).length; }, [revisits]);
 
       // Loading screen
       if (!permissionGranted) {
@@ -1857,6 +1923,7 @@
                   <option value="remaining">Remaining ({remainingCount})</option>
                   <option value="visited">My Visited ({visited.size})</option>
                   <option value="completed">Team Done ({teamCompletedCount})</option>
+                  <option value="revisit">🔄 Revisit ({revisitCount})</option>
                 </select>
               )}
               <button className="btn btn-sm btn-outline btn-primary" onClick={requestLocation} title="Refresh GPS"><RefreshIcon size={14} /></button>
@@ -1915,7 +1982,10 @@
                     onOpenNotes={() => setActiveNoteSite(site)}
                     enrouteInfo={enroutes[site.id]}
                     onClaimEnroute={function(cb) { claimEnroute(site.id, site, cb); }}
-                    onCancelEnroute={function() { cancelEnroute(site.id, site); }} />
+                    onCancelEnroute={function() { cancelEnroute(site.id, site); }}
+                    revisitInfo={revisits[site.id]}
+                    onFlagRevisit={function() { flagRevisit(site.id, site); }}
+                    onClearRevisit={function() { clearRevisit(site.id, site); }} />
                 ))
               )}
             </div>
