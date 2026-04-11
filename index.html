@@ -1395,6 +1395,28 @@
               return newVal;
             });
           }
+          // Migrate existing personal KMZ imports to shared collection
+          if (doc.exists) {
+            var pFiles = doc.data().importedFiles || [];
+            var pSites = doc.data().importedSites || [];
+            if (pFiles.length > 0 && pSites.length > 0) {
+              pFiles.forEach(function(f) {
+                var sitesForFile = pSites.filter(function(s) { return s.source === f.name; });
+                if (sitesForFile.length > 0) {
+                  db.collection('sharedKMZ').doc(f.name).get().then(function(existing) {
+                    if (!existing.exists) {
+                      db.collection('sharedKMZ').doc(f.name).set({
+                        sites: sitesForFile,
+                        uploadedBy: uid,
+                        uploadedByName: user.displayName || user.email || 'Unknown',
+                        uploadedAt: firebase.firestore.FieldValue.serverTimestamp()
+                      });
+                    }
+                  });
+                }
+              });
+            }
+          }
           setDataLoaded(true);
         });
         return unsub;
@@ -1835,13 +1857,16 @@
           </div>
 
           {/* Source filter bar */}
-          {importedFiles.length > 0 && (
+          {(importedFiles.length > 0 || sharedKMZFiles.length > 0) && (
             <div className="px-4 py-2 bg-base-200 border-b border-base-300 flex gap-2 overflow-x-auto">
               <button className={`btn btn-xs ${sourceFilter === 'all' ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setSourceFilter('all')}>All Sources ({allSites.length})</button>
               <button className={`btn btn-xs ${sourceFilter === 'builtin' ? 'btn-success' : 'btn-ghost'}`} onClick={() => setSourceFilter('builtin')}>Myrtle Beach ({BUILTIN_SITES.length})</button>
               {importedFiles.map(f => (
                 <button key={f.name} className={`btn btn-xs ${sourceFilter === f.name ? 'btn-warning' : 'btn-ghost'}`} onClick={() => setSourceFilter(f.name)}>{f.name} ({f.siteCount})</button>
               ))}
+              {sharedKMZFiles.filter(function(sf) { return !importedFiles.some(function(pf) { return pf.name === sf.name; }); }).map(function(sf) { return (
+                <button key={'shared-' + sf.name} className={'btn btn-xs ' + (sourceFilter === sf.name ? 'btn-info' : 'btn-ghost')} onClick={function() { setSourceFilter(sf.name); }}>👥 {sf.name} ({sf.siteCount})</button>
+              ); })}
             </div>
           )}
 
