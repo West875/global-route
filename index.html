@@ -1310,6 +1310,75 @@
     const MYRTLE_BEACH_CENTER = { lat: 33.6891, lon: -78.8867 };
 
     // ── Main App ──
+    function TeamActivity({ sharedCompletions, allSites, currentUserId }) {
+      // Group completions by user
+      var byUser = {};
+      Object.keys(sharedCompletions).forEach(function(siteId) {
+        var c = sharedCompletions[siteId];
+        var uid = c.completedBy || 'unknown';
+        if (!byUser[uid]) {
+          byUser[uid] = {
+            name: c.completedByName || 'Unknown',
+            photo: c.completedByPhoto || null,
+            sites: []
+          };
+        }
+        var siteName = siteId;
+        var siteObj = allSites.find(function(s) { return s.id === siteId; });
+        if (siteObj) siteName = siteObj.name || siteId;
+        var ts = null;
+        if (c.completedAt && c.completedAt.toDate) {
+          ts = c.completedAt.toDate();
+        } else if (c.completedAt && c.completedAt.seconds) {
+          ts = new Date(c.completedAt.seconds * 1000);
+        }
+        byUser[uid].sites.push({ id: siteId, name: siteName, time: ts });
+      });
+      // Sort each user's sites by most recent first
+      Object.keys(byUser).forEach(function(uid) {
+        byUser[uid].sites.sort(function(a, b) {
+          if (!a.time && !b.time) return 0;
+          if (!a.time) return 1;
+          if (!b.time) return -1;
+          return b.time.getTime() - a.time.getTime();
+        });
+      });
+      // Sort users by number of completions desc
+      var users = Object.keys(byUser).map(function(uid) { return { uid: uid, data: byUser[uid] }; });
+      users.sort(function(a, b) { return b.data.sites.length - a.data.sites.length; });
+
+      if (users.length === 0) {
+        return React.createElement('div', { className: 'text-center py-12 opacity-50' }, 'No completions yet. Get out there! 🚀');
+      }
+
+      return React.createElement('div', { className: 'flex flex-col gap-4 p-4 pb-24' },
+        users.map(function(u) {
+          var isMe = u.uid === currentUserId;
+          return React.createElement('div', { key: u.uid, className: 'card bg-base-100 shadow-md border-l-4 ' + (isMe ? 'border-green-500' : 'border-blue-500') },
+            React.createElement('div', { className: 'card-body p-4' },
+              React.createElement('div', { className: 'flex items-center gap-3 mb-3' },
+                u.data.photo
+                  ? React.createElement('img', { src: u.data.photo, className: 'w-12 h-12 rounded-full object-cover border-2 ' + (isMe ? 'border-green-500' : 'border-blue-500'), referrerPolicy: 'no-referrer' })
+                  : React.createElement('div', { className: 'w-12 h-12 rounded-full bg-base-300 flex items-center justify-center text-lg font-bold' }, u.data.name.charAt(0).toUpperCase()),
+                React.createElement('div', null,
+                  React.createElement('div', { className: 'font-bold text-lg' }, u.data.name, isMe ? ' (You)' : ''),
+                  React.createElement('div', { className: 'text-sm opacity-60' }, u.data.sites.length + ' site' + (u.data.sites.length !== 1 ? 's' : '') + ' completed')
+                )
+              ),
+              React.createElement('div', { className: 'flex flex-col gap-1' },
+                u.data.sites.map(function(s) {
+                  return React.createElement('div', { key: s.id, className: 'flex items-center justify-between py-1 px-2 rounded bg-base-200 text-sm' },
+                    React.createElement('span', { className: 'font-medium' }, '✅ ' + s.name),
+                    s.time ? React.createElement('span', { className: 'text-xs opacity-50' }, s.time.toLocaleDateString() + ' ' + s.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })) : null
+                  );
+                })
+              )
+            )
+          );
+        })
+      );
+    }
+
     function App() {
       // Auth state
       const [user, setUser] = useState(null);
@@ -1952,7 +2021,7 @@
           <div className="sticky top-0 z-[1000] bg-base-100 border-b border-base-300 px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <NavIcon size={18} className="text-primary shrink-0" />
-              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v21</span></span>
+              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v22</span></span>
               <span className="text-xs opacity-50">({visited.size} you • {teamCompletedCount} team)</span>
             </div>
             <div className="flex gap-2 flex-wrap">
@@ -1963,6 +2032,7 @@
               <div className="join">
                 <button className={`join-item btn btn-sm ${view === 'list' ? 'btn-primary' : 'btn-ghost'}`} onClick={function() { setView('list'); }} title="List view"><ListIcon size={14} /></button>
                 <button className={`join-item btn btn-sm ${view === 'map' ? 'btn-primary' : 'btn-ghost'}`} onClick={function() { setView('map'); }} title="Map view"><MapIcon size={14} /></button>
+                <button className={`join-item btn btn-sm ${view === 'team' ? 'btn-primary' : 'btn-ghost'}`} onClick={function() { setView('team'); }} title="Team Activity">👥</button>
               </div>
               {view === 'list' && (
                 <select className="select select-bordered select-sm" value={filter} onChange={function(e) { setFilter(e.target.value); }}>
@@ -2008,7 +2078,9 @@
           )}
 
           {/* Content */}
-          {view === 'map' ? (
+          {view === 'team' ? (
+            <TeamActivity sharedCompletions={sharedCompletions} allSites={sortedSites} currentUserId={user.uid} />
+          ) : view === 'map' ? (
             <SiteMap sites={filteredSites} userLoc={userLoc} visited={visited} sharedCompletions={sharedCompletions} currentTargetId={currentTargetId} myAvatarURL={avatarURL} myPhotoURL={user.photoURL} enroutes={enroutes}  />
           ) : (
             <div className="flex flex-col gap-3 p-4 pb-24">
