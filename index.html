@@ -858,7 +858,7 @@
 
         // Fit bounds only on first load
         if (!hasInitFit.current && sites.length > 0 && mapInstanceRef.current) {
-          const bounds = L.latLngBounds(sites.map(function(s) [s.lat, s.lon]));
+          const bounds = L.latLngBounds(sites.map(function(s) { return [s.lat, s.lon]; }));
           if (userLoc) bounds.extend([userLoc.lat, userLoc.lon]);
           mapInstanceRef.current.fitBounds(bounds, { padding: [30, 30] });
           hasInitFit.current = true;
@@ -1047,7 +1047,7 @@
                     <span className="badge badge-sm badge-ghost">Default</span>
                   </div>
                 </div>
-                {importedFiles.map(function(f) (
+                {importedFiles.map(function(f) { return (
                   <div key={f.name} className="card bg-base-300">
                     <div className="card-body p-3 flex-row items-center gap-3">
                       <div className="bg-warning/20 rounded-lg p-2"><MapPinIcon size={18} className="text-warning" /></div>
@@ -1060,7 +1060,7 @@
                       </button>
                     </div>
                   </div>
-                ))}
+                ); })}
                 {importedFiles.length === 0 && (!sharedFiles || sharedFiles.length === 0) && (
                   <p className="text-xs opacity-40 text-center py-2">No imported files yet. Tap "Import" above to add KMZ files.</p>
                 )}
@@ -1103,7 +1103,7 @@
           .orderBy('createdAt', 'asc')
           .onSnapshot(function(snapshot) {
             const msgs = [];
-            snapshot.forEach(function(doc) msgs.push({ id: doc.id, ...doc.data() }));
+            snapshot.forEach(function(doc) { msgs.push({ id: doc.id, ...doc.data() }); });
             setNotes(msgs);
             setTimeout(function() { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, 100);
           });
@@ -1889,7 +1889,7 @@
       };
 
       // Apply source and status filters (memoized to prevent map flicker)
-      const filteredSites = useMemo(function() sortedSites.filter(function(s) {
+      const filteredSites = useMemo(function() { return sortedSites.filter(function(s) {
         if (sourceFilter !== 'all') {
           if (sourceFilter === 'builtin' && s.source !== 'builtin') return false;
           if (sourceFilter !== 'builtin' && s.source !== sourceFilter) return false;
@@ -1899,11 +1899,11 @@
         if (filter === 'completed') return !!sharedCompletions[s.id];
         if (filter === 'revisit') return !!revisits[s.id];
         return true;
-      }), [sortedSites, sourceFilter, filter, visited, sharedCompletions]);
+      }); }, [sortedSites, sourceFilter, filter, visited, sharedCompletions]);
 
-      const currentTargetId = useMemo(function() { const found = sortedSites.find(function(s) !visited.has(s.id) && !sharedCompletions[s.id]); return found ? found.id : null; }, [sortedSites, visited, sharedCompletions]);
-      const remainingCount = useMemo(function() sortedSites.filter(function(s) !visited.has(s.id) && !sharedCompletions[s.id]).length, [sortedSites, visited, sharedCompletions]);
-      const teamCompletedCount = useMemo(function() Object.keys(sharedCompletions).length, [sharedCompletions]);
+      const currentTargetId = useMemo(function() { var found = sortedSites.find(function(s) { return !visited.has(s.id) && !sharedCompletions[s.id]; }); return found ? found.id : null; }, [sortedSites, visited, sharedCompletions]);
+      const remainingCount = useMemo(function() { return sortedSites.filter(function(s) { return !visited.has(s.id) && !sharedCompletions[s.id]; }).length; }, [sortedSites, visited, sharedCompletions]);
+      const teamCompletedCount = useMemo(function() { return Object.keys(sharedCompletions).length; }, [sharedCompletions]);
       const revisitCount = useMemo(function() { return Object.keys(revisits).length; }, [revisits]);
 
       // Loading screen
@@ -1985,9 +1985,9 @@
             <div className="px-4 py-2 bg-base-200 border-b border-base-300 flex gap-2 overflow-x-auto">
               <button className={`btn btn-xs ${sourceFilter === 'all' ? 'btn-primary' : 'btn-ghost'}`} onClick={function() { setSourceFilter('all'); }}>All Sources ({allSites.length})</button>
               <button className={`btn btn-xs ${sourceFilter === 'builtin' ? 'btn-success' : 'btn-ghost'}`} onClick={function() { setSourceFilter('builtin'); }}>Myrtle Beach ({BUILTIN_SITES.length})</button>
-              {importedFiles.map(function(f) (
+              {importedFiles.map(function(f) { return (
                 <button key={f.name} className={`btn btn-xs ${sourceFilter === f.name ? 'btn-warning' : 'btn-ghost'}`} onClick={function() { setSourceFilter(f.name); }}>{f.name} ({f.siteCount})</button>
-              ))}
+              ); })}
               {sharedKMZFiles.filter(function(sf) { return !importedFiles.some(function(pf) { return pf.name === sf.name; }); }).map(function(sf) { return (
                 <button key={'shared-' + sf.name} className={'btn btn-xs ' + (sourceFilter === sf.name ? 'btn-info' : 'btn-ghost')} onClick={function() { setSourceFilter(sf.name); }}>👥 {sf.name} ({sf.siteCount})</button>
               ); })}
@@ -2067,7 +2067,7 @@
             <div className="fixed inset-0 z-[2000] bg-black/80 flex items-center justify-center">
               <div className="relative w-full max-w-sm mx-4">
                 <button className="absolute -top-10 right-0 btn btn-sm btn-ghost text-white" onClick={function() { setShowAvatarSetup(false); }}>✕ Cancel</button>
-                <AvatarSetup user={user} onComplete={function(url) { { setAvatarURL(url); setShowAvatarSetup(false); ; }}} />
+                <AvatarSetup user={user} onComplete={function(url) { setAvatarURL(url); setShowAvatarSetup(false); }} />
               </div>
             </div>
           )}
