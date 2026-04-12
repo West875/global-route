@@ -108,6 +108,12 @@
       { id: "6M911", address: "Goldfinch Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.664454, lon: -78.967462, source: "builtin" },
     ];
 
+    const PICKUP_LOCATIONS = [
+      { id: "PU-CONWAY", name: "Material Pickup - Conway", address: "490 University Forest Dr, Conway, SC 29526", lat: 33.8084032, lon: -79.0110781 },
+      { id: "PU-FAYETTEVILLE", name: "Material Pickup - Fayetteville", address: "6801 Ramsey St, Fayetteville, NC 28311", lat: 35.1477838, lon: -78.8712839 },
+      { id: "PU-CHARLOTTE", name: "Material Pickup - Charlotte", address: "7800 Old Plank Rd, Charlotte, NC 28216", lat: 35.3014451, lon: -80.9217820 }
+    ];
+
     // ── KMZ/KML Parser ──
     async function parseKMZFile(file) {
       const arrayBuffer = await file.arrayBuffer();
@@ -873,6 +879,22 @@
             </div>
           `;
           L.marker([site.lat, site.lon], { icon }).addTo(sitesLayerRef.current).bindPopup(popup);
+        });
+
+        // Add Material Pickup Location markers (purple diamond)
+        PICKUP_LOCATIONS.forEach(function(pu) {
+          var puIcon = L.divIcon({
+            html: '<div style="width:20px;height:20px;background:#8b5cf6;border:3px solid #fbbf24;border-radius:4px;transform:rotate(45deg);box-shadow:0 0 8px #8b5cf680;display:flex;align-items:center;justify-content:center;"><span style="transform:rotate(-45deg);font-size:10px;">📦</span></div>',
+            iconSize: [20, 20], iconAnchor: [10, 10], className: ''
+          });
+          var puDirectionsUrl = 'https://www.google.com/maps/dir/?api=1&destination=' + pu.lat + ',' + pu.lon;
+          var puPopup = '<div style="min-width:200px;font-family:system-ui;">' +
+            '<div style="background:#8b5cf6;color:white;padding:4px 8px;border-radius:6px;margin-bottom:6px;font-size:12px;font-weight:700;">📦 MATERIAL PICKUP</div>' +
+            '<b style="font-size:14px;">' + pu.name + '</b><br>' +
+            '<span style="color:#888;font-size:12px;">' + pu.address + '</span><br><br>' +
+            '<a href="' + puDirectionsUrl + '" target="_blank" style="display:inline-block;background:#8b5cf6;color:white;padding:6px 14px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">🗺️ Get Directions</a>' +
+            '</div>';
+          L.marker([pu.lat, pu.lon], { icon: puIcon }).addTo(sitesLayerRef.current).bindPopup(puPopup);
         });
 
         // Fit bounds only on first load
@@ -2044,7 +2066,7 @@
           <div className="sticky top-0 z-[1000] bg-base-100 border-b border-base-300 px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <NavIcon size={18} className="text-primary shrink-0" />
-              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v24</span></span>
+              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v25</span></span>
               <span className="text-xs opacity-50">({visited.size} you • {teamCompletedCount} team)</span>
             </div>
             <div className="flex gap-2 flex-wrap">
