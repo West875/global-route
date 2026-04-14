@@ -1694,7 +1694,15 @@
               completions[doc.id] = doc.data();
             });
             setSharedCompletions(function(prev) {
-              const merged = { ...prev, ...completions };
+              // Remove old builtin completions, keep imported ones, add new builtin
+              var kept = {};
+              Object.keys(prev).forEach(function(k) {
+                if (prev[k]._src && prev[k]._src !== 'builtin') kept[k] = prev[k];
+              });
+              Object.keys(completions).forEach(function(k) {
+                completions[k]._src = 'builtin';
+              });
+              var merged = Object.assign({}, kept, completions);
               if (JSON.stringify(merged) === JSON.stringify(prev)) return prev;
               return merged;
             });
@@ -1775,12 +1783,18 @@
       useEffect(function() {
         if (importedFiles.length === 0) return;
         const unsubs = importedFiles.map(function(f) {
-          return db.collection('sharedRoutes').doc(f.name.replace(/[^a-zA-Z0-9-_]/g, '_'))
+          var srcKey = f.name.replace(/[^a-zA-Z0-9-_]/g, '_');
+          return db.collection('sharedRoutes').doc(srcKey)
             .collection('completions').onSnapshot(function(snapshot) {
               const completions = {};
-              snapshot.forEach(function(doc) { completions[doc.id] = doc.data(); });
+              snapshot.forEach(function(doc) { var d = doc.data(); d._src = srcKey; completions[doc.id] = d; });
               setSharedCompletions(function(prev) {
-                const merged = { ...prev, ...completions };
+                // Remove old completions from THIS source, keep everything else
+                var kept = {};
+                Object.keys(prev).forEach(function(k) {
+                  if (prev[k]._src !== srcKey) kept[k] = prev[k];
+                });
+                var merged = Object.assign({}, kept, completions);
                 if (JSON.stringify(merged) === JSON.stringify(prev)) return prev;
                 return merged;
               });
@@ -2067,6 +2081,13 @@
         setVisited(newVisited);
         saveToFirestore(newVisited, importedFiles, importedSites);
 
+        // Optimistic local removal — remove from sharedCompletions instantly
+        setSharedCompletions(function(prev) {
+          var updated = Object.assign({}, prev);
+          delete updated[siteId];
+          return updated;
+        });
+
         // Remove shared completion from Firestore
         const routeKey = (site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
         db.collection('sharedRoutes').doc(routeKey)
@@ -2228,7 +2249,7 @@
           <div className="sticky top-0 z-[1000] bg-base-100 border-b border-base-300 px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <NavIcon size={18} className="text-primary shrink-0" />
-              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v32</span></span>
+              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v36</span></span>
               <span className="text-xs opacity-50">({visited.size} you • {teamCompletedCount} team)</span>
             </div>
             <div className="flex gap-2 flex-wrap">
