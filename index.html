@@ -738,7 +738,7 @@
     }
 
     // ── Leaflet Map Component ──
-    function SiteMap({ sites, userLoc, visited, sharedCompletions, currentTargetId, myAvatarURL, myPhotoURL, enroutes, revisits }) {
+    function SiteMap({ sites, userLoc, visited, sharedCompletions, currentTargetId, myAvatarURL, myPhotoURL, enroutes, revisits, mapVersion }) {
       const mapRef = useRef(null);
       const mapInstanceRef = useRef(null);
       const userLayerRef = useRef(null);
@@ -757,7 +757,7 @@
         if (!document.getElementById('pulse-css')) {
           const style = document.createElement('style');
           style.id = 'pulse-css';
-          style.textContent = '@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.3); } }';
+          style.textContent = '@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.3); } } @keyframes pulseRed { 0%,100% { box-shadow: 0 0 4px #ef444480; transform: scale(1); } 50% { box-shadow: 0 0 16px #ef4444cc, 0 0 30px #ef444466; transform: scale(1.25); } }';
           document.head.appendChild(style);
         }
         return function() { if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; } };
@@ -795,10 +795,14 @@
           if (isCurrent) { color = '#a855f7'; borderColor = '#fbbf24'; size = 20; }
           if (isEnroute && !isVisited && !isSharedComplete) { color = '#f59e0b'; borderColor = '#fff'; size = 18; }
           if (isVisited || isSharedComplete) { color = '#6b7280'; }
-          if (isFlagged) { color = '#f97316'; borderColor = '#fbbf24'; size = 16; }
+          if (isFlagged) { color = '#ef4444'; borderColor = '#fbbf24'; size = 18; }
+
+          var animStyle = '';
+          if (isCurrent) { animStyle = 'animation:pulse 1.5s infinite;'; }
+          if (isFlagged) { animStyle = 'animation:pulseRed 1.5s infinite;'; }
 
           const icon = L.divIcon({
-            html: `<div style="width:${size}px;height:${size}px;background:${color};border:${isCurrent ? '3' : '2'}px solid ${borderColor};border-radius:50%;box-shadow:0 0 ${isCurrent ? '12px' : '4px'} ${color}80;${isCurrent ? 'animation:pulse 1.5s infinite;' : ''}"></div>`,
+            html: `<div style="width:${size}px;height:${size}px;background:${color};border:${isCurrent ? '3' : '2'}px solid ${borderColor};border-radius:50%;box-shadow:0 0 ${isCurrent ? '12px' : '4px'} ${color}80;${animStyle}"></div>`,
             iconSize: [size, size], iconAnchor: [size/2, size/2], className: ''
           });
 
@@ -904,7 +908,7 @@
           mapInstanceRef.current.fitBounds(bounds, { padding: [30, 30] });
           hasInitFit.current = true;
         }
-      }, [sites, visited, sharedCompletions, currentTargetId, enroutes, revisits]);
+      }, [sites, visited, sharedCompletions, currentTargetId, enroutes, revisits, mapVersion]);
 
       return <div id="map-container" ref={mapRef}></div>;
     }
@@ -1535,6 +1539,7 @@
       const [isStandalone, setIsStandalone] = useState(false);
       const [noteCounts, setNoteCounts] = useState({});
       const [enroutes, setEnroutes] = useState({});
+      const [mapVersion, setMapVersion] = useState(0);
       const [enrouteConfirm, setEnrouteConfirm] = useState(null); // {userName, userPhoto, onYes, onNo}
       const [activeNoteSite, setActiveNoteSite] = useState(null);
 
@@ -1660,10 +1665,8 @@
           .collection('revisits').onSnapshot(function(snapshot) {
             var revs = {};
             snapshot.forEach(function(doc) { revs[doc.id] = doc.data(); });
-            setRevisits(function(prev) {
-              if (JSON.stringify(revs) === JSON.stringify(prev)) return prev;
-              return revs;
-            });
+            setRevisits(Object.assign({}, revs));
+            setMapVersion(function(v) { return v + 1; });
           });
         return unsub;
       }, []);
@@ -1713,6 +1716,7 @@
               // Always return new reference so map re-renders
               return Object.assign({}, merged);
             });
+            setMapVersion(function(v) { return v + 1; });
           });
         return unsub;
       }, []);
@@ -1752,6 +1756,7 @@
                 });
                 return Object.assign({}, merged);
               });
+              setMapVersion(function(v) { return v + 1; });
             });
         });
         return function() { unsubs.forEach(function(u) { u(); }); };
@@ -2068,7 +2073,7 @@
           <div className="sticky top-0 z-[1000] bg-base-100 border-b border-base-300 px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <NavIcon size={18} className="text-primary shrink-0" />
-              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v26</span></span>
+              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v27</span></span>
               <span className="text-xs opacity-50">({visited.size} you • {teamCompletedCount} team)</span>
             </div>
             <div className="flex gap-2 flex-wrap">
@@ -2128,7 +2133,7 @@
           {view === 'team' ? (
             <TeamActivity sharedCompletions={sharedCompletions} allSites={sortedSites} currentUserId={user.uid} />
           ) : view === 'map' ? (
-            <SiteMap sites={filteredSites} userLoc={userLoc} visited={visited} sharedCompletions={sharedCompletions} currentTargetId={currentTargetId} myAvatarURL={avatarURL} myPhotoURL={user.photoURL} enroutes={enroutes} revisits={revisits} />
+            <SiteMap sites={filteredSites} userLoc={userLoc} visited={visited} sharedCompletions={sharedCompletions} currentTargetId={currentTargetId} myAvatarURL={avatarURL} myPhotoURL={user.photoURL} enroutes={enroutes} revisits={revisits} mapVersion={mapVersion} />
           ) : (
             <div className="flex flex-col gap-3 p-4 pb-24">
               {filteredSites.length === 0 ? (
