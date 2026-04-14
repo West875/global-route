@@ -1704,8 +1704,18 @@
         var unsub = db.collection('sharedRoutes').doc('builtin')
           .collection('revisits').onSnapshot(function(snapshot) {
             var revs = {};
-            snapshot.forEach(function(doc) { revs[doc.id] = doc.data(); });
-            setRevisits(Object.assign({}, revs));
+            snapshot.forEach(function(doc) { var d = doc.data(); d._source = 'builtin'; revs[doc.id] = d; });
+            setRevisits(function(prev) {
+              // Remove old builtin revisits, keep imported ones
+              var merged = {};
+              Object.keys(prev).forEach(function(k) {
+                if (prev[k]._source && prev[k]._source !== 'builtin') {
+                  merged[k] = prev[k];
+                }
+              });
+              Object.keys(revs).forEach(function(k) { merged[k] = revs[k]; });
+              return Object.assign({}, merged);
+            });
             setMapVersion(function(v) { return v + 1; });
           });
         return unsub;
@@ -1813,6 +1823,36 @@
                 });
                 // Add fresh claims from this source
                 Object.keys(claims).forEach(function(k) { merged[k] = claims[k]; });
+                return Object.assign({}, merged);
+              });
+              setMapVersion(function(v) { return v + 1; });
+            });
+        });
+        return function() { unsubs.forEach(function(u) { u(); }); };
+      }, [importedFiles]);
+
+      // ── Listen for revisit flags on imported files ──
+      useEffect(function() {
+        if (importedFiles.length === 0) return;
+        var unsubs = importedFiles.map(function(f) {
+          var sourceKey = f.name.replace(/[^a-zA-Z0-9-_]/g, '_');
+          return db.collection('sharedRoutes').doc(sourceKey)
+            .collection('revisits').onSnapshot(function(snapshot) {
+              var revs = {};
+              snapshot.forEach(function(doc) { revs[doc.id] = doc.data(); });
+              setRevisits(function(prev) {
+                // Remove old revisits from this source, keep others
+                var merged = {};
+                Object.keys(prev).forEach(function(k) {
+                  if (!prev[k]._source || prev[k]._source !== sourceKey) {
+                    merged[k] = prev[k];
+                  }
+                });
+                // Add fresh revisits from this source
+                Object.keys(revs).forEach(function(k) {
+                  revs[k]._source = sourceKey;
+                  merged[k] = revs[k];
+                });
                 return Object.assign({}, merged);
               });
               setMapVersion(function(v) { return v + 1; });
@@ -2160,7 +2200,7 @@
           <div className="sticky top-0 z-[1000] bg-base-100 border-b border-base-300 px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <NavIcon size={18} className="text-primary shrink-0" />
-              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v31</span></span>
+              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v32</span></span>
               <span className="text-xs opacity-50">({visited.size} you • {teamCompletedCount} team)</span>
             </div>
             <div className="flex gap-2 flex-wrap">
