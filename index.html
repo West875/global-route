@@ -1776,15 +1776,33 @@
         return function() { unsubs.forEach(function(u) { u(); }); };
       }, [importedFiles]);
 
-      // ── Listen for en-route claims on imported files ──
+      // ── Listen for en-route claims on imported files — auto-expire after 2 hours ──
       useEffect(function() {
         if (importedFiles.length === 0) return;
+        var TWO_HOURS = 2 * 60 * 60 * 1000;
         var unsubs = importedFiles.map(function(f) {
-          return db.collection('sharedRoutes').doc(f.name.replace(/[^a-zA-Z0-9-_]/g, '_'))
+          var sourceKey = f.name.replace(/[^a-zA-Z0-9-_]/g, '_');
+          return db.collection('sharedRoutes').doc(sourceKey)
             .collection('enroute').onSnapshot(function(snapshot) {
-              var sourceKey = f.name.replace(/[^a-zA-Z0-9-_]/g, '_');
               var claims = {};
-              snapshot.forEach(function(doc) { var d = doc.data(); d._source = sourceKey; claims[doc.id] = d; });
+              var now = Date.now();
+              snapshot.forEach(function(doc) {
+                var d = doc.data();
+                // Check if claim is stale (older than 2 hours)
+                var startedAt = d.startedAt;
+                if (startedAt && startedAt.toDate) {
+                  var ageMs = now - startedAt.toDate().getTime();
+                  if (ageMs > TWO_HOURS) {
+                    // Auto-delete stale claim from Firestore
+                    db.collection('sharedRoutes').doc(sourceKey)
+                      .collection('enroute').doc(doc.id).delete()
+                      .catch(function(err) { console.error('Stale cleanup error:', err); });
+                    return; // skip stale claim
+                  }
+                }
+                d._source = sourceKey;
+                claims[doc.id] = d;
+              });
               setEnroutes(function(prev) {
                 // Remove all old claims from this specific imported source
                 var merged = {};
@@ -1795,7 +1813,7 @@
                 });
                 // Add fresh claims from this source
                 Object.keys(claims).forEach(function(k) { merged[k] = claims[k]; });
-                return merged;
+                return Object.assign({}, merged);
               });
               setMapVersion(function(v) { return v + 1; });
             });
@@ -1889,10 +1907,28 @@
           userPhoto: avatarURL || user.photoURL || null,
           startedAt: firebase.firestore.FieldValue.serverTimestamp()
         };
+        // Clear any previous en-route claims by this user (one claim per person)
+        var myOldClaims = [];
+        Object.keys(enroutes).forEach(function(k) {
+          if (enroutes[k].userId === user.uid && k !== siteId) {
+            myOldClaims.push({ id: k, source: enroutes[k]._source || 'builtin' });
+          }
+        });
+        myOldClaims.forEach(function(old) {
+          db.collection('sharedRoutes').doc(old.source)
+            .collection('enroute').doc(old.id).delete()
+            .catch(function(err) { console.error('Clear old en-route error:', err); });
+        });
         // Optimistic local update — show en-route immediately without waiting for Firestore round-trip
         var optimistic = { userId: user.uid, userName: displayName, userPhoto: avatarURL || user.photoURL || null, startedAt: { toDate: function() { return new Date(); } }, _source: routeKey };
         setEnroutes(function(prev) {
-          var next = Object.assign({}, prev);
+          var next = {};
+          // Remove this user's old claims from local state
+          Object.keys(prev).forEach(function(k) {
+            if (prev[k].userId !== user.uid || k === siteId) {
+              next[k] = prev[k];
+            }
+          });
           next[siteId] = optimistic;
           return next;
         });
@@ -2124,7 +2160,7 @@
           <div className="sticky top-0 z-[1000] bg-base-100 border-b border-base-300 px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <NavIcon size={18} className="text-primary shrink-0" />
-              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v30</span></span>
+              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v31</span></span>
               <span className="text-xs opacity-50">({visited.size} you • {teamCompletedCount} team)</span>
             </div>
             <div className="flex gap-2 flex-wrap">
