@@ -43,6 +43,7 @@
     .install-banner { animation: slideUp 0.4s ease-out; }
     @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     #map-container { height: calc(100vh - 110px); width: 100%; }
+    .leaflet-div-icon { overflow: visible !important; background: none !important; border: none !important; }
     .leaflet-popup-content { margin: 8px 12px; }
     .leaflet-popup-content-wrapper { border-radius: 12px; }
     .auth-bg { background: linear-gradient(135deg, #1a1035 0%, #0f0a1e 50%, #1a0a2e 100%); }
@@ -757,7 +758,7 @@
         if (!document.getElementById('pulse-css')) {
           const style = document.createElement('style');
           style.id = 'pulse-css';
-          style.textContent = '@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.3); } } @keyframes pulseRed { 0%,100% { box-shadow: 0 0 4px #ef444480; transform: scale(1); } 50% { box-shadow: 0 0 16px #ef4444cc, 0 0 30px #ef444466; transform: scale(1.25); } }';
+          style.textContent = '@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.3); } } @keyframes pulseRed { 0%,100% { box-shadow: 0 0 6px 3px #ef444480; transform: scale(1); } 50% { box-shadow: 0 0 20px 8px #ef4444cc, 0 0 40px 12px #ef444466; transform: scale(1.4); } } @keyframes pulseOrange { 0%,100% { box-shadow: 0 0 6px 3px #f59e0b80; transform: scale(1); } 50% { box-shadow: 0 0 18px 6px #f59e0bcc, 0 0 35px 10px #f59e0b66; transform: scale(1.3); } }';
           document.head.appendChild(style);
         }
         return function() { if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; } };
@@ -799,6 +800,7 @@
 
           var animStyle = '';
           if (isCurrent) { animStyle = 'animation:pulse 1.5s infinite;'; }
+          if (isEnroute && !isVisited && !isSharedComplete) { animStyle = 'animation:pulseOrange 1.5s infinite;'; }
           if (isFlagged) { animStyle = 'animation:pulseRed 1.5s infinite;'; }
 
           const icon = L.divIcon({
@@ -1843,13 +1845,23 @@
       var doClaimAndNavigate = function(siteId, site, onConfirmed) {
         var routeKey = (!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
         var displayName = user.displayName || user.email.split('@')[0];
+        var claimData = {
+          userId: user.uid,
+          userName: displayName,
+          userPhoto: avatarURL || user.photoURL || null,
+          startedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+        // Optimistic local update — show en-route immediately without waiting for Firestore round-trip
+        var optimistic = { userId: user.uid, userName: displayName, userPhoto: avatarURL || user.photoURL || null, startedAt: { toDate: function() { return new Date(); } }, _source: routeKey };
+        setEnroutes(function(prev) {
+          var next = Object.assign({}, prev);
+          next[siteId] = optimistic;
+          return next;
+        });
+        setMapVersion(function(v) { return v + 1; });
         db.collection('sharedRoutes').doc(routeKey)
-          .collection('enroute').doc(siteId).set({
-            userId: user.uid,
-            userName: displayName,
-            userPhoto: avatarURL || user.photoURL || null,
-            startedAt: firebase.firestore.FieldValue.serverTimestamp()
-          }).catch(function(err) { console.error('En-route claim error:', err); });
+          .collection('enroute').doc(siteId).set(claimData)
+          .catch(function(err) { console.error('En-route claim error:', err); });
         if (onConfirmed) onConfirmed();
       };
 
@@ -2074,7 +2086,7 @@
           <div className="sticky top-0 z-[1000] bg-base-100 border-b border-base-300 px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <NavIcon size={18} className="text-primary shrink-0" />
-              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v28</span></span>
+              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v29</span></span>
               <span className="text-xs opacity-50">({visited.size} you • {teamCompletedCount} team)</span>
             </div>
             <div className="flex gap-2 flex-wrap">
