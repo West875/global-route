@@ -1702,9 +1702,7 @@
               Object.keys(completions).forEach(function(k) {
                 completions[k]._src = 'builtin';
               });
-              var merged = Object.assign({}, kept, completions);
-              if (JSON.stringify(merged) === JSON.stringify(prev)) return prev;
-              return merged;
+              return Object.assign({}, kept, completions);
             });
           });
         return unsub;
@@ -1803,9 +1801,7 @@
                 Object.keys(prev).forEach(function(k) {
                   if (prev[k]._src !== srcKey) kept[k] = prev[k];
                 });
-                var merged = Object.assign({}, kept, completions);
-                if (JSON.stringify(merged) === JSON.stringify(prev)) return prev;
-                return merged;
+                return Object.assign({}, kept, completions);
               });
             });
         });
@@ -2061,7 +2057,7 @@
         saveToFirestore(newVisited, importedFiles, importedSites);
 
         // Write to shared completions (include avatar photo)
-        const routeKey = (site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
+        const routeKey = (!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
         const displayName = user.displayName || user.email.split('@')[0];
         const completionData = {
           completedBy: user.uid,
@@ -2098,7 +2094,7 @@
         });
 
         // Remove shared completion from Firestore
-        const routeKey = (site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
+        const routeKey = (!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
         db.collection('sharedRoutes').doc(routeKey)
           .collection('completions').doc(siteId).delete()
           .catch(function(err) { console.error('Undo completion error:', err); });
@@ -2203,7 +2199,7 @@
         if (filter === 'completed') return !!sharedCompletions[s.id];
         if (filter === 'revisit') return !!revisits[s.id];
         return true;
-      }); }, [sortedSites, sourceFilter, filter, visited, sharedCompletions]);
+      }); }, [sortedSites, sourceFilter, filter, visited, sharedCompletions, revisits]);
 
       const currentTargetId = useMemo(function() { var found = sortedSites.find(function(s) { return !visited.has(s.id) && !sharedCompletions[s.id]; }); return found ? found.id : null; }, [sortedSites, visited, sharedCompletions]);
       const remainingCount = useMemo(function() { return sortedSites.filter(function(s) { return !visited.has(s.id) && !sharedCompletions[s.id]; }).length; }, [sortedSites, visited, sharedCompletions]);
@@ -2258,7 +2254,7 @@
           <div className="sticky top-0 z-[1000] bg-base-100 border-b border-base-300 px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <NavIcon size={18} className="text-primary shrink-0" />
-              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v37</span></span>
+              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v38</span></span>
               <span className="text-xs opacity-50">({visited.size} you • {teamCompletedCount} team)</span>
             </div>
             <div className="flex gap-2 flex-wrap">
