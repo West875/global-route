@@ -42,6 +42,8 @@
     @keyframes pulseRing { 0% { transform: scale(0.8); opacity: 1; } 100% { transform: scale(2.2); opacity: 0; } }
     .install-banner { animation: slideUp 0.4s ease-out; }
     @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    @keyframes waveFlag { 0% { transform: rotate(-15deg); } 15% { transform: rotate(20deg); } 30% { transform: rotate(-12deg); } 45% { transform: rotate(15deg); } 60% { transform: rotate(-8deg); } 75% { transform: rotate(10deg); } 100% { transform: rotate(-15deg); } }
+    @keyframes flagGlow { 0%,100% { text-shadow: 0 0 4px #ef444480; } 50% { text-shadow: 0 0 14px #ef4444, 0 0 28px #ef444488; } }
     #map-container { height: calc(100vh - 110px); width: 100%; }
     .leaflet-div-icon { overflow: visible !important; background: none !important; border: none !important; }
     .leaflet-popup-content { margin: 8px 12px; }
@@ -758,7 +760,7 @@
         if (!document.getElementById('pulse-css')) {
           const style = document.createElement('style');
           style.id = 'pulse-css';
-          style.textContent = '@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.3); } } @keyframes pulseRed { 0%,100% { box-shadow: 0 0 6px 3px #ef444480; transform: scale(1); } 50% { box-shadow: 0 0 20px 8px #ef4444cc, 0 0 40px 12px #ef444466; transform: scale(1.4); } } @keyframes pulseOrange { 0%,100% { box-shadow: 0 0 6px 3px #f59e0b80; transform: scale(1); } 50% { box-shadow: 0 0 18px 6px #f59e0bcc, 0 0 35px 10px #f59e0b66; transform: scale(1.3); } }';
+          style.textContent = '@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.3); } } @keyframes pulseRed { 0%,100% { box-shadow: 0 0 6px 3px #ef444480; transform: scale(1); } 50% { box-shadow: 0 0 20px 8px #ef4444cc, 0 0 40px 12px #ef444466; transform: scale(1.4); } } @keyframes pulseOrange { 0%,100% { box-shadow: 0 0 6px 3px #f59e0b80; transform: scale(1); } 50% { box-shadow: 0 0 18px 6px #f59e0bcc, 0 0 35px 10px #f59e0b66; transform: scale(1.3); } } @keyframes waveFlag { 0% { transform: rotate(-15deg); } 15% { transform: rotate(20deg); } 30% { transform: rotate(-12deg); } 45% { transform: rotate(15deg); } 60% { transform: rotate(-8deg); } 75% { transform: rotate(10deg); } 100% { transform: rotate(-15deg); } } @keyframes flagGlow { 0%,100% { text-shadow: 0 0 4px #ef444480; } 50% { text-shadow: 0 0 14px #ef4444, 0 0 28px #ef444488; } }';
           document.head.appendChild(style);
         }
         return function() { if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; } };
@@ -803,9 +805,39 @@
           if (isEnroute && !isVisited && !isSharedComplete) { animStyle = 'animation:pulseOrange 1.5s infinite;'; }
           if (isFlagged) { animStyle = 'animation:pulseRed 1.5s infinite;'; }
 
+          var iconHtml = '';
+          var iconW = size; var iconH = size; var anchorX = size/2; var anchorY = size/2;
+
+          if (isFlagged && !isVisited && !isSharedComplete) {
+            // Waving caution flag marker
+            iconW = 40; iconH = 50; anchorX = 12; anchorY = 45;
+            iconHtml = '<div style="position:relative;width:40px;height:50px;">' +
+              '<div style="position:absolute;bottom:0;left:10px;width:3px;height:32px;background:#444;border-radius:2px;"></div>' +
+              '<div style="position:absolute;top:0;left:13px;font-size:28px;transform-origin:bottom left;animation:waveFlag 0.8s ease-in-out infinite;animation:waveFlag 0.8s ease-in-out infinite, flagGlow 1.5s ease-in-out infinite;">&#9873;</div>' +
+              '<div style="position:absolute;bottom:-2px;left:5px;width:14px;height:6px;background:#ef444480;border-radius:50%;filter:blur(2px);"></div>' +
+              '</div>';
+          } else if (isEnroute && !isVisited && !isSharedComplete && isEnroute.userPhoto) {
+            // En-route with avatar photo on marker
+            iconW = 36; iconH = 36; anchorX = 18; anchorY = 18;
+            iconHtml = '<div style="position:relative;width:36px;height:36px;' + animStyle + '">' +
+              '<img src="' + isEnroute.userPhoto + '" style="width:32px;height:32px;border-radius:50%;object-fit:cover;border:3px solid #f59e0b;box-shadow:0 0 8px #f59e0baa;" referrerpolicy="no-referrer" />' +
+              '<div style="position:absolute;bottom:-2px;right:-2px;font-size:14px;">&#128663;</div>' +
+              '</div>';
+          } else if (isEnroute && !isVisited && !isSharedComplete) {
+            // En-route without photo — show initial
+            var erInitial = (isEnroute.userName || '?').charAt(0).toUpperCase();
+            iconW = 36; iconH = 36; anchorX = 18; anchorY = 18;
+            iconHtml = '<div style="position:relative;width:36px;height:36px;' + animStyle + '">' +
+              '<div style="width:32px;height:32px;border-radius:50%;background:#f59e0b;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:bold;font-size:15px;box-shadow:0 0 8px #f59e0baa;">' + erInitial + '</div>' +
+              '<div style="position:absolute;bottom:-2px;right:-2px;font-size:14px;">&#128663;</div>' +
+              '</div>';
+          } else {
+            iconHtml = '<div style="width:' + size + 'px;height:' + size + 'px;background:' + color + ';border:' + (isCurrent ? '3' : '2') + 'px solid ' + borderColor + ';border-radius:50%;box-shadow:0 0 ' + (isCurrent ? '12px' : '4px') + ' ' + color + '80;' + animStyle + '"></div>';
+          }
+
           const icon = L.divIcon({
-            html: `<div style="width:${size}px;height:${size}px;background:${color};border:${isCurrent ? '3' : '2'}px solid ${borderColor};border-radius:50%;box-shadow:0 0 ${isCurrent ? '12px' : '4px'} ${color}80;${animStyle}"></div>`,
-            iconSize: [size, size], iconAnchor: [size/2, size/2], className: ''
+            html: iconHtml,
+            iconSize: [iconW, iconH], iconAnchor: [anchorX, anchorY], className: ''
           });
 
           const distText = site.distance !== undefined ? `<br>📍 ${site.distance.toFixed(2)} mi away` : '';
@@ -934,8 +966,12 @@
         <div className={`card bg-base-200 shadow-md fade-in ${isCurrent ? 'ring-2 ring-primary' : ''} ${isCompleted ? 'opacity-60' : ''}`}>
           <div className="card-body p-4 gap-2">
             {enrouteInfo && (
-              <div style={{background: enrouteInfo.userId === currentUserId ? '#f59e0b' : '#3b82f6', color: '#fff', padding: '6px 10px', borderRadius: '6px', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px'}}>
-                {enrouteInfo.userPhoto && <img src={enrouteInfo.userPhoto} style={{width: '24px', height: '24px', borderRadius: '50%', border: '2px solid #fff'}} referrerPolicy="no-referrer" />}
+              <div style={{background: enrouteInfo.userId === currentUserId ? '#f59e0b' : '#3b82f6', color: '#fff', padding: '8px 12px', borderRadius: '8px', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px'}}>
+                {enrouteInfo.userPhoto ? (
+                  <img src={enrouteInfo.userPhoto} style={{width: '36px', height: '36px', borderRadius: '50%', border: '3px solid #fff', objectFit: 'cover', boxShadow: '0 2px 8px rgba(0,0,0,0.3)'}} referrerPolicy="no-referrer" />
+                ) : (
+                  <div style={{width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '16px', border: '3px solid #fff'}}>{(enrouteInfo.userName || '?').charAt(0).toUpperCase()}</div>
+                )}
                 <span style={{fontWeight: 600}}>
                   {enrouteInfo.userId === currentUserId ? '🚗 You are en-route!' : '🚗 ' + enrouteInfo.userName + ' is en-route'}
                 </span>
@@ -993,17 +1029,19 @@
 
             {/* Revisit needed banner */}
             {revisitInfo && (
-              <div className="mt-2 rounded-xl p-4 flex items-center gap-4 bg-warning/20 border-2 border-warning/40">
+              <div className="mt-2 rounded-xl p-4 flex items-center gap-4" style={{background: 'linear-gradient(135deg, #fef3c7, #fde68a)', border: '2px solid #f59e0b', borderRadius: '12px', position: 'relative', overflow: 'hidden'}}>
+                <div style={{position: 'absolute', top: '-2px', right: '8px', fontSize: '28px', transformOrigin: 'bottom center', animation: 'waveFlag 0.8s ease-in-out infinite'}}>&#9873;</div>
+                <div style={{position: 'absolute', top: '-2px', right: '42px', fontSize: '22px', transformOrigin: 'bottom center', animation: 'waveFlag 1s ease-in-out infinite 0.2s', opacity: 0.6}}>&#9873;</div>
                 {revisitInfo.flaggedByPhoto ? (
-                  <img src={revisitInfo.flaggedByPhoto} alt="" className="w-10 h-10 rounded-full object-cover shrink-0 border-2 shadow-lg" style={{ borderColor: '#f59e0b', borderWidth: '2px' }} referrerPolicy="no-referrer" />
+                  <img src={revisitInfo.flaggedByPhoto} alt="" className="w-12 h-12 rounded-full object-cover shrink-0 shadow-lg" style={{ borderColor: '#ef4444', borderWidth: '3px', borderStyle: 'solid' }} referrerPolicy="no-referrer" />
                 ) : (
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold shrink-0 shadow-lg bg-warning text-warning-content">
-                    {revisitInfo.flaggedByName ? revisitInfo.flaggedByName.charAt(0).toUpperCase() : '🔄'}
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold shrink-0 shadow-lg" style={{background: '#ef4444', color: '#fff'}}>
+                    {revisitInfo.flaggedByName ? revisitInfo.flaggedByName.charAt(0).toUpperCase() : '!'}
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="font-bold text-sm text-warning">🔄 Revisit Needed</p>
-                  <p className="text-xs opacity-70">Flagged by {revisitInfo.flaggedByName || 'Team Member'}</p>
+                  <p style={{fontWeight: 700, fontSize: '14px', color: '#92400e'}}>&#9888;&#65039; Caution - Issue Flagged</p>
+                  <p className="text-xs" style={{color: '#78350f', opacity: 0.8}}>Flagged by {revisitInfo.flaggedByName || 'Team Member'}</p>
                   {revisitInfo.flaggedAt && (
                     <p className="text-xs opacity-50">
                       {(function() { try { return new Date(revisitInfo.flaggedAt.toDate()).toLocaleString(); } catch(e) { return ''; } })()}
@@ -2086,7 +2124,7 @@
           <div className="sticky top-0 z-[1000] bg-base-100 border-b border-base-300 px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <NavIcon size={18} className="text-primary shrink-0" />
-              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v29</span></span>
+              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v30</span></span>
               <span className="text-xs opacity-50">({visited.size} you • {teamCompletedCount} team)</span>
             </div>
             <div className="flex gap-2 flex-wrap">
