@@ -1698,21 +1698,18 @@
                 .collection('enroute').doc(item.id).delete()
                 .catch(function(err) { console.error('Stale cleanup error:', err); });
             });
+            // Tag each claim with source for proper cleanup
+            Object.keys(claims).forEach(function(k) { claims[k]._source = 'builtin'; });
             setEnroutes(function(prev) {
-              var merged = Object.assign({}, prev);
-              // Replace all builtin enroute data with fresh snapshot
-              Object.keys(merged).forEach(function(k) {
-                if (!claims[k]) {
-                  // Check if it was a builtin claim that's now gone
-                  snapshot.docChanges().forEach(function(change) {
-                    if (change.type === 'removed' && change.doc.id === k) {
-                      delete merged[k];
-                    }
-                  });
+              // Remove ALL old builtin claims, keep only imported
+              var merged = {};
+              Object.keys(prev).forEach(function(k) {
+                if (prev[k]._source && prev[k]._source !== 'builtin') {
+                  merged[k] = prev[k];
                 }
               });
+              // Add fresh builtin claims from snapshot
               Object.keys(claims).forEach(function(k) { merged[k] = claims[k]; });
-              staleIds.forEach(function(item) { delete merged[item.id]; });
               // Always return new reference so map re-renders
               return Object.assign({}, merged);
             });
@@ -1745,16 +1742,20 @@
         var unsubs = importedFiles.map(function(f) {
           return db.collection('sharedRoutes').doc(f.name.replace(/[^a-zA-Z0-9-_]/g, '_'))
             .collection('enroute').onSnapshot(function(snapshot) {
+              var sourceKey = f.name.replace(/[^a-zA-Z0-9-_]/g, '_');
               var claims = {};
-              snapshot.forEach(function(doc) { claims[doc.id] = doc.data(); });
+              snapshot.forEach(function(doc) { var d = doc.data(); d._source = sourceKey; claims[doc.id] = d; });
               setEnroutes(function(prev) {
-                var merged = Object.assign({}, prev, claims);
-                snapshot.docChanges().forEach(function(change) {
-                  if (change.type === 'removed') {
-                    delete merged[change.doc.id];
+                // Remove all old claims from this specific imported source
+                var merged = {};
+                Object.keys(prev).forEach(function(k) {
+                  if (prev[k]._source !== sourceKey) {
+                    merged[k] = prev[k];
                   }
                 });
-                return Object.assign({}, merged);
+                // Add fresh claims from this source
+                Object.keys(claims).forEach(function(k) { merged[k] = claims[k]; });
+                return merged;
               });
               setMapVersion(function(v) { return v + 1; });
             });
@@ -2073,7 +2074,7 @@
           <div className="sticky top-0 z-[1000] bg-base-100 border-b border-base-300 px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <NavIcon size={18} className="text-primary shrink-0" />
-              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v27</span></span>
+              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v28</span></span>
               <span className="text-xs opacity-50">({visited.size} you • {teamCompletedCount} team)</span>
             </div>
             <div className="flex gap-2 flex-wrap">
