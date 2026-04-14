@@ -1622,16 +1622,8 @@
               if (newVisitedArr.length === prev.size && newVisitedArr.every(function(v) { return prev.has(v); })) return prev;
               return new Set(newVisitedArr);
             });
-            setImportedFiles(function(prev) {
-              const newVal = data.importedFiles || [];
-              if (JSON.stringify(newVal) === JSON.stringify(prev)) return prev;
-              return newVal;
-            });
-            setImportedSites(function(prev) {
-              const newVal = data.importedSites || [];
-              if (JSON.stringify(newVal) === JSON.stringify(prev)) return prev;
-              return newVal;
-            });
+            setImportedFiles(data.importedFiles || []);
+            setImportedSites(data.importedSites || []);
           }
           // Migrate existing personal KMZ imports to shared collection
           if (doc.exists) {
@@ -1673,14 +1665,8 @@
               if (!exists) sites.push(s);
             });
           });
-          setSharedKMZFiles(function(prev) {
-            if (JSON.stringify(prev) === JSON.stringify(files)) return prev;
-            return files;
-          });
-          setSharedKMZSites(function(prev) {
-            if (JSON.stringify(prev) === JSON.stringify(sites)) return prev;
-            return sites;
-          });
+          setSharedKMZFiles(files);
+          setSharedKMZSites(sites);
         });
         return unsub;
       }, []);
@@ -1733,8 +1719,10 @@
       // ── Listen for en-route claims (builtin route) — auto-expire after 2 hours ──
       useEffect(function() {
         var TWO_HOURS_MS = 2 * 60 * 60 * 1000;
+        console.log('[EN-ROUTE] Listening on sharedRoutes/builtin/enroute');
         var unsub = db.collection('sharedRoutes').doc('builtin')
           .collection('enroute').onSnapshot(function(snapshot) {
+            console.log('[EN-ROUTE] Builtin snapshot: ' + snapshot.size + ' claims');
             var claims = {};
             var now = Date.now();
             var staleIds = [];
@@ -1810,12 +1798,15 @@
 
       // ── Listen for en-route claims on ALL KMZ files — auto-expire after 2 hours ──
       useEffect(function() {
+        console.log('[EN-ROUTE] allKMZSources:', allKMZSources.length, allKMZSources.map(function(f){return f.name;}));
         if (allKMZSources.length === 0) return;
         var TWO_HOURS = 2 * 60 * 60 * 1000;
         var unsubs = allKMZSources.map(function(f) {
           var sourceKey = f.name.replace(/[^a-zA-Z0-9-_]/g, '_');
+          console.log('[EN-ROUTE] Listening on sharedRoutes/' + sourceKey + '/enroute');
           return db.collection('sharedRoutes').doc(sourceKey)
             .collection('enroute').onSnapshot(function(snapshot) {
+              console.log('[EN-ROUTE] Snapshot for ' + sourceKey + ': ' + snapshot.size + ' claims');
               var claims = {};
               var now = Date.now();
               snapshot.forEach(function(doc) {
@@ -2254,7 +2245,7 @@
           <div className="sticky top-0 z-[1000] bg-base-100 border-b border-base-300 px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <NavIcon size={18} className="text-primary shrink-0" />
-              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v38</span></span>
+              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v39</span></span>
               <span className="text-xs opacity-50">({visited.size} you • {teamCompletedCount} team)</span>
             </div>
             <div className="flex gap-2 flex-wrap">
