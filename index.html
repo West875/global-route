@@ -891,7 +891,7 @@
           }
 
           var flagBtnHtml = revisitData
-            ? '<button onclick="(function(){ try { var sid=&quot;' + site.id + '&quot;; var s=(window.__allSites||[]).find(function(x){return x.id===sid;}); if(s) window.__clearRevisit(sid,s); } catch(e){} })()" style="display:inline-block;background:#22c55e;color:white;padding:6px 10px;border-radius:8px;border:none;font-size:12px;font-weight:600;cursor:pointer;margin-left:4px;">✓ Clear Flag</button>'
+            ? '<button onclick="(function(){ try { var sid=&quot;' + site.id + '&quot;; var s=(window.__allSites||[]).find(function(x){return x.id===sid;}); if(s) window.__clearRevisit(sid,s); } catch(e){} })()" style="display:inline-block;background:#ef4444;color:white;padding:6px 10px;border-radius:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;margin-left:4px;">🚩 Unflag</button>'
             : '<button onclick="(function(){ try { var sid=&quot;' + site.id + '&quot;; var s=(window.__allSites||[]).find(function(x){return x.id===sid;}); if(s) window.__flagRevisit(sid,s); } catch(e){} })()" style="display:inline-block;background:#f59e0b;color:white;padding:6px 10px;border-radius:8px;border:none;font-size:12px;font-weight:600;cursor:pointer;margin-left:4px;">🔄 Flag Issue</button>';
 
           const popup = `
@@ -1048,7 +1048,6 @@
                     </p>
                   )}
                 </div>
-                <button className="btn btn-xs btn-success" onClick={onClearRevisit}>✓ Done</button>
               </div>
             )}
 
@@ -1068,7 +1067,11 @@
                   <CheckIcon size={14} /> Done
                 </button>
               )}
-              {!revisitInfo && (
+              {revisitInfo ? (
+                <button className="btn btn-error btn-sm" onClick={onClearRevisit} style={{fontWeight: 700}}>
+                  🚩 Unflag
+                </button>
+              ) : (
                 <button className="btn btn-outline btn-accent btn-sm" onClick={onFlagRevisit}>
                   🔄 Flag Issue
                 </button>
