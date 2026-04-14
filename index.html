@@ -738,7 +738,7 @@
     }
 
     // ── Leaflet Map Component ──
-    const SiteMap = React.memo(function SiteMap({ sites, userLoc, visited, sharedCompletions, currentTargetId, myAvatarURL, myPhotoURL, enroutes, revisits }) {
+    function SiteMap({ sites, userLoc, visited, sharedCompletions, currentTargetId, myAvatarURL, myPhotoURL, enroutes, revisits }) {
       const mapRef = useRef(null);
       const mapInstanceRef = useRef(null);
       const userLayerRef = useRef(null);
@@ -907,7 +907,7 @@
       }, [sites, visited, sharedCompletions, currentTargetId, enroutes, revisits]);
 
       return <div id="map-container" ref={mapRef}></div>;
-    });
+    }
 
     // ── Site Card ──
     function SiteCard({ site, index, total, isCurrent, isVisited, sharedCompletion, onMarkVisited, onUndoVisit, myAvatarURL, myPhotoURL, noteCount, onOpenNotes, currentUserId, enrouteInfo, onClaimEnroute, onCancelEnroute, revisitInfo, onFlagRevisit, onClearRevisit }) {
@@ -1696,19 +1696,22 @@
                 .catch(function(err) { console.error('Stale cleanup error:', err); });
             });
             setEnroutes(function(prev) {
-              var merged = Object.assign({}, prev, claims);
-              // Remove docs that were deleted
-              snapshot.docChanges().forEach(function(change) {
-                if (change.type === 'removed') {
-                  delete merged[change.doc.id];
+              var merged = Object.assign({}, prev);
+              // Replace all builtin enroute data with fresh snapshot
+              Object.keys(merged).forEach(function(k) {
+                if (!claims[k]) {
+                  // Check if it was a builtin claim that's now gone
+                  snapshot.docChanges().forEach(function(change) {
+                    if (change.type === 'removed' && change.doc.id === k) {
+                      delete merged[k];
+                    }
+                  });
                 }
               });
-              // Also remove any stale ones from local state
-              staleIds.forEach(function(item) {
-                delete merged[item.id];
-              });
-              if (JSON.stringify(merged) === JSON.stringify(prev)) return prev;
-              return merged;
+              Object.keys(claims).forEach(function(k) { merged[k] = claims[k]; });
+              staleIds.forEach(function(item) { delete merged[item.id]; });
+              // Always return new reference so map re-renders
+              return Object.assign({}, merged);
             });
           });
         return unsub;
@@ -1747,8 +1750,7 @@
                     delete merged[change.doc.id];
                   }
                 });
-                if (JSON.stringify(merged) === JSON.stringify(prev)) return prev;
-                return merged;
+                return Object.assign({}, merged);
               });
             });
         });
@@ -2066,7 +2068,7 @@
           <div className="sticky top-0 z-[1000] bg-base-100 border-b border-base-300 px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <NavIcon size={18} className="text-primary shrink-0" />
-              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v25</span></span>
+              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v26</span></span>
               <span className="text-xs opacity-50">({visited.size} you • {teamCompletedCount} team)</span>
             </div>
             <div className="flex gap-2 flex-wrap">
