@@ -2077,6 +2077,20 @@
       var flagRevisit = function(siteId, site) {
         var routeKey = (!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
         var displayName = user.displayName || user.email.split('@')[0];
+        // Optimistic local update — show flag instantly for own flags
+        setRevisits(function(prev) {
+          var merged = Object.assign({}, prev);
+          merged[siteId] = {
+            flaggedBy: user.uid,
+            flaggedByName: displayName,
+            flaggedByPhoto: avatarURL || user.photoURL || null,
+            flaggedAt: new Date(),
+            reason: 'Needs revisit',
+            _source: routeKey
+          };
+          return merged;
+        });
+        setMapVersion(function(v) { return v + 1; });
         db.collection('sharedRoutes').doc(routeKey)
           .collection('revisits').doc(siteId).set({
             flaggedBy: user.uid,
@@ -2090,6 +2104,13 @@
 
       var clearRevisit = function(siteId, site) {
         var routeKey = (!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
+        // Optimistic local update — remove flag instantly
+        setRevisits(function(prev) {
+          var merged = Object.assign({}, prev);
+          delete merged[siteId];
+          return merged;
+        });
+        setMapVersion(function(v) { return v + 1; });
         db.collection('sharedRoutes').doc(routeKey)
           .collection('revisits').doc(siteId).delete()
           .catch(function(err) { console.error('Clear revisit error:', err); });
