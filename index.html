@@ -1779,10 +1779,19 @@
         return unsub;
       }, []);
 
-      // ── Listen for shared completions on imported files ──
+      // Combined list of all KMZ sources (personal + shared), deduplicated by name
+      var allKMZSources = useMemo(function() {
+        var seen = {};
+        var result = [];
+        importedFiles.forEach(function(f) { if (!seen[f.name]) { seen[f.name] = true; result.push(f); } });
+        sharedKMZFiles.forEach(function(f) { if (!seen[f.name]) { seen[f.name] = true; result.push(f); } });
+        return result;
+      }, [importedFiles, sharedKMZFiles]);
+
+      // ── Listen for shared completions on ALL KMZ files (personal + shared) ──
       useEffect(function() {
-        if (importedFiles.length === 0) return;
-        const unsubs = importedFiles.map(function(f) {
+        if (allKMZSources.length === 0) return;
+        const unsubs = allKMZSources.map(function(f) {
           var srcKey = f.name.replace(/[^a-zA-Z0-9-_]/g, '_');
           return db.collection('sharedRoutes').doc(srcKey)
             .collection('completions').onSnapshot(function(snapshot) {
@@ -1801,13 +1810,13 @@
             });
         });
         return function() { unsubs.forEach(function(u) { u(); }); };
-      }, [importedFiles]);
+      }, [allKMZSources]);
 
-      // ── Listen for en-route claims on imported files — auto-expire after 2 hours ──
+      // ── Listen for en-route claims on ALL KMZ files — auto-expire after 2 hours ──
       useEffect(function() {
-        if (importedFiles.length === 0) return;
+        if (allKMZSources.length === 0) return;
         var TWO_HOURS = 2 * 60 * 60 * 1000;
-        var unsubs = importedFiles.map(function(f) {
+        var unsubs = allKMZSources.map(function(f) {
           var sourceKey = f.name.replace(/[^a-zA-Z0-9-_]/g, '_');
           return db.collection('sharedRoutes').doc(sourceKey)
             .collection('enroute').onSnapshot(function(snapshot) {
@@ -1846,12 +1855,12 @@
             });
         });
         return function() { unsubs.forEach(function(u) { u(); }); };
-      }, [importedFiles]);
+      }, [allKMZSources]);
 
-      // ── Listen for revisit flags on imported files ──
+      // ── Listen for revisit flags on ALL KMZ files ──
       useEffect(function() {
-        if (importedFiles.length === 0) return;
-        var unsubs = importedFiles.map(function(f) {
+        if (allKMZSources.length === 0) return;
+        var unsubs = allKMZSources.map(function(f) {
           var sourceKey = f.name.replace(/[^a-zA-Z0-9-_]/g, '_');
           return db.collection('sharedRoutes').doc(sourceKey)
             .collection('revisits').onSnapshot(function(snapshot) {
@@ -1876,7 +1885,7 @@
             });
         });
         return function() { unsubs.forEach(function(u) { u(); }); };
-      }, [importedFiles]);
+      }, [allKMZSources]);
 
       // ── Listen for note counts across all sites ──
       useEffect(function() {
@@ -2249,7 +2258,7 @@
           <div className="sticky top-0 z-[1000] bg-base-100 border-b border-base-300 px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <NavIcon size={18} className="text-primary shrink-0" />
-              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v36</span></span>
+              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v37</span></span>
               <span className="text-xs opacity-50">({visited.size} you • {teamCompletedCount} team)</span>
             </div>
             <div className="flex gap-2 flex-wrap">
