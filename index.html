@@ -1582,6 +1582,7 @@
       const [isStandalone, setIsStandalone] = useState(false);
       const [noteCounts, setNoteCounts] = useState({});
       const [enroutes, setEnroutes] = useState({});
+      const [erDebug, setErDebug] = useState('init');
       const [mapVersion, setMapVersion] = useState(0);
       const [enrouteConfirm, setEnrouteConfirm] = useState(null); // {userName, userPhoto, onYes, onNo}
       const [activeNoteSite, setActiveNoteSite] = useState(null);
@@ -1723,6 +1724,7 @@
         var unsub = db.collection('sharedRoutes').doc('builtin')
           .collection('enroute').onSnapshot(function(snapshot) {
             console.log('[EN-ROUTE] Builtin snapshot: ' + snapshot.size + ' claims');
+            setErDebug(function(prev) { return 'B:' + snapshot.size + ' ' + (prev || ''); });
             var claims = {};
             var now = Date.now();
             var staleIds = [];
@@ -1807,6 +1809,7 @@
           return db.collection('sharedRoutes').doc(sourceKey)
             .collection('enroute').onSnapshot(function(snapshot) {
               console.log('[EN-ROUTE] Snapshot for ' + sourceKey + ': ' + snapshot.size + ' claims');
+              setErDebug(function(prev) { return 'I(' + sourceKey.substring(0,10) + '):' + snapshot.size + ' ' + (prev || ''); });
               var claims = {};
               var now = Date.now();
               snapshot.forEach(function(doc) {
@@ -1988,7 +1991,8 @@
         setMapVersion(function(v) { return v + 1; });
         db.collection('sharedRoutes').doc(routeKey)
           .collection('enroute').doc(siteId).set(claimData)
-          .catch(function(err) { console.error('En-route claim error:', err); });
+          .then(function() { setErDebug(function(prev) { return 'WROTE:' + siteId + '@' + routeKey + ' ' + (prev || ''); }); })
+          .catch(function(err) { console.error('En-route claim error:', err); setErDebug(function(prev) { return 'ERR:' + err.message + ' ' + (prev || ''); }); });
         if (onConfirmed) onConfirmed();
       };
 
@@ -2245,8 +2249,9 @@
           <div className="sticky top-0 z-[1000] bg-base-100 border-b border-base-300 px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <NavIcon size={18} className="text-primary shrink-0" />
-              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v40</span></span>
+              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v41</span></span>
               <div style={{fontSize:'9px',opacity:0.6,marginTop:'-2px'}}>KMZ:{allKMZSources.length} ER:{Object.keys(enroutes).length}({Object.keys(enroutes).join(',')}) C:{Object.keys(sharedCompletions).length}</div>
+              <div style={{fontSize:'8px',opacity:0.5,marginTop:'-2px',maxWidth:'300px',overflow:'hidden',whiteSpace:'nowrap'}}>{erDebug}</div>
               <span className="text-xs opacity-50">({visited.size} you • {teamCompletedCount} team)</span>
             </div>
             <div className="flex gap-2 flex-wrap">
