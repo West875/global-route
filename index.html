@@ -1988,8 +1988,8 @@
       };
 
       var claimEnroute = function(siteId, site, onConfirmed) {
-        var routeKey = (!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
-        // Check local state first (populated by real-time listener), then verify with server
+        // Use local state only (kept fresh by real-time Firestore listener)
+        // No async server check — keeps flow synchronous so mobile browsers allow window.open
         var localClaim = enroutes[siteId];
         if (localClaim && localClaim.userId && localClaim.userId !== user.uid) {
           setEnrouteConfirm({
@@ -2000,29 +2000,8 @@
           });
           return;
         }
-        // Also do a server read as backup in case local state is stale
-        db.collection('sharedRoutes').doc(routeKey)
-          .collection('enroute').doc(siteId).get({ source: 'server' })
-          .then(function(docSnap) {
-            if (docSnap.exists) {
-              var existing = docSnap.data();
-              if (existing.userId && existing.userId !== user.uid) {
-                setEnrouteConfirm({
-                  userName: existing.userName || 'A teammate',
-                  userPhoto: existing.userPhoto || null,
-                  onYes: function() { setEnrouteConfirm(null); doClaimAndNavigate(siteId, site, onConfirmed); },
-                  onNo: function() { setEnrouteConfirm(null); }
-                });
-                return;
-              }
-            }
-            doClaimAndNavigate(siteId, site, onConfirmed);
-          })
-          .catch(function(err) {
-            console.error('En-route check error:', err);
-            // If server read fails, still allow navigation
-            doClaimAndNavigate(siteId, site, onConfirmed);
-          });
+        // No teammate conflict — proceed immediately (synchronous path)
+        doClaimAndNavigate(siteId, site, onConfirmed);
       };
 
       // Expose claimEnroute globally so map popups (plain HTML) can use it
