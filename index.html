@@ -903,16 +903,11 @@
               <span style="color:#888;font-size:12px;">${site.address}</span>${distText}
               ${closedByHtml}
               <br>
-              <button onclick="(function(){
-                try {
-                  var s = (window.__allSites || []).find(function(x){ return x.id === '${site.id}'; });
-                  if (!s) { window.open('${directionsUrl(site)}', '_blank'); return; }
-                  window.__claimEnroute('${site.id}', s, function(){ window.open('${directionsUrl(site)}', '_blank'); });
-                } catch(e) { window.open('${directionsUrl(site)}', '_blank'); }
-              })()"
-                style="display:inline-block;background:#570df8;color:white;padding:6px 14px;border-radius:8px;border:none;font-size:13px;font-weight:600;cursor:pointer;">
+              <a href="${directionsUrl(site)}" target="_blank" rel="noopener"
+                onclick="try{var s=(window.__allSites||[]).find(function(x){return x.id==='${site.id}';});if(s){window.__claimEnroute('${site.id}',s,event);}}catch(e){}"
+                style="display:inline-block;background:#570df8;color:white;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;">
                 🗺️ Get Directions
-              </button>
+              </a>
               ${flagBtnHtml}
             </div>
           `;
@@ -1052,10 +1047,11 @@
             )}
 
             <div className="flex gap-2 mt-2 flex-wrap">
-              <button className="btn btn-primary btn-sm flex-1"
-                onClick={function(e) { e.preventDefault(); onClaimEnroute(function() { window.open(directionsUrl(site), '_blank', 'noopener,noreferrer'); }); }}>
+              <a href={directionsUrl(site)} target="_blank" rel="noopener noreferrer"
+                className="btn btn-primary btn-sm flex-1"
+                onClick={function(e) { onClaimEnroute(e); }}>
                 <NavIcon size={14} /> Get Directions <ExternalIcon />
-              </button>
+              </a>
               <button className="btn btn-outline btn-info btn-sm relative" onClick={onOpenNotes} title="Notes">
                 <NoteIcon size={14} /> Notes
                 {noteCount > 0 && (
@@ -1987,21 +1983,25 @@
         if (onConfirmed) onConfirmed();
       };
 
-      var claimEnroute = function(siteId, site, onConfirmed) {
-        // Use local state only (kept fresh by real-time Firestore listener)
-        // No async server check — keeps flow synchronous so mobile browsers allow window.open
+      var claimEnroute = function(siteId, site, event) {
+        // event = click event from <a> tag — preventDefault if teammate conflict
+        // Navigation is handled by the <a> tag natively (never blocked on mobile)
         var localClaim = enroutes[siteId];
         if (localClaim && localClaim.userId && localClaim.userId !== user.uid) {
+          if (event) event.preventDefault();
           setEnrouteConfirm({
             userName: localClaim.userName || 'A teammate',
             userPhoto: localClaim.userPhoto || null,
-            onYes: function() { setEnrouteConfirm(null); doClaimAndNavigate(siteId, site, onConfirmed); },
+            directionsUrl: directionsUrl(site),
+            siteId: siteId,
+            site: site,
+            onYes: function() { setEnrouteConfirm(null); doClaimAndNavigate(siteId, site, null); },
             onNo: function() { setEnrouteConfirm(null); }
           });
           return;
         }
-        // No teammate conflict — proceed immediately (synchronous path)
-        doClaimAndNavigate(siteId, site, onConfirmed);
+        // No teammate conflict — write claim, let <a> tag navigate naturally
+        doClaimAndNavigate(siteId, site, null);
       };
 
       // Expose claimEnroute globally so map popups (plain HTML) can use it
@@ -2299,7 +2299,7 @@
                     noteCount={noteCounts[`${(!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_')}_${site.id}`] || 0}
                     onOpenNotes={function() { setActiveNoteSite(site); }}
                     enrouteInfo={enroutes[site.id]}
-                    onClaimEnroute={function(cb) { claimEnroute(site.id, site, cb); }}
+                    onClaimEnroute={function(e) { claimEnroute(site.id, site, e); }}
                     onCancelEnroute={function() { cancelEnroute(site.id, site); }}
                     revisitInfo={revisits[site.id]}
                     onFlagRevisit={function() { flagRevisit(site.id, site); }}
@@ -2359,7 +2359,9 @@
                 <div style={{color:'#94a3b8',fontSize:14,marginBottom:20}}>is already en-route to this site.<br/>Go anyway?</div>
                 <div style={{display:'flex',gap:12}}>
                   <button onClick={enrouteConfirm.onNo} style={{flex:1,padding:'10px 0',borderRadius:8,border:'1px solid #475569',background:'transparent',color:'#94a3b8',fontWeight:600,fontSize:14,cursor:'pointer'}}>Cancel</button>
-                  <button onClick={enrouteConfirm.onYes} style={{flex:1,padding:'10px 0',borderRadius:8,border:'none',background:'#570df8',color:'white',fontWeight:600,fontSize:14,cursor:'pointer'}}>Go Anyway</button>
+                  <a href={enrouteConfirm.directionsUrl || '#'} target="_blank" rel="noopener"
+                    onClick={enrouteConfirm.onYes}
+                    style={{flex:1,padding:'10px 0',borderRadius:8,border:'none',background:'#570df8',color:'white',fontWeight:600,fontSize:14,cursor:'pointer',textDecoration:'none',textAlign:'center',display:'block'}}>Go Anyway</a>
                 </div>
               </div>
             </div>
