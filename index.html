@@ -2187,7 +2187,7 @@
         return true;
       }); }, [sortedSites, sourceFilter, filter, visited, sharedCompletions, revisits]);
 
-      const currentTargetId = useMemo(function() { var found = sortedSites.find(function(s) { return !visited.has(s.id) && !sharedCompletions[s.id]; }); return found ? found.id : null; }, [sortedSites, visited, sharedCompletions]);
+      const currentTargetId = useMemo(function() { var found = sortedSites.find(function(s) { if (visited.has(s.id) || sharedCompletions[s.id]) return false; var er = enroutes[s.id]; if (er && er.userId && er.userId !== user.uid) return false; return true; }); return found ? found.id : null; }, [sortedSites, visited, sharedCompletions, enroutes, user]);
       const remainingCount = useMemo(function() { return sortedSites.filter(function(s) { return !visited.has(s.id) && !sharedCompletions[s.id]; }).length; }, [sortedSites, visited, sharedCompletions]);
       const teamCompletedCount = useMemo(function() { return Object.keys(sharedCompletions).length; }, [sharedCompletions]);
       const revisitCount = useMemo(function() { return Object.keys(revisits).length; }, [revisits]);
