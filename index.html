@@ -1558,6 +1558,7 @@
       const [sharedCompletions, setSharedCompletions] = useState({});
       const [revisits, setRevisits] = useState({});
       const [dataLoaded, setDataLoaded] = useState(false);
+      const dedupDone = useRef(false);
 
       // Merge all sites, deduplicating by id (builtin > personal > shared)
       var allSites = (function() {
@@ -1667,6 +1668,85 @@
         });
         return unsub;
       }, []);
+
+      // ── Auto-dedup: merge overlapping shared KMZ files ──
+      useEffect(function() {
+        if (dedupDone.current) return;
+        if (!user) return;
+        if (sharedKMZFiles.length < 2) return;
+        dedupDone.current = true;
+
+        db.collection('sharedKMZ').get().then(function(snapshot) {
+          var docs = [];
+          snapshot.forEach(function(doc) {
+            docs.push({ name: doc.id, sites: doc.data().sites || [], data: doc.data() });
+          });
+          if (docs.length < 2) return;
+
+          for (var i = 0; i < docs.length; i++) {
+            for (var j = i + 1; j < docs.length; j++) {
+              var a = docs[i];
+              var b = docs[j];
+              var aIds = {};
+              a.sites.forEach(function(s) { aIds[s.id] = true; });
+              var overlap = 0;
+              b.sites.forEach(function(s) { if (aIds[s.id]) overlap++; });
+              var threshold = Math.min(a.sites.length, b.sites.length) * 0.5;
+              if (overlap <= threshold) continue;
+
+              // Found overlap! Keep the first (older) doc, merge unique sites from second
+              var keep = a;
+              var remove = b;
+              var keepIds = {};
+              keep.sites.forEach(function(s) { keepIds[s.id] = true; });
+              var merged = keep.sites.slice();
+              remove.sites.forEach(function(s) {
+                if (!keepIds[s.id]) {
+                  merged.push(Object.assign({}, s, { source: keep.name }));
+                }
+              });
+
+              // Update kept doc with merged sites
+              db.collection('sharedKMZ').doc(keep.name).set({
+                sites: merged,
+                uploadedBy: keep.data.uploadedBy || user.uid,
+                uploadedByName: keep.data.uploadedByName || user.displayName || 'Unknown',
+                uploadedAt: firebase.firestore.FieldValue.serverTimestamp()
+              });
+              // Delete duplicate doc
+              db.collection('sharedKMZ').doc(remove.name).delete();
+
+              // Copy any completions from removed route key to kept route key
+              var keepRK = keep.name.replace(/[^a-zA-Z0-9\-_]/g, '_');
+              var removeRK = remove.name.replace(/[^a-zA-Z0-9\-_]/g, '_');
+              if (keepRK !== removeRK) {
+                db.collection('sharedRoutes').doc(removeRK).collection('completions').get().then(function(cs) {
+                  cs.forEach(function(cd) {
+                    db.collection('sharedRoutes').doc(keepRK).collection('completions').doc(cd.id).set(cd.data(), { merge: true });
+                  });
+                });
+                db.collection('sharedRoutes').doc(removeRK).collection('revisits').get().then(function(rs) {
+                  rs.forEach(function(rd) {
+                    db.collection('sharedRoutes').doc(keepRK).collection('revisits').doc(rd.id).set(rd.data(), { merge: true });
+                  });
+                });
+              }
+
+              // Clean personal imports too
+              var cleanFiles = importedFiles.filter(function(f) { return f.name !== remove.name; });
+              var cleanSites = importedSites.filter(function(s) { return s.source !== remove.name; });
+              if (cleanFiles.length !== importedFiles.length) {
+                setImportedFiles(cleanFiles);
+                setImportedSites(cleanSites);
+                saveToFirestore(visited, cleanFiles, cleanSites);
+              }
+
+              console.log('Auto-merged KMZ: "' + remove.name + '" into "' + keep.name + '" (' + merged.length + ' sites)');
+              return;
+            }
+          }
+        });
+      }, [sharedKMZFiles, user]);
 
       // ── Listen for shared route completions (builtin route) ──
       useEffect(function() {
@@ -2122,14 +2202,70 @@
 
       const handleKMZImport = function(fileName, sites) {
         var sourceName = fileName.replace(/\.[^.]+$/, '');
-        // Save to shared collection so whole team can see
+        // Check for overlap with existing KMZ files
+        var newIds = {};
+        sites.forEach(function(s) { newIds[s.id] = true; });
+        var allFiles = [].concat(importedFiles, sharedKMZFiles);
+        var matchedFile = null;
+        for (var fi = 0; fi < allFiles.length; fi++) {
+          var f = allFiles[fi];
+          if (f.name === sourceName) continue;
+          var fSites = [].concat(importedSites, sharedKMZSites).filter(function(s) { return s.source === f.name; });
+          if (fSites.length === 0) continue;
+          var ov = 0;
+          fSites.forEach(function(s) { if (newIds[s.id]) ov++; });
+          if (ov > fSites.length * 0.5) { matchedFile = f.name; break; }
+        }
+
+        if (matchedFile) {
+          // Smart merge: keep old route key, add new unique sites
+          db.collection('sharedKMZ').doc(matchedFile).get().then(function(doc) {
+            var existingSites = doc.exists ? (doc.data().sites || []) : [];
+            var existingIds = {};
+            existingSites.forEach(function(s) { existingIds[s.id] = true; });
+            var merged = existingSites.slice();
+            sites.forEach(function(s) {
+              if (!existingIds[s.id]) {
+                merged.push(Object.assign({}, s, { source: matchedFile }));
+              }
+            });
+            db.collection('sharedKMZ').doc(matchedFile).set({
+              sites: merged,
+              uploadedBy: user.uid,
+              uploadedByName: user.displayName || user.email || 'Unknown',
+              uploadedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            if (sourceName !== matchedFile) {
+              db.collection('sharedKMZ').doc(sourceName).delete().catch(function() {});
+            }
+            // Copy completions/revisits from new route key to old
+            var keepRK = matchedFile.replace(/[^a-zA-Z0-9\-_]/g, '_');
+            var removeRK = sourceName.replace(/[^a-zA-Z0-9\-_]/g, '_');
+            if (keepRK !== removeRK) {
+              db.collection('sharedRoutes').doc(removeRK).collection('completions').get().then(function(cs) {
+                cs.forEach(function(cd) { db.collection('sharedRoutes').doc(keepRK).collection('completions').doc(cd.id).set(cd.data(), { merge: true }); });
+              });
+            }
+            var cleanSites = importedSites.filter(function(s) { return s.source !== matchedFile && s.source !== sourceName; });
+            var cleanFiles = importedFiles.filter(function(f) { return f.name !== matchedFile && f.name !== sourceName; });
+            var updatedSites = [].concat(cleanSites, merged);
+            var updatedFiles = [].concat(cleanFiles, [{ name: matchedFile, siteCount: merged.length }]);
+            setImportedSites(updatedSites);
+            setImportedFiles(updatedFiles);
+            saveToFirestore(visited, updatedFiles, updatedSites);
+            var added = merged.length - existingSites.length;
+            alert('Updated "' + matchedFile + '": added ' + added + ' new site(s) (' + merged.length + ' total). All data preserved!');
+          }).catch(function(err) { console.error('Merge error:', err); });
+          return;
+        }
+
+        // Normal import (no overlap)
         db.collection('sharedKMZ').doc(sourceName).set({
           sites: sites,
           uploadedBy: user.uid,
           uploadedByName: user.displayName || user.email || 'Unknown',
           uploadedAt: firebase.firestore.FieldValue.serverTimestamp()
         }).catch(function(err) { console.error('Shared KMZ save error:', err); });
-        // Also save to personal data for backward compat
         var newImported = importedSites.filter(function(s) { return s.source !== sourceName; });
         var newFiles = importedFiles.filter(function(f) { return f.name !== sourceName; });
         var updatedSites = [].concat(newImported, sites);
@@ -2219,7 +2355,7 @@
           <div className="sticky top-0 z-[1000] bg-base-100 border-b border-base-300 px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <NavIcon size={18} className="text-primary shrink-0" />
-              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v42</span></span>
+              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v46</span></span>
 
               <span className="text-xs opacity-50">({visited.size} you • {teamCompletedCount} team)</span>
             </div>
