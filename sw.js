@@ -1,4 +1,4 @@
-const CACHE_NAME = 'global-route-v47';
+const CACHE_NAME = 'global-route-v48';
 const ASSETS = ['./', './index.html'];
 
 self.addEventListener('install', (e) => {
@@ -17,6 +17,8 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
+  // Do NOT cache or intercept v2 app — it manages its own caching
+  if (e.request.url.includes('/v2/')) return;
   e.respondWith(
     fetch(e.request).then(resp => {
       const clone = resp.clone();
