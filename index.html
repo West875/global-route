@@ -53,6 +53,8 @@
     @keyframes pulseRing { 0% { transform: scale(0.8); opacity: 1; } 100% { transform: scale(2.2); opacity: 0; } }
     .install-banner { animation: slideUp 0.4s ease-out; }
     @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    @keyframes confettiFall { 0% { transform: translateY(0) translateX(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(var(--vy, 100vh)) translateX(var(--vx, 0px)) rotate(720deg); opacity: 0; } }
+    @keyframes confettiBannerIn { 0% { opacity: 0; transform: translate(-50%,-50%) scale(0.3); } 50% { transform: translate(-50%,-50%) scale(1.1); } 100% { opacity: 1; transform: translate(-50%,-50%) scale(1); } }
     @keyframes waveFlag { 0% { transform: rotate(-15deg); } 15% { transform: rotate(20deg); } 30% { transform: rotate(-12deg); } 45% { transform: rotate(15deg); } 60% { transform: rotate(-8deg); } 75% { transform: rotate(10deg); } 100% { transform: rotate(-15deg); } }
     @keyframes flagGlow { 0%,100% { text-shadow: 0 0 4px #ef444480; } 50% { text-shadow: 0 0 14px #ef4444, 0 0 28px #ef444488; } }
     #map-container { height: calc(100vh - 110px); width: 100%; }
@@ -1784,7 +1786,30 @@
       if (_sndCtx.state === 'suspended') _sndCtx.resume();
       return _sndCtx;
     }
+    function vibrate(p) { try { navigator?.vibrate?.(p); } catch(_) {} }
+
+    function playVictorySound() {
+      vibrate([100, 50, 100, 50, 200]);
+      try {
+        const c = getAudioCtx();
+        const t = c.currentTime;
+        [523, 659, 784, 1047].forEach(function(freq, i) {
+          const osc = c.createOscillator();
+          osc.type = 'sine';
+          osc.frequency.value = freq;
+          const gain = c.createGain();
+          gain.gain.setValueAtTime(0, t + i * 0.12);
+          gain.gain.linearRampToValueAtTime(0.3, t + i * 0.12 + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.12 + 0.5);
+          osc.connect(gain).connect(c.destination);
+          osc.start(t + i * 0.12);
+          osc.stop(t + i * 0.12 + 0.6);
+        });
+      } catch(e) {}
+    }
+
     function playCameraSound() {
+      vibrate(50);
       try {
         var c = _sndGetCtx(), n = c.sampleRate * 0.08, b = c.createBuffer(1, n, c.sampleRate), d = b.getChannelData(0);
         for (var i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 8);
@@ -1795,6 +1820,7 @@
       } catch(e) {}
     }
     function playEnrouteSound() {
+      vibrate([40, 30, 40]);
       try {
         var c = _sndGetCtx(), t = c.currentTime;
         [660, 880].forEach(function(freq, i) {
@@ -1807,6 +1833,7 @@
       } catch(e) {}
     }
     function playDoneSound() {
+      vibrate([30, 20, 30, 20, 60]);
       try {
         var c = _sndGetCtx(), t = c.currentTime;
         [523, 659, 784].forEach(function(freq, i) {
@@ -1819,6 +1846,7 @@
       } catch(e) {}
     }
     function playFlagSound() {
+      vibrate([60, 40, 80]);
       try {
         var c = _sndGetCtx(), t = c.currentTime;
         [880, 440].forEach(function(freq, i) {
@@ -2761,6 +2789,19 @@
       const teamCompletedCount = useMemo(function() { return Object.keys(sharedCompletions).length; }, [sharedCompletions]);
       const revisitCount = useMemo(function() { return Object.keys(revisits).length; }, [revisits]);
 
+      // ── Confetti celebration ──
+      const [showConfetti, setShowConfetti] = useState(false);
+      const confettiFiredRef = useRef(false);
+      useEffect(function() {
+        if (allSites.length > 0 && teamCompletedCount >= allSites.length && !confettiFiredRef.current) {
+          confettiFiredRef.current = true;
+          playVictorySound();
+          setShowConfetti(true);
+          setTimeout(function() { setShowConfetti(false); }, 4000);
+        }
+        if (teamCompletedCount < allSites.length) { confettiFiredRef.current = false; }
+      }, [teamCompletedCount, allSites.length]);
+
       // Loading screen
       if (!permissionGranted) {
         if (loading) {
@@ -2969,6 +3010,34 @@
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Confetti celebration */}
+          {showConfetti && ReactDOM.createPortal(
+            html`<div style=${{position:'fixed',inset:0,pointerEvents:'none',zIndex:99999,overflow:'hidden'}}>
+              <div style=${{position:'absolute',top:'35%',left:'50%',transform:'translate(-50%,-50%)',textAlign:'center',zIndex:100000,animation:'confettiBannerIn 0.5s ease-out'}}>
+                <div style=${{fontSize:64,marginBottom:8}}>🎉</div>
+                <div style=${{fontFamily:"'Playfair Display', serif",fontSize:28,fontWeight:900,color:'#f0d68a',textShadow:'0 0 20px rgba(192,168,76,0.6)',letterSpacing:3}}>ALL COMPLETE!</div>
+                <div style=${{fontSize:16,color:'#a78bfa',marginTop:4,fontWeight:600}}>Every site has been visited 🏆</div>
+              </div>
+              ${Array.from({length:60}, function(_, i) {
+                const colors = ['#c9a84c','#f0d68a','#7c3aed','#a855f7','#22c55e','#3b82f6','#ef4444','#f59e0b'];
+                return html`<div key=${i} style=${{
+                  position:'absolute',
+                  left: (50 + (Math.random()-0.5)*20) + '%',
+                  top: '-5%',
+                  width: 6 + Math.random()*10,
+                  height: 8 + Math.random()*12,
+                  backgroundColor: colors[Math.floor(Math.random()*colors.length)],
+                  borderRadius: Math.random() > 0.5 ? '50%' : '1px',
+                  animation: 'confettiFall ' + (1.5+Math.random()) + 's ease-in ' + (Math.random()*0.6) + 's forwards',
+                  opacity: 0.9,
+                  '--vx': ((Math.random()-0.5)*60) + 'px',
+                  '--vy': (40+Math.random()*60) + 'vh',
+                }}></div>`;
+              })}
+            </div>`,
+            document.body
           )}
 
           {/* Install Banner */}
