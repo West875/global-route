@@ -1427,13 +1427,26 @@
       var doUpload = function() {
         if (!pendingFile) return;
         setUploading(true);
-        db.collection(collPath).add({
-          photoData: pendingFile,
-          authorId: userId,
-          authorName: userName,
-          authorPhoto: avatarURL || null,
-          caption: caption.trim(),
-          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        // Get GPS position (non-blocking)
+        var geoPromise = new Promise(function(resolve) {
+          if (!navigator.geolocation) { resolve(null); return; }
+          navigator.geolocation.getCurrentPosition(
+            function(pos) { resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }); },
+            function() { resolve(null); },
+            { enableHighAccuracy: true, timeout: 5000, maximumAge: 30000 }
+          );
+        });
+        geoPromise.then(function(geo) {
+          var doc = {
+            photoData: pendingFile,
+            authorId: userId,
+            authorName: userName,
+            authorPhoto: avatarURL || null,
+            caption: caption.trim(),
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          };
+          if (geo) { doc.lat = geo.lat; doc.lon = geo.lon; }
+          return db.collection(collPath).add(doc);
         }).then(function() {
           setPendingFile(null); setPendingPreview(null); setCaption('');
         }).catch(function(err) { console.error('Upload photo error:', err); })
@@ -1544,7 +1557,8 @@
                       {/* Caption + time below image */}
                       <div style={{padding:'4px 6px 6px'}}>
                         {photo.caption && <div style={{fontSize:11,color:'#ccc',marginBottom:2}}>{photo.caption}</div>}
-                        <div style={{fontSize:10,color:'#777'}}>{formatTime(photo.createdAt)}</div>
+                        <div style={{fontSize:10,color:'#777'}}>{formatTime(photo.createdAt)}
+                          {photo.lat != null && photo.lon != null && <span style={{color:'#34d399',marginLeft:6}}>📍 {photo.lat.toFixed(4)}, {photo.lon.toFixed(4)}</span>}</div>
                       </div>
                     </div>
                   );
@@ -1582,6 +1596,7 @@
                   <span style={{fontWeight:600,fontSize:14}}>{lightbox.authorName || 'Unknown'}</span>
                   <span style={{fontSize:12,color:'#888',marginLeft:4}}>{formatTime(lightbox.createdAt)}</span>
                 </div>
+                {lightbox.lat != null && lightbox.lon != null && <div style={{fontSize:12,color:'#34d399',marginTop:2}}>📍 {lightbox.lat.toFixed(5)}, {lightbox.lon.toFixed(5)}</div>}
                 {lightbox.caption && <div style={{fontSize:13,color:'#aaa'}}>{lightbox.caption}</div>}
               </div>
             </div>
