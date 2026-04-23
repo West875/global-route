@@ -1434,11 +1434,50 @@
       var users = Object.keys(byUser).map(function(uid) { return { uid: uid, data: byUser[uid] }; });
       users.sort(function(a, b) { return b.data.sites.length - a.data.sites.length; });
 
+      function downloadTeamCSV() {
+        var rows = [['Team Member', 'Site ID', 'Site Name', 'Address', 'Source', 'Completed Date', 'Completed Time']];
+        users.forEach(function(u) {
+          u.data.sites.forEach(function(s) {
+            var siteObj = allSites.find(function(si) { return si.id === s.id || si.id === s.id.split('@')[0]; });
+            var addr = siteObj ? (siteObj.address || '') : '';
+            var source = siteObj ? (siteObj.source || 'builtin') : '';
+            var dateStr = s.time ? s.time.toLocaleDateString() : '';
+            var timeStr = s.time ? s.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+            rows.push([u.data.name, s.id.split('@')[0], s.name, addr, source, dateStr, timeStr]);
+          });
+        });
+        var csv = rows.map(function(r) {
+          return r.map(function(cell) { return '"' + String(cell).replace(/"/g, '""') + '"'; }).join(',');
+        }).join('\n');
+        var blob = new Blob([csv], { type: 'text/csv' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        var today = new Date().toISOString().slice(0, 10);
+        a.href = url;
+        a.download = 'Team_Production_' + today + '.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      var totalCompleted = users.reduce(function(sum, u) { return sum + u.data.sites.length; }, 0);
+
       if (users.length === 0) {
         return React.createElement('div', { className: 'text-center py-12 opacity-50' }, 'No completions yet. Get out there! 🚀');
       }
 
       return React.createElement('div', { className: 'flex flex-col gap-4 p-4 pb-24' },
+        // Summary + Download button
+        React.createElement('div', { className: 'card bg-base-100 shadow-md' },
+          React.createElement('div', { className: 'card-body p-4' },
+            React.createElement('div', { className: 'flex items-center justify-between' },
+              React.createElement('div', null,
+                React.createElement('div', { className: 'text-lg font-bold' }, '👥 Team Production'),
+                React.createElement('div', { className: 'text-sm opacity-60' }, totalCompleted + ' total completions · ' + users.length + ' team member' + (users.length !== 1 ? 's' : ''))
+              ),
+              React.createElement('button', { onClick: downloadTeamCSV, className: 'btn btn-primary btn-sm gap-1' }, '📥 Download CSV')
+            )
+          )
+        ),
         users.map(function(u) {
           var isMe = u.uid === currentUserId;
           return React.createElement('div', { key: u.uid, className: 'card bg-base-100 shadow-md border-l-4 ' + (isMe ? 'border-green-500' : 'border-blue-500') },
