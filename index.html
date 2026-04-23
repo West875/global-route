@@ -1,4 +1,10 @@
 <!DOCTYPE html>
+<!-- 
+  Global Route™ — © 2026 Global West Group LLC. All rights reserved.
+  This software is proprietary and confidential. Unauthorized copying,
+  modification, distribution, or use of this software is strictly prohibited.
+  See Terms of Service: https://west875.github.io/global-route/terms.html
+-->
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
@@ -692,6 +698,11 @@
                 {mode === 'reset' && (
                   <p><button className="link link-primary" onClick={function() { setMode('login'); setError(null); setResetSent(false); }}>← Back to login</button></p>
                 )}
+                <p className="mt-4 opacity-40 text-[11px]">
+                  By using Global Route, you agree to our{' '}
+                  <a href="https://west875.github.io/global-route/terms.html" target="_blank" rel="noopener noreferrer" className="link link-primary text-[11px]">Terms of Service</a>
+                </p>
+                <p className="opacity-25 text-[10px] mt-1">© 2026 Global West Group LLC. All rights reserved.</p>
               </div>
             </div>
           </div>
