@@ -1426,6 +1426,7 @@
 
       var doUpload = function() {
         if (!pendingFile) return;
+        playCameraSound();
         setUploading(true);
         // Get GPS position (non-blocking)
         var geoPromise = new Promise(function(resolve) {
@@ -1774,6 +1775,60 @@
           );
         })
       );
+    }
+
+    // === Sound Effects (Web Audio API) ===
+    var _sndCtx = null;
+    function _sndGetCtx() {
+      if (!_sndCtx) _sndCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (_sndCtx.state === 'suspended') _sndCtx.resume();
+      return _sndCtx;
+    }
+    function playCameraSound() {
+      try {
+        var c = _sndGetCtx(), n = c.sampleRate * 0.08, b = c.createBuffer(1, n, c.sampleRate), d = b.getChannelData(0);
+        for (var i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 8);
+        var s = c.createBufferSource(); s.buffer = b;
+        var g = c.createGain(); g.gain.setValueAtTime(0.4, c.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.08);
+        s.connect(g).connect(c.destination); s.start();
+      } catch(e) {}
+    }
+    function playEnrouteSound() {
+      try {
+        var c = _sndGetCtx(), t = c.currentTime;
+        [660, 880].forEach(function(freq, i) {
+          var o = c.createOscillator(); o.type = 'sine'; o.frequency.value = freq;
+          var g = c.createGain(); g.gain.setValueAtTime(0, t + i * 0.12);
+          g.gain.linearRampToValueAtTime(0.3, t + i * 0.12 + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.12 + 0.15);
+          o.connect(g).connect(c.destination); o.start(t + i * 0.12); o.stop(t + i * 0.12 + 0.15);
+        });
+      } catch(e) {}
+    }
+    function playDoneSound() {
+      try {
+        var c = _sndGetCtx(), t = c.currentTime;
+        [523, 659, 784].forEach(function(freq, i) {
+          var o = c.createOscillator(); o.type = 'sine'; o.frequency.value = freq;
+          var g = c.createGain(); g.gain.setValueAtTime(0, t + i * 0.1);
+          g.gain.linearRampToValueAtTime(0.25, t + i * 0.1 + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.1 + 0.3);
+          o.connect(g).connect(c.destination); o.start(t + i * 0.1); o.stop(t + i * 0.1 + 0.35);
+        });
+      } catch(e) {}
+    }
+    function playFlagSound() {
+      try {
+        var c = _sndGetCtx(), t = c.currentTime;
+        [880, 440].forEach(function(freq, i) {
+          var o = c.createOscillator(); o.type = 'triangle'; o.frequency.value = freq;
+          var g = c.createGain(); g.gain.setValueAtTime(0, t + i * 0.15);
+          g.gain.linearRampToValueAtTime(0.3, t + i * 0.15 + 0.02);
+          g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.15 + 0.2);
+          o.connect(g).connect(c.destination); o.start(t + i * 0.15); o.stop(t + i * 0.15 + 0.25);
+        });
+      } catch(e) {}
     }
 
     function App() {
@@ -2396,6 +2451,7 @@
       };
 
       var claimEnroute = function(siteId, site, event) {
+        playEnrouteSound();
         // event = click event from <a> tag — preventDefault if teammate conflict
         // Navigation is handled by the <a> tag natively (never blocked on mobile)
         var localClaim = enroutes[siteId];
@@ -2492,6 +2548,7 @@
       };
 
       var markVisited = function(siteId, site) {
+        playDoneSound();
         const newVisited = new Set(visited);
         newVisited.add(siteId);
         setVisited(newVisited);
@@ -2542,6 +2599,7 @@
       };
 
       var flagRevisit = function(siteId, site) {
+        playFlagSound();
         var routeKey = (!site.source || site.source === 'builtin') ? 'builtin' : site.source.replace(/[^a-zA-Z0-9-_]/g, '_');
         var displayName = user.displayName || user.email.split('@')[0];
         // Optimistic local update — show flag instantly for own flags
