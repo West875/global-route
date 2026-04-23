@@ -700,7 +700,7 @@
     }
 
     // ── User Menu ──
-    function UserMenu({ user, avatarURL, onLogout, onChangePhoto }) {
+    function UserMenu({ user, avatarURL, onLogout, onChangePhoto, onDownloadReport }) {
       const [open, setOpen] = useState(false);
       const displayName = user.displayName || user.email.split('@')[0];
       const initial = displayName.charAt(0).toUpperCase();
@@ -728,6 +728,9 @@
                 <div className="p-1">
                   <button className="btn btn-sm btn-ghost w-full justify-start gap-2" onClick={function() { setOpen(false); onChangePhoto(); }}>
                     📷 {photoSrc ? 'Change Photo' : 'Take Photo'}
+                  </button>
+                  <button className="btn btn-sm btn-ghost w-full justify-start gap-2" onClick={function() { setOpen(false); onDownloadReport(); }}>
+                    📥 Download Report
                   </button>
                   <button className="btn btn-sm btn-ghost w-full justify-start gap-2 text-error" onClick={function() { setOpen(false); onLogout(); }}>
                     <LogOutIcon size={14} /> Sign Out
@@ -2095,6 +2098,64 @@
           .catch(function(err) { console.error('Cancel en-route error:', err); });
       };
 
+      // ── Download Team Production Report as CSV ──
+      var handleDownloadReport = function() {
+        var rows = [['Site ID', 'Site Name', 'Source', 'Status', 'Completed By', 'Completed At', 'Flagged By', 'Flagged At', 'En-route By']];
+        sortedSites.forEach(function(site) {
+          var comp = sharedCompletions[site.id];
+          var flag = revisits[site.id];
+          var enr = enroutes[site.id];
+          var status = 'Remaining';
+          if (comp) status = 'Completed';
+          if (flag) status = 'Flagged';
+          if (enr) status = 'En-route';
+
+          var compBy = '', compAt = '';
+          if (comp) {
+            compBy = comp.completedByName || '';
+            if (comp.completedAt) {
+              var d = comp.completedAt.toDate ? comp.completedAt.toDate() : (comp.completedAt.seconds ? new Date(comp.completedAt.seconds * 1000) : null);
+              if (d) compAt = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+          }
+
+          var flagBy = '', flagAt = '';
+          if (flag) {
+            flagBy = flag.userName || '';
+            if (flag.startedAt) {
+              var fd = flag.startedAt.toDate ? flag.startedAt.toDate() : (flag.startedAt.seconds ? new Date(flag.startedAt.seconds * 1000) : null);
+              if (fd) flagAt = fd.toLocaleDateString() + ' ' + fd.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+          }
+
+          var enrBy = enr ? (enr.userName || '') : '';
+          var source = site.source || 'builtin';
+
+          rows.push([
+            site.id,
+            (site.name || '').replace(/,/g, ' '),
+            source,
+            status,
+            compBy.replace(/,/g, ' '),
+            compAt,
+            flagBy.replace(/,/g, ' '),
+            flagAt,
+            enrBy.replace(/,/g, ' ')
+          ]);
+        });
+
+        var csv = rows.map(function(r) { return r.map(function(c) { return '"' + (c || '').replace(/"/g, '""') + '"'; }).join(','); }).join('\n');
+        var blob = new Blob([csv], { type: 'text/csv' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'Global_Route_Report_' + new Date().toISOString().slice(0, 10) + '.csv';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      };
+
       var markVisited = function(siteId, site) {
         const newVisited = new Set(visited);
         newVisited.add(siteId);
@@ -2344,7 +2405,7 @@
               <h1 className="text-lg font-bold flex items-center gap-2">
                 <GlobeIcon size={22} /> Global Route
               </h1>
-              <UserMenu user={user} avatarURL={avatarURL} onLogout={onLogout} onChangePhoto={function() { setShowAvatarSetup(true); }} />
+              <UserMenu user={user} avatarURL={avatarURL} onLogout={onLogout} onChangePhoto={function() { setShowAvatarSetup(true); }} onDownloadReport={handleDownloadReport} />
             </div>
             <p className="text-xs opacity-80 text-center">
               {allSites.length} sites total • {teamCompletedCount} completed by team • Nearest-First Routing
