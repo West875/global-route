@@ -628,46 +628,11 @@
             <div className="card-body gap-4">
               {/* Logo */}
               <div className="text-center mb-2">
-                <div className="inline-flex rounded-full p-3 mb-3" style={{background: 'radial-gradient(circle, rgba(180,140,60,0.15), transparent 70%)'}}>
-                  <svg width="80" height="80" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="100" cy="100" r="90" stroke="url(#gr1a)" strokeWidth="2" fill="none" opacity="0.4"/>
-                    <circle cx="100" cy="100" r="70" stroke="url(#gr1a)" strokeWidth="1.5" fill="none" opacity="0.3"/>
-                    <ellipse cx="100" cy="100" rx="35" ry="70" stroke="url(#gr1a)" strokeWidth="1" fill="none" opacity="0.2"/>
-                    <line x1="100" y1="30" x2="100" y2="170" stroke="url(#gr1a)" strokeWidth="0.8" opacity="0.2"/>
-                    <line x1="30" y1="100" x2="170" y2="100" stroke="url(#gr1a)" strokeWidth="0.8" opacity="0.2"/>
-                    <polygon points="100,20 108,88 100,80 92,88" fill="url(#gr1a)"/>
-                    <polygon points="100,180 108,112 100,120 92,112" fill="url(#gr1a)" opacity="0.7"/>
-                    <polygon points="20,100 88,92 80,100 88,108" fill="url(#gr1a)" opacity="0.7"/>
-                    <polygon points="180,100 112,92 120,100 112,108" fill="url(#gr1a)" opacity="0.7"/>
-                    <polygon points="100,35 106,90 100,82 94,90" fill="url(#gr1a)" opacity="0.5" transform="rotate(45,100,100)"/>
-                    <polygon points="100,35 106,90 100,82 94,90" fill="url(#gr1a)" opacity="0.5" transform="rotate(135,100,100)"/>
-                    <polygon points="100,35 106,90 100,82 94,90" fill="url(#gr1a)" opacity="0.5" transform="rotate(225,100,100)"/>
-                    <polygon points="100,35 106,90 100,82 94,90" fill="url(#gr1a)" opacity="0.5" transform="rotate(315,100,100)"/>
-                    <circle cx="100" cy="100" r="6" fill="url(#gr1a)"/>
-                    <circle cx="100" cy="100" r="3" fill="#1a1a2e"/>
-                    <g transform="translate(130,45)">
-                      <path d="M0,-8 C4,-8 8,-4 8,0 C8,6 0,14 0,14 C0,14 -8,6 -8,0 C-8,-4 -4,-8 0,-8Z" fill="url(#gr1p)"/>
-                      <circle cx="0" cy="0" r="3" fill="white"/>
-                    </g>
-                    <defs>
-                      <linearGradient id="gr1a" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#d4af37"/>
-                        <stop offset="100%" stopColor="#b8860b"/>
-                      </linearGradient>
-                      <linearGradient id="gr1p" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#a855f7"/>
-                        <stop offset="100%" stopColor="#7c3aed"/>
-                      </linearGradient>
-                    </defs>
-                  </svg>
+                <div className="inline-flex rounded-full p-4 mb-3" style={{background: 'radial-gradient(circle, rgba(180,140,60,0.15), transparent 70%)'}}>
+                  <span style={{fontSize: '64px'}}>🧭</span>
                 </div>
-                <h1 style={{fontFamily: "'Playfair Display', serif", fontSize: '1.75rem', fontWeight: 700, letterSpacing: '0.08em', background: 'linear-gradient(180deg, #f5e6a3, #d4af37, #b8860b)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'}}>GLOBAL ROUTE</h1>
-                <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '4px', marginBottom: '4px'}}>
-                  <div style={{height: '1px', width: '40px', background: 'linear-gradient(90deg, transparent, #d4af37)'}}></div>
-                  <span style={{color: '#d4af37', fontSize: '8px'}}>◆</span>
-                  <div style={{height: '1px', width: '40px', background: 'linear-gradient(90deg, #d4af37, transparent)'}}></div>
-                </div>
-                <p style={{fontFamily: "'Playfair Display', serif", fontSize: '0.65rem', letterSpacing: '0.25em', color: '#d4af37', opacity: 0.8}}>ROUTE • TRACK • MANAGE</p>
+                <h1 style={{fontFamily: "'Playfair Display', serif", fontSize: '1.75rem', fontWeight: 700, letterSpacing: '0.08em', color: '#d4af37'}}>GLOBAL ROUTE</h1>
+                <p style={{fontSize: '0.65rem', letterSpacing: '0.25em', color: '#b8860b', marginTop: '4px'}}>ROUTE • TRACK • MANAGE</p>
                 <p className="text-sm opacity-60">
                   {mode === 'signup' ? 'Create your account' : mode === 'reset' ? 'Reset your password' : 'Sign in to continue'}
                 </p>
@@ -2758,24 +2723,8 @@
           <div className="bg-primary text-primary-content px-4 py-3">
             <div className="flex items-center justify-between">
               <h1 className="flex items-center gap-2">
-                <svg width="28" height="28" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <circle cx="100" cy="100" r="85" stroke="#d4af37" strokeWidth="2.5" fill="none" opacity="0.5"/>
-                  <circle cx="100" cy="100" r="65" stroke="#d4af37" strokeWidth="1.5" fill="none" opacity="0.3"/>
-                  <polygon points="100,25 107,88 100,80 93,88" fill="#d4af37"/>
-                  <polygon points="100,175 107,112 100,120 93,112" fill="#d4af37" opacity="0.7"/>
-                  <polygon points="25,100 88,93 80,100 88,107" fill="#d4af37" opacity="0.7"/>
-                  <polygon points="175,100 112,93 120,100 112,107" fill="#d4af37" opacity="0.7"/>
-                  <polygon points="100,40 105,90 100,83 95,90" fill="#d4af37" opacity="0.5" transform="rotate(45,100,100)"/>
-                  <polygon points="100,40 105,90 100,83 95,90" fill="#d4af37" opacity="0.5" transform="rotate(135,100,100)"/>
-                  <polygon points="100,40 105,90 100,83 95,90" fill="#d4af37" opacity="0.5" transform="rotate(225,100,100)"/>
-                  <polygon points="100,40 105,90 100,83 95,90" fill="#d4af37" opacity="0.5" transform="rotate(315,100,100)"/>
-                  <circle cx="100" cy="100" r="5" fill="#d4af37"/>
-                  <g transform="translate(128,48)">
-                    <path d="M0,-7 C3.5,-7 7,-3.5 7,0 C7,5 0,12 0,12 C0,12 -7,5 -7,0 C-7,-3.5 -3.5,-7 0,-7Z" fill="#a855f7"/>
-                    <circle cx="0" cy="0" r="2.5" fill="white"/>
-                  </g>
-                </svg>
-                <span style={{fontFamily: "'Playfair Display', serif", fontWeight: 700, letterSpacing: '0.08em', fontSize: '1.1rem', background: 'linear-gradient(180deg, #f5e6a3, #d4af37)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'}}>GLOBAL ROUTE</span>
+                <span style={{fontSize: '22px'}}>🧭</span>
+                <span style={{fontFamily: "'Playfair Display', serif", fontWeight: 700, letterSpacing: '0.08em', fontSize: '1.1rem', color: '#d4af37'}}>GLOBAL ROUTE</span>
               </h1>
               <UserMenu user={user} avatarURL={avatarURL} onLogout={onLogout} onChangePhoto={function() { setShowAvatarSetup(true); }} onDownloadReport={handleDownloadReport} />
             </div>
