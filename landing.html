@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Global Route™ — Route • Track • Manage | Field Operations Software</title>
+  <meta name="description" content="The all-in-one field operations platform. Route optimization, real-time team tracking, photo documentation, and analytics for field crews." />
+  <meta property="og:title" content="Global Route™ — Route • Track • Manage" />
+  <meta property="og:description" content="The all-in-one field operations platform for field crews." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://west875.github.io/global-route/" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --purple: #8b5cf6; --indigo: #6366f1; --amber: #f59e0b;
+      --emerald: #10b981; --bg: #0f0f1a; --card: #1a1a2e; --text: #e5e5e5;
+    }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); overflow-x: hidden; }
+    .playfair { font-family: 'Playfair Display', serif; }
+
+    /* Hero */
+    .hero { min-height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; position: relative; padding: 2rem; }
+    .hero::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 0%, rgba(139,92,246,0.15) 0%, transparent 60%), radial-gradient(ellipse at 80% 100%, rgba(99,102,241,0.1) 0%, transparent 50%); }
+    .hero-content { position: relative; z-index: 1; max-width: 800px; }
+    .hero h1 { font-size: clamp(2.5rem, 6vw, 4.5rem); line-height: 1.1; }
+    .gold { color: var(--amber); }
+    .tagline { font-size: 1rem; letter-spacing: 0.3em; color: rgba(255,255,255,0.5); margin-top: 0.5rem; text-transform: uppercase; }
+    .hero-desc { font-size: 1.25rem; color: rgba(255,255,255,0.7); margin-top: 1.5rem; max-width: 600px; margin-left: auto; margin-right: auto; line-height: 1.6; }
+    .cta-row { display: flex; gap: 1rem; justify-content: center; margin-top: 2.5rem; flex-wrap: wrap; }
+    .btn-primary { padding: 1rem 2.5rem; border-radius: 12px; font-weight: 700; font-size: 1.1rem; border: none; cursor: pointer; text-decoration: none; color: white; background: linear-gradient(135deg, var(--purple), var(--indigo)); box-shadow: 0 8px 30px rgba(139,92,246,0.3); transition: all 0.2s; }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(139,92,246,0.4); }
+    .btn-secondary { padding: 1rem 2.5rem; border-radius: 12px; font-weight: 600; font-size: 1.1rem; border: 2px solid rgba(255,255,255,0.2); cursor: pointer; text-decoration: none; color: white; background: transparent; transition: all 0.2s; }
+    .btn-secondary:hover { border-color: var(--purple); background: rgba(139,92,246,0.1); }
+
+    /* Sections */
+    section { padding: 5rem 2rem; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    .section-title { font-size: 2.5rem; text-align: center; margin-bottom: 1rem; }
+    .section-sub { text-align: center; color: rgba(255,255,255,0.6); font-size: 1.1rem; max-width: 600px; margin: 0 auto 3rem; }
+
+    /* Features grid */
+    .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; }
+    .feature-card { background: var(--card); border-radius: 16px; padding: 2rem; border: 1px solid rgba(255,255,255,0.06); transition: all 0.3s; }
+    .feature-card:hover { border-color: rgba(139,92,246,0.3); transform: translateY(-4px); box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
+    .feature-icon { font-size: 2.5rem; margin-bottom: 1rem; }
+    .feature-card h3 { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .feature-card p { color: rgba(255,255,255,0.6); line-height: 1.6; font-size: 0.95rem; }
+
+    /* Pricing */
+    .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1.5rem; max-width: 900px; margin: 0 auto; }
+    .price-card { background: var(--card); border-radius: 16px; padding: 2rem; border: 2px solid rgba(255,255,255,0.06); text-align: center; transition: all 0.3s; }
+    .price-card.highlight { border-color: var(--purple); box-shadow: 0 0 40px rgba(139,92,246,0.15); position: relative; }
+    .price-card.highlight::before { content: '⭐ MOST POPULAR'; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--purple); color: white; padding: 4px 16px; border-radius: 99px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; }
+    .price-amount { font-size: 3rem; font-weight: 900; color: var(--amber); }
+    .price-period { color: rgba(255,255,255,0.4); font-size: 0.9rem; }
+    .price-card h3 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem; }
+    .price-card .desc { color: rgba(255,255,255,0.5); font-size: 0.85rem; margin-bottom: 1.5rem; }
+    .price-features { list-style: none; text-align: left; margin-bottom: 2rem; }
+    .price-features li { padding: 0.4rem 0; color: rgba(255,255,255,0.7); font-size: 0.9rem; }
+    .price-features li::before { content: '✓ '; color: var(--emerald); font-weight: 700; }
+    .price-btn { display: block; width: 100%; padding: 0.9rem; border-radius: 10px; font-weight: 700; font-size: 1rem; border: none; cursor: pointer; color: white; transition: all 0.2s; }
+    .price-btn-primary { background: linear-gradient(135deg, var(--purple), var(--indigo)); }
+    .price-btn-primary:hover { box-shadow: 0 6px 25px rgba(139,92,246,0.4); }
+    .price-btn-outline { background: transparent; border: 2px solid rgba(255,255,255,0.2); }
+    .price-btn-outline:hover { border-color: var(--purple); }
+
+    /* Stats */
+    .stats-row { display: flex; justify-content: center; gap: 4rem; margin: 4rem 0; flex-wrap: wrap; }
+    .stat { text-align: center; }
+    .stat-num { font-size: 3rem; font-weight: 900; color: var(--amber); }
+    .stat-label { color: rgba(255,255,255,0.5); font-size: 0.9rem; margin-top: 0.25rem; }
+
+    /* Footer */
+    footer { text-align: center; padding: 3rem 2rem; border-top: 1px solid rgba(255,255,255,0.06); color: rgba(255,255,255,0.4); font-size: 0.85rem; }
+    footer a { color: var(--purple); text-decoration: none; }
+
+    /* Compass animation */
+    .compass { display: inline-block; animation: spin 20s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+    @media (max-width: 640px) {
+      .stats-row { gap: 2rem; }
+      .cta-row { flex-direction: column; align-items: center; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ─── Hero ─── -->
+<div class="hero">
+  <div class="hero-content">
+    <div class="compass" style="font-size: 3rem; margin-bottom: 1rem;">🧭</div>
+    <h1 class="playfair">
+      <span class="gold">GLOBAL ROUTE</span>
+    </h1>
+    <p class="tagline">Route &bull; Track &bull; Manage</p>
+    <p class="hero-desc">
+      The all-in-one field operations platform. Route your crews, track progress in real-time,
+      and manage documentation — all from one beautiful app.
+    </p>
+    <div class="cta-row">
+      <a href="/global-route/v2/" class="btn-primary">🚀 Get Started Free</a>
+      <a href="#features" class="btn-secondary">See Features ↓</a>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Stats ─── -->
+<div class="stats-row">
+  <div class="stat">
+    <div class="stat-num">Real-time</div>
+    <div class="stat-label">Team Sync</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num">📱</div>
+    <div class="stat-label">Works on Any Device</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num">0</div>
+    <div class="stat-label">Setup Required</div>
+  </div>
+</div>
+
+<!-- ─── Features ─── -->
+<section id="features">
+  <div class="container">
+    <h2 class="section-title playfair"><span class="gold">Everything</span> Your Field Team Needs</h2>
+    <p class="section-sub">From route planning to client reports — Global Route replaces a dozen apps with one.</p>
+
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🗺️</div>
+        <h3>Smart Route Optimization</h3>
+        <p>Automatically find the shortest route between all your job sites. Save fuel, save time, get more done.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">👥</div>
+        <h3>Real-time Team Tracking</h3>
+        <p>See who's headed where, who completed what, and who flagged issues — all synced live across your team.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📸</div>
+        <h3>Photo Documentation</h3>
+        <p>GPS-tagged before & after photos at every site. Proof of work with timestamps and team attribution.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📝</div>
+        <h3>Site Notes & Voice Memos</h3>
+        <p>Leave notes, record voice memos, and chat at each site. Your whole team sees everything in real-time.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📊</div>
+        <h3>Analytics Dashboard</h3>
+        <p>Leaderboards, completion charts, average times — understand your team's performance at a glance.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📧</div>
+        <h3>Daily Email Reports</h3>
+        <p>Personalized daily summaries sent to each team member. Everyone stays informed without opening the app.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📅</div>
+        <h3>Shift Scheduler</h3>
+        <p>Assign sites to team members by day. Calendar view with drag-and-drop scheduling.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🚩</div>
+        <h3>Flag & Revisit Issues</h3>
+        <p>Flag problem sites for review. Track who flagged what and why. Auto-clear when work is completed.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📄</div>
+        <h3>Client-Ready PDF Reports</h3>
+        <p>Generate professional completion reports with one tap. Perfect for client billing and documentation.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Pricing ─── -->
+<section id="pricing" style="background: rgba(139,92,246,0.03);">
+  <div class="container">
+    <h2 class="section-title playfair">Simple, <span class="gold">Transparent</span> Pricing</h2>
+    <p class="section-sub">Start free. Upgrade when you're ready.</p>
+
+    <div class="pricing-grid">
+      <div class="price-card">
+        <h3>Starter</h3>
+        <div class="price-amount">$29</div>
+        <div class="price-period">per month</div>
+        <div class="desc">For small field teams</div>
+        <ul class="price-features">
+          <li>Up to 5 team members</li>
+          <li>1 project/route</li>
+          <li>Real-time tracking</li>
+          <li>Photo documentation</li>
+          <li>Analytics dashboard</li>
+        </ul>
+        <a href="/global-route/v2/" class="price-btn price-btn-outline">Get Started</a>
+      </div>
+
+      <div class="price-card highlight">
+        <h3>Pro</h3>
+        <div class="price-amount">$79</div>
+        <div class="price-period">per month</div>
+        <div class="desc">For professional operations</div>
+        <ul class="price-features">
+          <li>Up to 15 team members</li>
+          <li>5 projects/routes</li>
+          <li>Daily email reports</li>
+          <li>Shift scheduler</li>
+          <li>Client PDF reports</li>
+          <li>Voice notes</li>
+        </ul>
+        <a href="/global-route/v2/" class="price-btn price-btn-primary">Start Free Trial</a>
+      </div>
+
+      <div class="price-card">
+        <h3>Business</h3>
+        <div class="price-amount">$149</div>
+        <div class="price-period">per month</div>
+        <div class="desc">For large organizations</div>
+        <ul class="price-features">
+          <li>Up to 50 team members</li>
+          <li>Unlimited projects</li>
+          <li>Priority support</li>
+          <li>Custom branding (soon)</li>
+          <li>API access (soon)</li>
+          <li>Everything in Pro</li>
+        </ul>
+        <a href="/global-route/v2/" class="price-btn price-btn-outline">Get Started</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── CTA ─── -->
+<section style="text-align: center;">
+  <div class="container">
+    <h2 class="section-title playfair">Ready to <span class="gold">Optimize</span> Your Field Ops?</h2>
+    <p class="section-sub">Join field teams who are saving hours every week with Global Route.</p>
+    <div class="cta-row">
+      <a href="/global-route/v2/" class="btn-primary">🚀 Start Free — No Credit Card</a>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Footer ─── -->
+<footer>
+  <p>© 2026 Global West Group LLC. All rights reserved.</p>
+  <p style="margin-top: 0.5rem;">
+    <a href="/global-route/terms.html">Terms of Service</a> &bull;
+    <a href="mailto:d.west@globalwestgroupllc.com">Contact</a>
+  </p>
+</footer>
+
+</body>
+</html>
