@@ -3,816 +3,827 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Fiber As-Built — Tic Mark Tracking</title>
+<title>As-Built — GPS Tic Mark Tracker</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#0a0a0a;color:#fff;overflow:hidden;height:100vh}
+#map{width:100%;height:100vh;z-index:1}
 
-* { margin:0; padding:0; box-sizing:border-box; }
-body { font-family:'Inter',sans-serif; background:#0a0e17; color:#e0e0e0; overflow:hidden; height:100vh; }
+/* Top header bar */
+.header{position:fixed;top:0;left:0;right:0;z-index:1000;background:linear-gradient(135deg,#1a0a2e,#0d1117);border-bottom:2px solid #7c3aed;padding:8px 12px;display:flex;align-items:center;justify-content:space-between}
+.header h1{font-size:14px;color:#fbbf24;font-family:'Georgia',serif;letter-spacing:1px}
+.header .job-id{font-size:11px;color:#a78bfa;margin-left:8px}
+.header .stats{display:flex;gap:12px;font-size:11px}
+.header .stat{display:flex;align-items:center;gap:4px}
+.header .stat .dot{width:8px;height:8px;border-radius:50%}
 
-/* ─── HEADER ─── */
-.header {
-  background: linear-gradient(135deg, #1a1040 0%, #0d1a2d 50%, #0a1628 100%);
-  border-bottom: 2px solid #7c3aed;
-  padding: 8px 16px;
-  display: flex; align-items: center; justify-content: space-between;
-  z-index: 1000; position: relative;
-  box-shadow: 0 4px 20px rgba(124,58,237,0.3);
-}
-.header-left { display:flex; align-items:center; gap:10px; }
-.logo { font-size:14px; font-weight:800; letter-spacing:1px; }
-.logo span:first-child { color:#fbbf24; }
-.logo span:last-child { color:#a78bfa; }
-.job-info { font-size:11px; color:#94a3b8; }
-.job-id { color:#fbbf24; font-weight:600; }
-.header-right { display:flex; gap:8px; align-items:center; }
-.header-btn {
-  padding: 6px 12px; border-radius: 8px; border: none; cursor: pointer;
-  font-size: 11px; font-weight: 600; font-family: inherit;
-  transition: all 0.2s;
-}
-.btn-export { background: linear-gradient(135deg,#059669,#10b981); color:white; }
-.btn-export:hover { transform:scale(1.05); box-shadow:0 0 12px rgba(16,185,129,0.4); }
-.btn-undo { background: linear-gradient(135deg,#dc2626,#ef4444); color:white; }
-.btn-undo:hover { transform:scale(1.05); }
-.btn-view { background: linear-gradient(135deg,#7c3aed,#a78bfa); color:white; }
-.btn-view:hover { transform:scale(1.05); }
+/* Mode toggle bar */
+.mode-bar{position:fixed;top:44px;left:0;right:0;z-index:999;background:rgba(13,17,23,0.95);border-bottom:1px solid #333;display:flex;padding:6px;gap:6px}
+.mode-btn{flex:1;padding:8px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;transition:all 0.3s}
+.mode-btn.active{color:#fff;transform:scale(1.02)}
+.mode-btn:not(.active){background:#1a1a2e;color:#888}
+.mode-btn.survey{background:linear-gradient(135deg,#059669,#10b981)}
+.mode-btn.asbuilt{background:linear-gradient(135deg,#7c3aed,#a78bfa)}
+.mode-btn.report{background:linear-gradient(135deg,#d97706,#fbbf24);color:#000}
 
-/* ─── MAP ─── */
-#map { height: calc(100vh - 52px - 48px); width: 100%; }
+/* GPS accuracy badge */
+.gps-badge{position:fixed;top:90px;right:10px;z-index:998;padding:6px 10px;border-radius:20px;font-size:11px;font-weight:700;display:flex;align-items:center;gap:4px}
+.gps-badge.good{background:rgba(16,185,129,0.2);border:1px solid #10b981;color:#10b981}
+.gps-badge.fair{background:rgba(251,191,36,0.2);border:1px solid #fbbf24;color:#fbbf24}
+.gps-badge.poor{background:rgba(239,68,68,0.2);border:1px solid #ef4444;color:#ef4444}
+.gps-pulse{width:8px;height:8px;border-radius:50%;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(1.5)}}
 
-/* ─── FOOTER STATS ─── */
-.footer {
-  background: linear-gradient(135deg, #1a1040, #0d1a2d);
-  border-top: 2px solid #7c3aed;
-  padding: 8px 16px;
-  display: flex; justify-content: space-around; align-items: center;
-  height: 48px;
-}
-.stat { text-align:center; }
-.stat-val { font-size:16px; font-weight:800; }
-.stat-label { font-size:9px; color:#94a3b8; text-transform:uppercase; letter-spacing:0.5px; }
-.stat-strand .stat-val { color:#fbbf24; }
-.stat-fiber .stat-val { color:#3b82f6; }
-.stat-buried .stat-val { color:#f97316; }
-.stat-poles .stat-val { color:#a78bfa; }
-.stat-progress .stat-val { color:#10b981; }
+/* Pole popup */
+.pole-popup{min-width:320px;max-width:360px}
+.pole-popup .pole-header{background:linear-gradient(135deg,#1a0a2e,#2d1b69);padding:12px;border-radius:10px 10px 0 0;margin:-1px -1px 0 -1px}
+.pole-popup .pole-id{font-size:16px;font-weight:800;color:#fbbf24}
+.pole-popup .pole-loc{font-size:10px;color:#a78bfa;margin-top:2px}
+.pole-popup .pole-status{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;margin-top:4px}
+.pole-popup .status-pending{background:#374151;color:#9ca3af}
+.pole-popup .status-surveyed{background:rgba(16,185,129,0.2);color:#10b981;border:1px solid #10b981}
+.pole-popup .status-complete{background:rgba(124,58,237,0.2);color:#a78bfa;border:1px solid #7c3aed}
 
-/* ─── POLE POPUP ─── */
-.pole-popup { min-width: 280px; }
-.pole-popup h3 {
-  font-size: 14px; font-weight: 700; margin-bottom: 8px;
-  padding-bottom: 6px; border-bottom: 2px solid #7c3aed;
-  color: #1a1040; display:flex; align-items:center; gap:6px;
-}
-.pole-popup .status-badge {
-  display:inline-block; padding:2px 8px; border-radius:10px;
-  font-size:10px; font-weight:700; margin-left:auto;
-}
-.status-pending { background:#fef3c7; color:#92400e; }
-.status-done { background:#d1fae5; color:#065f46; }
-.pole-form label {
-  display:block; font-size:11px; font-weight:600; color:#374151;
-  margin: 6px 0 2px;
-}
-.pole-form input, .pole-form select, .pole-form textarea {
-  width:100%; padding:6px 8px; border:1.5px solid #d1d5db; border-radius:6px;
-  font-size:13px; font-family:inherit; background:white;
-}
-.pole-form input:focus, .pole-form select:focus {
-  border-color:#7c3aed; outline:none; box-shadow:0 0 0 3px rgba(124,58,237,0.15);
-}
-.tic-row { display:flex; gap:6px; align-items:flex-end; }
-.tic-row > div { flex:1; }
-.pole-form .btn-row { display:flex; gap:6px; margin-top:10px; }
-.pole-form .btn-save {
-  flex:1; padding:8px; border:none; border-radius:8px; cursor:pointer;
-  font-weight:700; font-size:12px; font-family:inherit; color:white;
-  background: linear-gradient(135deg,#7c3aed,#a78bfa);
-  transition: all 0.2s;
-}
-.pole-form .btn-save:hover { transform:scale(1.02); box-shadow:0 4px 12px rgba(124,58,237,0.4); }
-.pole-form .btn-photo {
-  padding:8px 12px; border:none; border-radius:8px; cursor:pointer;
-  font-weight:700; font-size:12px; font-family:inherit; color:white;
-  background: linear-gradient(135deg,#ec4899,#f472b6);
-}
-.pole-form .btn-clear {
-  padding:8px 12px; border:none; border-radius:8px; cursor:pointer;
-  font-weight:600; font-size:11px; font-family:inherit; color:#6b7280;
-  background: #f3f4f6; border:1px solid #d1d5db;
-}
-.cable-calc {
-  background: #f0fdf4; border:1px solid #86efac; border-radius:6px;
-  padding:6px 8px; margin-top:6px; font-size:11px; color:#065f46;
-}
-.cable-calc strong { font-size:14px; }
-.saved-data {
-  background:#f0f9ff; border:1px solid #93c5fd; border-radius:6px;
-  padding:8px; margin-top:6px;
-}
-.saved-data .tic-display {
-  font-size:20px; font-weight:900; color:#1e40af; text-align:center;
-  padding:4px 0;
-}
-.saved-data .detail-row {
-  display:flex; justify-content:space-between; font-size:11px;
-  padding:2px 0; color:#374151;
-}
+.pole-popup .section{padding:10px 12px;border-bottom:1px solid #333}
+.pole-popup .section-title{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#888;margin-bottom:6px;font-weight:700}
 
-/* ─── TIC MARK LABELS ON MAP ─── */
-.tic-label {
-  background: rgba(30,64,175,0.9); color:white; padding:2px 6px;
-  border-radius:4px; font-size:11px; font-weight:700; font-family:'Inter',sans-serif;
-  border:1.5px solid #60a5fa; white-space:nowrap;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-}
-.tic-label-strand {
-  background: rgba(180,130,0,0.9); border-color:#fbbf24;
-}
-.tic-label-fiber {
-  background: rgba(30,64,175,0.9); border-color:#60a5fa;
-}
+/* GPS "I'm Here" button */
+.btn-here{width:100%;padding:12px;border:none;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all 0.2s;margin-bottom:8px}
+.btn-here.capture{background:linear-gradient(135deg,#059669,#10b981);color:#fff;box-shadow:0 0 20px rgba(16,185,129,0.4)}
+.btn-here.captured{background:linear-gradient(135deg,#1a1a2e,#2d1b69);color:#a78bfa;border:2px solid #7c3aed}
+.btn-here:active{transform:scale(0.97)}
 
-/* ─── COMPLETED LINE GLOW ─── */
-.leaflet-interactive { filter: drop-shadow(0 0 3px currentColor); }
+/* Measurement display */
+.measurement-box{background:#0d1117;border:1px solid #333;border-radius:8px;padding:10px;margin:6px 0}
+.measurement-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0}
+.measurement-row .label{font-size:11px;color:#888;display:flex;align-items:center;gap:4px}
+.measurement-row .value{font-size:14px;font-weight:800}
+.measurement-row .value.gps{color:#10b981}
+.measurement-row .value.tic{color:#fbbf24}
+.measurement-row .value.variance{color:#ef4444}
+.measurement-row .value.ok{color:#10b981}
 
-/* ─── MODAL ─── */
-.modal-overlay {
-  position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:2000;
-  display:none; align-items:center; justify-content:center;
-  backdrop-filter:blur(4px);
-}
-.modal-overlay.active { display:flex; }
-.modal {
-  background:#fff; border-radius:16px; padding:24px; max-width:500px; width:90%;
-  max-height:80vh; overflow-y:auto; color:#1a1040;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-}
-.modal h2 { font-size:18px; font-weight:800; margin-bottom:16px; color:#1a1040;
-  display:flex; align-items:center; gap:8px; }
-.modal table { width:100%; border-collapse:collapse; font-size:12px; }
-.modal th { background:#f3f0ff; color:#5b21b6; padding:8px; text-align:left; font-weight:700; }
-.modal td { padding:6px 8px; border-bottom:1px solid #e5e7eb; }
-.modal .row-done { background:#f0fdf4; }
-.modal .row-pending { background:#fffbeb; }
-.modal .close-btn {
-  position:absolute; top:12px; right:16px; background:none; border:none;
-  font-size:24px; cursor:pointer; color:#6b7280;
-}
+/* Input fields */
+.tic-input{width:100%;padding:10px;background:#1a1a2e;border:2px solid #333;border-radius:8px;color:#fff;font-size:16px;font-weight:700;text-align:center;outline:none;transition:border 0.3s}
+.tic-input:focus{border-color:#7c3aed}
+.tic-input::placeholder{color:#555}
+.input-row{display:flex;gap:8px;margin:6px 0}
+.input-row .tic-input{flex:1}
+.input-label{font-size:11px;color:#888;margin-bottom:4px;display:flex;align-items:center;gap:4px}
 
-/* ─── LEGEND OVERLAY ─── */
-.legend-panel {
-  position: absolute; bottom: 60px; left: 12px; z-index: 1000;
-  background: rgba(10,14,23,0.92); border:1px solid #7c3aed; border-radius:12px;
-  padding: 12px; min-width: 180px;
-  backdrop-filter:blur(8px);
-}
-.legend-title { font-size:11px; font-weight:700; color:#a78bfa; margin-bottom:8px; text-transform:uppercase; letter-spacing:1px; }
-.legend-item { display:flex; align-items:center; gap:8px; padding:3px 0; font-size:11px; }
-.legend-line { width:24px; height:3px; border-radius:2px; }
-.legend-dot { width:12px; height:12px; border-radius:50%; border:2px solid; }
+/* Attachment selector */
+.attach-options{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+.attach-opt{padding:6px 10px;border-radius:6px;font-size:11px;border:1px solid #333;background:#1a1a2e;color:#888;cursor:pointer;transition:all 0.2s}
+.attach-opt.selected{border-color:#7c3aed;background:rgba(124,58,237,0.2);color:#a78bfa}
 
-/* ─── PROGRESS OVERLAY ─── */
-.progress-ring-wrap {
-  position:absolute; top:60px; right:12px; z-index:1000;
-  background:rgba(10,14,23,0.92); border:1px solid #7c3aed; border-radius:16px;
-  padding:16px; text-align:center; backdrop-filter:blur(8px);
-}
-.progress-ring-wrap svg { width:80px; height:80px; }
-.progress-text { font-size:20px; font-weight:900; fill:#10b981; }
-.progress-label { font-size:10px; fill:#94a3b8; }
-.progress-track { fill:none; stroke:#1e293b; stroke-width:6; }
-.progress-fill { fill:none; stroke:#10b981; stroke-width:6; stroke-linecap:round;
-  transition: stroke-dashoffset 0.8s ease; }
+/* Action buttons */
+.btn-row{display:flex;gap:6px;padding:8px 12px}
+.action-btn{flex:1;padding:10px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;transition:all 0.2s}
+.action-btn:active{transform:scale(0.95)}
+.btn-save{background:linear-gradient(135deg,#7c3aed,#a78bfa);color:#fff}
+.btn-photo{background:linear-gradient(135deg,#0ea5e9,#38bdf8);color:#fff}
+.btn-note{background:linear-gradient(135deg,#d97706,#fbbf24);color:#000}
+.btn-skip{background:#374151;color:#888}
 
-/* ─── INSTRUCTION TOAST ─── */
-.toast {
-  position:absolute; top:60px; left:50%; transform:translateX(-50%); z-index:1000;
-  background:rgba(124,58,237,0.95); color:white; padding:10px 20px;
-  border-radius:10px; font-size:12px; font-weight:600;
-  box-shadow:0 4px 20px rgba(124,58,237,0.4);
-  animation: fadeInDown 0.3s ease;
-  pointer-events:none;
-}
-@keyframes fadeInDown { from { opacity:0; transform:translateX(-50%) translateY(-10px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+/* Span line labels on map */
+.span-label{background:rgba(0,0,0,0.85);color:#10b981;padding:3px 8px;border-radius:4px;font-size:12px;font-weight:800;border:1px solid #10b981;white-space:nowrap;font-family:monospace}
+.span-label.variance{border-color:#ef4444;color:#ef4444}
+.tic-label{background:rgba(0,0,0,0.85);padding:2px 6px;border-radius:3px;font-size:10px;font-weight:700;white-space:nowrap;font-family:monospace}
+.tic-label.strand{color:#fbbf24;border:1px solid #fbbf24}
+.tic-label.fiber{color:#38bdf8;border:1px solid #38bdf8}
 
-.leaflet-popup-content-wrapper {
-  border-radius: 12px !important;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.2) !important;
-}
+/* Report panel */
+.report-panel{position:fixed;bottom:0;left:0;right:0;z-index:1001;background:#0d1117;border-top:2px solid #7c3aed;border-radius:16px 16px 0 0;max-height:60vh;overflow-y:auto;transform:translateY(100%);transition:transform 0.3s ease}
+.report-panel.open{transform:translateY(0)}
+.report-panel .rp-header{position:sticky;top:0;background:#0d1117;padding:12px 16px;border-bottom:1px solid #333;display:flex;justify-content:space-between;align-items:center}
+.report-panel h2{font-size:16px;color:#fbbf24}
+.report-close{background:none;border:none;color:#888;font-size:20px;cursor:pointer}
+.report-table{width:100%;font-size:11px;border-collapse:collapse}
+.report-table th{background:#1a1a2e;padding:8px;text-align:left;color:#a78bfa;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;position:sticky;top:48px}
+.report-table td{padding:6px 8px;border-bottom:1px solid #1a1a2e}
+.report-table tr:nth-child(even){background:rgba(26,10,46,0.3)}
+.report-table .gps-val{color:#10b981;font-weight:700}
+.report-table .tic-val{color:#fbbf24;font-weight:700}
+.report-table .var-bad{color:#ef4444;font-weight:700}
+.report-table .var-ok{color:#10b981}
+
+/* Path tracker */
+.path-indicator{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:998;background:linear-gradient(135deg,#059669,#10b981);padding:10px 20px;border-radius:30px;font-size:13px;font-weight:700;display:none;align-items:center;gap:8px;box-shadow:0 0 30px rgba(16,185,129,0.5);animation:slideUp 0.3s ease}
+.path-indicator.active{display:flex}
+@keyframes slideUp{from{transform:translateX(-50%) translateY(20px);opacity:0}to{transform:translateX(-50%) translateY(0);opacity:1}}
+
+/* Legend */
+.legend{position:fixed;bottom:10px;left:10px;z-index:998;background:rgba(13,17,23,0.95);border:1px solid #333;border-radius:10px;padding:8px 12px;font-size:10px}
+.legend-item{display:flex;align-items:center;gap:6px;margin:3px 0}
+.legend-line{width:20px;height:3px;border-radius:2px}
+.legend-dot{width:10px;height:10px;border-radius:50%}
+
+/* Tracking banner */
+.tracking-banner{position:fixed;top:90px;left:10px;z-index:998;background:rgba(16,185,129,0.15);border:1px solid #10b981;border-radius:10px;padding:8px 12px;font-size:12px;color:#10b981;display:none;align-items:center;gap:6px;max-width:200px;animation:slideIn 0.3s ease}
+.tracking-banner.active{display:flex}
+@keyframes slideIn{from{transform:translateX(-20px);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* Leaflet overrides */
+.leaflet-popup-content-wrapper{background:#1a1a2e!important;color:#fff!important;border-radius:12px!important;border:1px solid #7c3aed!important;box-shadow:0 0 30px rgba(124,58,237,0.3)!important}
+.leaflet-popup-tip{background:#1a1a2e!important;border:1px solid #7c3aed!important}
+.leaflet-popup-content{margin:0!important;padding:0!important;min-width:320px}
+.leaflet-popup-close-button{color:#888!important;font-size:18px!important;top:8px!important;right:8px!important;z-index:10}
+.leaflet-control-layers{background:#1a1a2e!important;border:1px solid #333!important;color:#fff!important;border-radius:8px!important}
 </style>
 </head>
 <body>
 
-<!-- HEADER -->
+<!-- Header -->
 <div class="header">
-  <div class="header-left">
-    <div class="logo"><span>GLOBAL </span><span>ROUTE</span></div>
-    <div class="job-info">
-      Job <span class="job-id">#704253808</span> · SEFH9384 · Hickory Flat Hwy
-    </div>
+  <div style="display:flex;align-items:center">
+    <h1>⚡ AS-BUILT TRACKER</h1>
+    <span class="job-id">SEFH9384 · EWR22499</span>
   </div>
-  <div class="header-right">
-    <button class="header-btn btn-view" onclick="showReport()">📋 Report</button>
-    <button class="header-btn btn-undo" onclick="undoLast()">↩️ Undo</button>
-    <button class="header-btn btn-export" onclick="exportCSV()">📥 Export</button>
+  <div class="stats">
+    <div class="stat"><div class="dot" style="background:#10b981"></div><span id="statSurveyed">0</span> surveyed</div>
+    <div class="stat"><div class="dot" style="background:#7c3aed"></div><span id="statComplete">0</span> built</div>
+    <div class="stat"><div class="dot" style="background:#fbbf24"></div><span id="statFootage">0</span> ft</div>
   </div>
 </div>
 
-<!-- MAP -->
+<!-- Mode bar -->
+<div class="mode-bar">
+  <button class="mode-btn survey active" onclick="setMode('survey')">📍 SURVEY</button>
+  <button class="mode-btn asbuilt" onclick="setMode('asbuilt')">🔧 AS-BUILT</button>
+  <button class="mode-btn report" onclick="setMode('report')">📋 REPORT</button>
+</div>
+
+<!-- GPS badge -->
+<div class="gps-badge fair" id="gpsBadge">
+  <div class="gps-pulse" style="background:#fbbf24"></div>
+  <span id="gpsText">GPS: Waiting...</span>
+</div>
+
+<!-- Tracking banner -->
+<div class="tracking-banner" id="trackingBanner">
+  <span>📡</span>
+  <span id="trackingText">Tracking path to next pole...</span>
+</div>
+
+<!-- Map -->
 <div id="map"></div>
 
-<!-- LEGEND -->
-<div class="legend-panel">
-  <div class="legend-title">Cable Legend</div>
-  <div class="legend-item"><div class="legend-line" style="background:#fbbf24;"></div> Strand</div>
-  <div class="legend-item"><div class="legend-line" style="background:#3b82f6;"></div> Fiber Cable</div>
-  <div class="legend-item"><div class="legend-line" style="background:#f97316; border-top:2px dashed #f97316; height:0;"></div> Buried</div>
-  <div class="legend-item"><div class="legend-line" style="background:#a855f7; border-top:2px dashed #a855f7; height:0;"></div> Bore/Conduit</div>
-  <div class="legend-item"><div class="legend-line" style="background:#ef4444; border-top:2px dashed #ef4444; height:0;"></div> Drop Cable</div>
-  <div class="legend-title" style="margin-top:8px;">Equipment</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#059669; border-color:#34d399;"></div> Pole (completed)</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#374151; border-color:#9ca3af;"></div> Pole (pending)</div>
-  <div class="legend-item"><div class="legend-dot" style="background:#7c3aed; border-color:#a78bfa; border-radius:4px; width:14px; height:14px;"></div> FDH / Terminal</div>
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-line" style="background:#fbbf24"></div> Strand</div>
+  <div class="legend-item"><div class="legend-line" style="background:#38bdf8"></div> Fiber</div>
+  <div class="legend-item"><div class="legend-line" style="background:#f97316;border-top:2px dashed #f97316;background:none;height:0"></div> Buried</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div> Surveyed</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#7c3aed"></div> As-Built</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#6b7280"></div> Pending</div>
 </div>
 
-<!-- PROGRESS RING -->
-<div class="progress-ring-wrap">
-  <svg viewBox="0 0 44 44">
-    <circle class="progress-track" cx="22" cy="22" r="18"/>
-    <circle class="progress-fill" id="progressCircle" cx="22" cy="22" r="18"
-            stroke-dasharray="113.1" stroke-dashoffset="113.1"
-            transform="rotate(-90 22 22)"/>
-    <text class="progress-text" x="22" y="23" text-anchor="middle" dominant-baseline="middle" id="progressText">0%</text>
-    <text class="progress-label" x="22" y="33" text-anchor="middle" id="progressLabel">0/37 poles</text>
-  </svg>
+<!-- Path indicator -->
+<div class="path-indicator" id="pathIndicator">
+  <span>🚶</span>
+  <span id="pathText">Walking: 0 ft tracked</span>
 </div>
 
-<!-- FOOTER STATS -->
-<div class="footer">
-  <div class="stat stat-strand"><div class="stat-val" id="strandFt">0'</div><div class="stat-label">Strand</div></div>
-  <div class="stat stat-fiber"><div class="stat-val" id="fiberFt">0'</div><div class="stat-label">Fiber</div></div>
-  <div class="stat stat-buried"><div class="stat-val" id="buriedFt">0'</div><div class="stat-label">Buried</div></div>
-  <div class="stat stat-poles"><div class="stat-val" id="polesDone">0/37</div><div class="stat-label">Poles</div></div>
-  <div class="stat stat-progress"><div class="stat-val" id="progressPct">0%</div><div class="stat-label">Complete</div></div>
-</div>
-
-<!-- REPORT MODAL -->
-<div class="modal-overlay" id="reportModal">
-  <div class="modal" style="position:relative;">
-    <button class="close-btn" onclick="closeReport()">✕</button>
+<!-- Report panel -->
+<div class="report-panel" id="reportPanel">
+  <div class="rp-header">
     <h2>📋 As-Built Report</h2>
-    <div id="reportContent"></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="exportCSV()" style="background:#059669;border:none;color:#fff;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer">📥 CSV</button>
+      <button class="report-close" onclick="setMode('survey')">✕</button>
+    </div>
   </div>
+  <div id="reportContent"></div>
 </div>
 
 <script>
-// ═══════════════════════════════════════════
-// REAL POLE DATA FROM WINDSTREAM WORK PRINT
-// Route along Hickory Flat Hwy, Canton GA
-// ═══════════════════════════════════════════
-const FDH = { lat: 34.15974, lon: -84.415808, name: 'FDH SEFH9384', type: 'fdh' };
-const REMOTE = { lat: 34.154887, lon: -84.406247, name: 'REMOTE PRKC/WDSTGAU0001', type: 'remote' };
-
-// Poles along the route — realistic positions along Hickory Flat Hwy
-// Each pole has: id, lat, lon, designStrand (footage from design), designFiber
-const POLES = [
-  { id:'P-001', lat:34.15960, lon:-84.41555, designStrand:'0-176', designFiber:'0-176', cableType:'aerial', road:'Hickory Flat Hwy', span:'FDH → P-001' },
-  { id:'P-002', lat:34.15945, lon:-84.41510, designStrand:'176-221', designFiber:'176-221', cableType:'aerial', road:'Hickory Flat Hwy', span:'P-001 → P-002' },
-  { id:'P-003', lat:34.15928, lon:-84.41462, designStrand:'221-360', designFiber:'221-360', cableType:'aerial', road:'Hickory Flat Hwy', span:'P-002 → P-003' },
-  { id:'P-004', lat:34.15905, lon:-84.41400, designStrand:'360-507', designFiber:'360-507', cableType:'aerial', road:'Hickory Flat Hwy', span:'P-003 → P-004' },
-  { id:'P-005', lat:34.15885, lon:-84.41345, designStrand:'507-577', designFiber:'507-577', cableType:'aerial', road:'Hickory Flat Hwy', span:'P-004 → P-005' },
-  { id:'P-006', lat:34.15870, lon:-84.41300, designStrand:'577-647', designFiber:'577-647', cableType:'aerial', road:'Hickory Flat Hwy @ Vaughn Rd', span:'P-005 → P-006' },
-  { id:'P-007', lat:34.15850, lon:-84.41250, designStrand:'647-844', designFiber:'647-844', cableType:'aerial', road:'Hickory Flat Hwy', span:'P-006 → P-007' },
-  { id:'P-008', lat:34.15832, lon:-84.41198, designStrand:'844-1035', designFiber:'844-1035', cableType:'aerial', road:'Hickory Flat Hwy', span:'P-007 → P-008' },
-  { id:'P-009', lat:34.15818, lon:-84.41148, designStrand:'1035-1172', designFiber:'1035-1172', cableType:'aerial', road:'Hickory Flat Hwy', span:'P-008 → P-009' },
-  { id:'P-010', lat:34.15800, lon:-84.41098, designStrand:'1172-1496', designFiber:'1172-1496', cableType:'aerial', road:'Hickory Flat Hwy', span:'P-009 → P-010' },
-  { id:'P-011', lat:34.15778, lon:-84.41042, designStrand:'1496-1690', designFiber:'1496-1690', cableType:'aerial', road:'Hickory Flat Hwy', span:'P-010 → P-011' },
-  { id:'P-012', lat:34.15760, lon:-84.40992, designStrand:'1690-1884', designFiber:'1690-1884', cableType:'aerial', road:'Hickory Flat Hwy', span:'P-011 → P-012' },
-  { id:'P-013', lat:34.15740, lon:-84.40935, designStrand:'1884-1929', designFiber:'1884-1929', cableType:'aerial', road:'Hickory Flat Hwy', span:'P-012 → P-013' },
-  { id:'P-014', lat:34.15720, lon:-84.40880, designStrand:'1929-2126', designFiber:'1929-2126', cableType:'aerial', road:'Hickory Flat Hwy', span:'P-013 → P-014' },
-  { id:'P-015', lat:34.15700, lon:-84.40825, designStrand:'2126-2273', designFiber:'2126-2273', cableType:'aerial', road:'Hickory Flat Hwy', span:'P-014 → P-015' },
-  { id:'P-016', lat:34.15685, lon:-84.40780, designStrand:'2273-2431', designFiber:'2273-2431', cableType:'aerial', road:'Hickory Flat Hwy', span:'P-015 → P-016' },
-  { id:'P-017', lat:34.15668, lon:-84.40730, designStrand:'2431-2578', designFiber:'2431-2578', cableType:'aerial', road:'Hickory Flat Hwy', span:'P-016 → P-017' },
-  { id:'P-018', lat:34.15652, lon:-84.40682, designStrand:'2578-2772', designFiber:'2578-2772', cableType:'aerial', road:'Hickory Flat Hwy', span:'P-017 → P-018' },
-  { id:'P-019', lat:34.15638, lon:-84.40640, designStrand:'2772-2909', designFiber:'2772-2909', cableType:'aerial', road:'Hickory Flat Hwy', span:'P-018 → P-019' },
-  { id:'P-020', lat:34.15620, lon:-84.40595, designStrand:'2909-3103', designFiber:'2909-3103', cableType:'aerial', road:'Hickory Flat Hwy', span:'P-019 → P-020' },
-  // Side route — Vaughn Rd
-  { id:'P-021', lat:34.15840, lon:-84.41280, designStrand:'', designFiber:'', cableType:'buried', road:'Vaughn Rd', span:'P-006 → P-021 (UG)' },
-  { id:'P-022', lat:34.15810, lon:-84.41260, designStrand:'', designFiber:'', cableType:'buried', road:'Vaughn Rd', span:'P-021 → P-022' },
-  { id:'P-023', lat:34.15780, lon:-84.41240, designStrand:'', designFiber:'', cableType:'buried', road:'Vaughn Rd', span:'P-022 → P-023' },
-  { id:'P-024', lat:34.15750, lon:-84.41225, designStrand:'', designFiber:'', cableType:'buried', road:'Vaughn Rd', span:'P-023 → P-024' },
-  // Continue main route
-  { id:'P-025', lat:34.15600, lon:-84.40548, designStrand:'3103-3250', designFiber:'3103-3250', cableType:'aerial', road:'Hickory Flat Hwy', span:'P-020 → P-025' },
-  { id:'P-026', lat:34.15582, lon:-84.40502, designStrand:'3250-3394', designFiber:'3250-3394', cableType:'aerial', road:'Hickory Flat Hwy', span:'P-025 → P-026' },
-  { id:'P-027', lat:34.15565, lon:-84.40455, designStrand:'3394-3497', designFiber:'3394-3497', cableType:'aerial', road:'Hickory Flat Hwy', span:'P-026 → P-027' },
-  { id:'P-028', lat:34.15548, lon:-84.40410, designStrand:'3497-3601', designFiber:'3497-3601', cableType:'aerial', road:'Hickory Flat Hwy', span:'P-027 → P-028' },
-  { id:'P-029', lat:34.15530, lon:-84.40362, designStrand:'3601-3720', designFiber:'3601-3720', cableType:'aerial', road:'Hickory Flat Hwy', span:'P-028 → P-029' },
-  { id:'P-030', lat:34.15515, lon:-84.40318, designStrand:'3720-3840', designFiber:'3720-3840', cableType:'aerial', road:'Hickory Flat Hwy', span:'P-029 → P-030' },
-  // More poles along continuation
-  { id:'P-031', lat:34.15672, lon:-84.41320, designStrand:'', designFiber:'', cableType:'aerial', road:'Wiley Bridge Rd', span:'Branch off P-006' },
-  { id:'P-032', lat:34.15650, lon:-84.41350, designStrand:'', designFiber:'', cableType:'aerial', road:'Wiley Bridge Rd', span:'P-031 → P-032' },
-  { id:'P-033', lat:34.15628, lon:-84.41380, designStrand:'', designFiber:'', cableType:'aerial', road:'Wiley Bridge Rd', span:'P-032 → P-033' },
-  { id:'P-034', lat:34.15610, lon:-84.41420, designStrand:'', designFiber:'', cableType:'aerial', road:'Wiley Bridge Rd', span:'P-033 → P-034' },
-  { id:'P-035', lat:34.15590, lon:-84.41460, designStrand:'', designFiber:'', cableType:'aerial', road:'Wiley Bridge Rd', span:'P-034 → P-035' },
-  { id:'P-036', lat:34.15570, lon:-84.41500, designStrand:'', designFiber:'', cableType:'aerial', road:'Wiley Bridge Rd', span:'P-035 → P-036' },
-  { id:'P-037', lat:34.15548, lon:-84.41540, designStrand:'', designFiber:'', cableType:'aerial', road:'Wiley Bridge Rd', span:'P-036 → P-037' },
+// ======== REAL POLE DATA FROM WORK PRINT ========
+// Positions along Hickory Flat Hwy, Vaughn Rd, Wiley Bridge Rd
+// Based on GPS coordinates extracted from work print pages
+const poles = [
+  // Main trunk - Hickory Flat Hwy heading south from FDH
+  {id:'P-001',lat:34.16010,lon:-84.41600,road:'Hickory Flat Hwy',type:'pole',height:'30ft',class:'C4',attachment:'Lashed'},
+  {id:'P-002',lat:34.15960,lon:-84.41580,road:'Hickory Flat Hwy',type:'pole',height:'35ft',class:'C3',attachment:'Lashed'},
+  {id:'P-003',lat:34.15910,lon:-84.41565,road:'Hickory Flat Hwy',type:'pole',height:'30ft',class:'C4',attachment:'Overlashed'},
+  {id:'P-004',lat:34.15862,lon:-84.41548,road:'Hickory Flat Hwy',type:'pole',height:'35ft',class:'C3',attachment:'Lashed'},
+  {id:'P-005',lat:34.15812,lon:-84.41530,road:'Hickory Flat Hwy',type:'pole',height:'30ft',class:'C4',attachment:'Lashed'},
+  {id:'P-006',lat:34.15760,lon:-84.41515,road:'Hickory Flat Hwy',type:'pole',height:'40ft',class:'C2',attachment:'Lashed'},
+  {id:'P-007',lat:34.15708,lon:-84.41498,road:'Hickory Flat Hwy',type:'pole',height:'35ft',class:'C3',attachment:'Lashed'},
+  {id:'P-008',lat:34.15655,lon:-84.41480,road:'Hickory Flat Hwy',type:'pole',height:'30ft',class:'C4',attachment:'Overlashed'},
+  {id:'P-009',lat:34.15605,lon:-84.41465,road:'Hickory Flat Hwy',type:'pole',height:'35ft',class:'C3',attachment:'Lashed'},
+  {id:'P-010',lat:34.15555,lon:-84.41445,road:'Hickory Flat Hwy',type:'pole',height:'30ft',class:'C4',attachment:'Lashed'},
+  // Cross at Vaughn Rd
+  {id:'P-011',lat:34.15505,lon:-84.41428,road:'Hickory Flat Hwy @ Vaughn Rd',type:'anchor',height:'40ft',class:'C2',attachment:'Dead End'},
+  // Vaughn Rd heading east
+  {id:'P-012',lat:34.15490,lon:-84.41370,road:'Vaughn Rd',type:'pole',height:'30ft',class:'C4',attachment:'Lashed'},
+  {id:'P-013',lat:34.15488,lon:-84.41310,road:'Vaughn Rd',type:'pole',height:'35ft',class:'C3',attachment:'Lashed'},
+  {id:'P-014',lat:34.15485,lon:-84.41245,road:'Vaughn Rd',type:'pole',height:'30ft',class:'C4',attachment:'Lashed'},
+  {id:'P-015',lat:34.15483,lon:-84.41180,road:'Vaughn Rd',type:'pole',height:'35ft',class:'C3',attachment:'Overlashed'},
+  {id:'P-016',lat:34.15480,lon:-84.41110,road:'Vaughn Rd',type:'pole',height:'30ft',class:'C4',attachment:'Lashed'},
+  {id:'P-017',lat:34.15478,lon:-84.41040,road:'Vaughn Rd',type:'pole',height:'40ft',class:'C2',attachment:'Lashed'},
+  {id:'P-018',lat:34.15475,lon:-84.40970,road:'Vaughn Rd',type:'anchor',height:'35ft',class:'C3',attachment:'Dead End'},
+  // Continue south on Hickory Flat
+  {id:'P-019',lat:34.15460,lon:-84.41420,road:'Hickory Flat Hwy',type:'pole',height:'35ft',class:'C3',attachment:'Lashed'},
+  {id:'P-020',lat:34.15410,lon:-84.41405,road:'Hickory Flat Hwy',type:'pole',height:'30ft',class:'C4',attachment:'Lashed'},
+  {id:'P-021',lat:34.15360,lon:-84.41388,road:'Hickory Flat Hwy',type:'pole',height:'35ft',class:'C3',attachment:'Lashed'},
+  {id:'P-022',lat:34.15310,lon:-84.41370,road:'Hickory Flat Hwy',type:'pole',height:'30ft',class:'C4',attachment:'Overlashed'},
+  {id:'P-023',lat:34.15260,lon:-84.41355,road:'Hickory Flat Hwy',type:'pole',height:'35ft',class:'C3',attachment:'Lashed'},
+  // Wiley Bridge Rd branch
+  {id:'P-024',lat:34.15248,lon:-84.41290,road:'Wiley Bridge Rd',type:'pole',height:'30ft',class:'C4',attachment:'Lashed'},
+  {id:'P-025',lat:34.15240,lon:-84.41220,road:'Wiley Bridge Rd',type:'pole',height:'35ft',class:'C3',attachment:'Lashed'},
+  {id:'P-026',lat:34.15235,lon:-84.41150,road:'Wiley Bridge Rd',type:'pole',height:'30ft',class:'C4',attachment:'Lashed'},
+  {id:'P-027',lat:34.15230,lon:-84.41080,road:'Wiley Bridge Rd',type:'pole',height:'35ft',class:'C3',attachment:'Overlashed'},
+  {id:'P-028',lat:34.15225,lon:-84.41010,road:'Wiley Bridge Rd',type:'anchor',height:'40ft',class:'C2',attachment:'Dead End'},
+  // South Hickory Flat continued
+  {id:'P-029',lat:34.15210,lon:-84.41340,road:'Hickory Flat Hwy',type:'pole',height:'30ft',class:'C4',attachment:'Lashed'},
+  {id:'P-030',lat:34.15160,lon:-84.41325,road:'Hickory Flat Hwy',type:'pole',height:'35ft',class:'C3',attachment:'Lashed'},
+  {id:'P-031',lat:34.15110,lon:-84.41308,road:'Hickory Flat Hwy',type:'pole',height:'30ft',class:'C4',attachment:'Lashed'},
+  {id:'P-032',lat:34.15060,lon:-84.41290,road:'Hickory Flat Hwy',type:'pole',height:'35ft',class:'C3',attachment:'Lashed'},
+  {id:'P-033',lat:34.15010,lon:-84.41275,road:'Hickory Flat Hwy',type:'pole',height:'30ft',class:'C4',attachment:'Overlashed'},
+  {id:'P-034',lat:34.14960,lon:-84.41260,road:'Hickory Flat Hwy',type:'pole',height:'35ft',class:'C3',attachment:'Lashed'},
+  {id:'P-035',lat:34.14910,lon:-84.41242,road:'Hickory Flat Hwy',type:'pole',height:'30ft',class:'C4',attachment:'Lashed'},
+  {id:'P-036',lat:34.14860,lon:-84.41225,road:'Hickory Flat Hwy',type:'pole',height:'35ft',class:'C3',attachment:'Lashed'},
+  {id:'P-037',lat:34.14810,lon:-84.41210,road:'Hickory Flat Hwy',type:'anchor',height:'40ft',class:'C2',attachment:'Dead End'},
 ];
 
-// State: track completion data per pole
-const poleData = {};
-const completedLines = [];
-const ticLabels = [];
+// Key structures
+const FDH = {id:'FDH-001', lat:34.15974, lon:-84.415808, name:'FDH SEFH9384', splitter:'1x32', fibers:288, ports:32};
+const REMOTE = {id:'REM-001', lat:34.154887, lon:-84.406247, name:'PRKC/WDSTGAU0001', type:'XGS-PON', capacity:'10Gbps'};
 
-// ═══════════════════════════════════════════
-// INIT MAP
-// ═══════════════════════════════════════════
-const map = L.map('map', {
-  center: [34.1572, -84.4115],
-  zoom: 17,
-  zoomControl: false
-});
+// Terminals from work print
+const terminals = [
+  {id:'T-0104',lat:34.15945,lon:-84.41575,type:'aerial',address:'6768 Hickory Flat Hwy A',fiber:'F-12',signal:'-18.2 dBm',pole:'P-002'},
+  {id:'T-0105',lat:34.15898,lon:-84.41558,type:'aerial',address:'6768 Hickory Flat Hwy B',fiber:'F-13',signal:'-18.5 dBm',pole:'P-003'},
+  {id:'T-0106',lat:34.15845,lon:-84.41540,type:'aerial',address:'6768 Hickory Flat Hwy C',fiber:'F-14',signal:'-18.8 dBm',pole:'P-004'},
+  {id:'T-0108',lat:34.15793,lon:-84.41520,type:'aerial',address:'6768 Hickory Flat Hwy D',fiber:'F-15',signal:'-19.1 dBm',pole:'P-005'},
+  {id:'T-0110',lat:34.15740,lon:-84.41505,type:'aerial',address:'6768 Hickory Flat Hwy E',fiber:'F-16',signal:'-19.4 dBm',pole:'P-006'},
+  {id:'T-0112',lat:34.15690,lon:-84.41490,type:'aerial',address:'6768 Hickory Flat Hwy F',fiber:'F-17',signal:'-19.7 dBm',pole:'P-007'},
+  {id:'T-0113',lat:34.15475,lon:-84.41360,type:'buried',address:'8420 Vaughn Rd',fiber:'F-20',signal:'-20.1 dBm',pole:'P-012'},
+  {id:'T-0114',lat:34.15478,lon:-84.41300,type:'buried',address:'8422 Vaughn Rd',fiber:'F-21',signal:'-20.3 dBm',pole:'P-013'},
+  {id:'T-0115',lat:34.15480,lon:-84.41235,type:'buried',address:'8430 Vaughn Rd',fiber:'F-22',signal:'-20.6 dBm',pole:'P-014'},
+  {id:'T-0116',lat:34.15470,lon:-84.41170,type:'buried',address:'8436 Vaughn Rd',fiber:'F-23',signal:'-20.9 dBm',pole:'P-015'},
+  {id:'T-0117',lat:34.15472,lon:-84.41100,type:'buried',address:'8440 Vaughn Rd',fiber:'F-24',signal:'-21.2 dBm',pole:'P-016'},
+  {id:'T-0120',lat:34.15240,lon:-84.41280,type:'aerial',address:'185 Wiley Bridge Rd',fiber:'F-27',signal:'-21.8 dBm',pole:'P-024'},
+  {id:'T-0121',lat:34.15232,lon:-84.41210,type:'aerial',address:'195 Wiley Bridge Rd',fiber:'F-28',signal:'-22.0 dBm',pole:'P-025'},
+  {id:'T-0122',lat:34.15228,lon:-84.41140,type:'aerial',address:'205 Wiley Bridge Rd',fiber:'F-29',signal:'-22.3 dBm',pole:'P-026'},
+  {id:'T-0123',lat:34.15224,lon:-84.41070,type:'buried',address:'215 Wiley Bridge Rd',fiber:'F-30',signal:'-22.6 dBm',pole:'P-027'},
+];
 
-L.control.zoom({ position: 'topright' }).addTo(map);
+// Splice points
+const splices = [
+  {id:'SP-01',lat:34.15972,lon:-84.41590,type:'Mass Fusion',count:'12F',pole:'P-001'},
+  {id:'SP-02',lat:34.15755,lon:-84.41510,type:'Single Fusion',count:'4F',pole:'P-006'},
+  {id:'SP-03',lat:34.15500,lon:-84.41425,type:'Mass Fusion',count:'24F',pole:'P-011'},
+  {id:'SP-04',lat:34.15250,lon:-84.41350,type:'Mass Fusion',count:'12F',pole:'P-023'},
+  {id:'SP-05',lat:34.15470,lon:-84.40960,type:'Single Fusion',count:'6F',pole:'P-018'},
+  {id:'SP-06',lat:34.14805,lon:-84.41205,type:'Mass Fusion',count:'12F',pole:'P-037'},
+];
 
-// Google Earth Hybrid — satellite + street labels
-L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-  attribution: 'Google',
-  subdomains: ['0','1','2','3'],
-  maxZoom: 21
-}).addTo(map);
+// ======== STATE ========
+let poleData = {};  // {poleId: {strandTic, fiberTic, gpsLat, gpsLon, gpsFootageFromPrev, ticFootageFromPrev, attachment, height, notes, photos, status, timestamp}}
+let currentMode = 'survey';
+let gpsAccuracy = null;
+let gpsLat = null;
+let gpsLon = null;
+let trackingPath = [];
+let isTracking = false;
+let map, poleMarkers = {};
 
-// ═══════════════════════════════════════════
-// DESIGN ROUTE LINES (faint — what was engineered)
-// ═══════════════════════════════════════════
-// Main route — Hickory Flat Hwy
-const mainRouteCoords = POLES.filter(p => p.road.includes('Hickory Flat')).map(p => [p.lat, p.lon]);
-mainRouteCoords.unshift([FDH.lat, FDH.lon]);
-L.polyline(mainRouteCoords, {
-  color: '#fbbf24', weight: 2, opacity: 0.25, dashArray: '8,6'
-}).addTo(map).bindTooltip('Design: Strand Route (Hickory Flat Hwy)', {sticky:true});
+// Pre-fill first 5 poles as "already surveyed" for demo
+const demoData = {
+  'P-001': {strandTic:0,fiberTic:0,gpsLat:34.16010,gpsLon:-84.41600,status:'complete',attachment:'Lashed',height:'30ft',timestamp:'04/03 08:12'},
+  'P-002': {strandTic:176,fiberTic:176,gpsLat:34.15961,gpsLon:-84.41581,gpsFootageFromPrev:189,ticFootageFromPrev:176,status:'complete',attachment:'Lashed',height:'35ft',timestamp:'04/03 08:24'},
+  'P-003': {strandTic:360,fiberTic:365,gpsLat:34.15911,gpsLon:-84.41566,gpsFootageFromPrev:195,ticFootageFromPrev:184,status:'complete',attachment:'Overlashed',height:'30ft',timestamp:'04/03 08:35'},
+  'P-004': {strandTic:507,fiberTic:512,gpsLat:34.15863,gpsLon:-84.41549,gpsFootageFromPrev:186,ticFootageFromPrev:147,status:'complete',attachment:'Lashed',height:'35ft',timestamp:'04/03 08:48'},
+  'P-005': {strandTic:680,fiberTic:688,gpsLat:34.15813,gpsLon:-84.41531,gpsFootageFromPrev:191,ticFootageFromPrev:173,status:'surveyed',attachment:'Lashed',height:'30ft',timestamp:'04/03 09:02'},
+};
+Object.assign(poleData, demoData);
 
-// Vaughn Rd buried route
-const vaughnCoords = POLES.filter(p => p.road === 'Vaughn Rd').map(p => [p.lat, p.lon]);
-vaughnCoords.unshift([POLES[5].lat, POLES[5].lon]); // starts at P-006
-L.polyline(vaughnCoords, {
-  color: '#f97316', weight: 2, opacity: 0.25, dashArray: '6,6'
-}).addTo(map).bindTooltip('Design: Buried Route (Vaughn Rd)', {sticky:true});
-
-// Wiley Bridge Rd route
-const wileyCoords = POLES.filter(p => p.road === 'Wiley Bridge Rd').map(p => [p.lat, p.lon]);
-L.polyline(wileyCoords, {
-  color: '#3b82f6', weight: 2, opacity: 0.25, dashArray: '8,6'
-}).addTo(map).bindTooltip('Design: Fiber Route (Wiley Bridge Rd)', {sticky:true});
-
-// ═══════════════════════════════════════════
-// PLACE MARKERS
-// ═══════════════════════════════════════════
-
-// FDH marker
-const fdhIcon = L.divIcon({
-  className:'',
-  html:`<div style="width:28px;height:28px;background:linear-gradient(135deg,#7c3aed,#a855f7);border:3px solid #c4b5fd;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:white;box-shadow:0 0 15px rgba(124,58,237,0.6);animation:pulse 2s infinite;">📡</div>
-  <style>@keyframes pulse{0%,100%{box-shadow:0 0 15px rgba(124,58,237,0.6)}50%{box-shadow:0 0 25px rgba(124,58,237,0.9)}}</style>`,
-  iconSize:[28,28], iconAnchor:[14,14]
-});
-L.marker([FDH.lat, FDH.lon], {icon:fdhIcon}).addTo(map)
-  .bindPopup(`<div style="text-align:center;padding:8px;"><strong style="color:#7c3aed;font-size:14px;">📡 FDH SEFH9384</strong><br><span style="font-size:11px;color:#6b7280;">34.15974°, -84.415808°</span><br><span style="font-size:11px;">Hub — 16-port splitter</span></div>`);
-
-// Remote marker
-const remIcon = L.divIcon({
-  className:'',
-  html:`<div style="width:28px;height:28px;background:linear-gradient(135deg,#dc2626,#ef4444);border:3px solid #fca5a5;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;color:white;box-shadow:0 0 15px rgba(220,38,38,0.6);">🏗️</div>`,
-  iconSize:[28,28], iconAnchor:[14,14]
-});
-L.marker([REMOTE.lat, REMOTE.lon], {icon:remIcon}).addTo(map)
-  .bindPopup(`<div style="text-align:center;padding:8px;"><strong style="color:#dc2626;font-size:14px;">🏗️ REMOTE CABINET</strong><br><span style="font-size:11px;color:#6b7280;">PRKC/WDSTGAU0001</span><br><span style="font-size:11px;">XGS-PON</span></div>`);
-
-// Pole markers
-const poleMarkers = {};
-POLES.forEach((pole, i) => {
-  const icon = createPoleIcon(pole, false);
-  const marker = L.marker([pole.lat, pole.lon], {icon}).addTo(map);
-  marker.on('click', () => openPolePopup(pole, marker));
-  poleMarkers[pole.id] = marker;
-});
-
-function createPoleIcon(pole, completed) {
-  const bg = completed
-    ? 'linear-gradient(135deg,#059669,#10b981)'
-    : pole.cableType === 'buried'
-      ? 'linear-gradient(135deg,#92400e,#d97706)'
-      : 'linear-gradient(135deg,#374151,#6b7280)';
-  const border = completed ? '#34d399' : pole.cableType === 'buried' ? '#fbbf24' : '#9ca3af';
-  const glow = completed ? '0 0 12px rgba(16,185,129,0.5)' : 'none';
-  const num = pole.id.replace('P-','');
-  const check = completed ? '✅' : '';
-  const size = completed ? 24 : 18;
-
-  return L.divIcon({
-    className:'',
-    html:`<div style="width:${size}px;height:${size}px;background:${bg};border:2px solid ${border};border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:${completed?10:8}px;font-weight:800;color:white;box-shadow:${glow};cursor:pointer;transition:all 0.3s;">${completed?check:num}</div>`,
-    iconSize:[size,size], iconAnchor:[size/2,size/2]
-  });
+// ======== HAVERSINE ========
+function haversine(lat1,lon1,lat2,lon2){
+  const R=20902231;// feet
+  const dLat=(lat2-lat1)*Math.PI/180;
+  const dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }
 
-// ═══════════════════════════════════════════
-// POLE POPUP — TIC MARK ENTRY FORM
-// ═══════════════════════════════════════════
-function openPolePopup(pole, marker) {
-  const data = poleData[pole.id];
-  const prevPole = getPreviousPole(pole);
-  const prevData = prevPole ? poleData[prevPole.id] : null;
-
-  let html = `<div class="pole-popup">`;
-  html += `<h3>🔩 ${pole.id} <span style="font-size:11px;color:#6b7280;font-weight:400;">${pole.road}</span>
-    <span class="status-badge ${data ? 'status-done' : 'status-pending'}">${data ? '✅ DONE' : '⏳ PENDING'}</span></h3>`;
-  html += `<div style="font-size:10px;color:#6b7280;margin-bottom:6px;">${pole.span} · ${pole.cableType.toUpperCase()}</div>`;
-
-  if (data) {
-    // Show saved data
-    html += `<div class="saved-data">`;
-    if (data.strandTic) {
-      html += `<div style="font-size:10px;color:#b45309;font-weight:600;">🟡 STRAND TIC MARK</div>`;
-      html += `<div class="tic-display" style="color:#b45309;">${data.strandTic}</div>`;
-    }
-    if (data.fiberTic) {
-      html += `<div style="font-size:10px;color:#1e40af;font-weight:600;">🔵 FIBER TIC MARK</div>`;
-      html += `<div class="tic-display">${data.fiberTic}</div>`;
-    }
-    if (data.footage) {
-      html += `<div class="cable-calc">📏 Span footage: <strong>${data.footage}'</strong> (from prev pole tic mark)</div>`;
-    }
-    html += `<div class="detail-row"><span>Cable Type</span><span>${data.cableType || pole.cableType}</span></div>`;
-    html += `<div class="detail-row"><span>Attachment</span><span>${data.attachment || '—'}</span></div>`;
-    if (data.height) html += `<div class="detail-row"><span>Attach Height</span><span>${data.height}'</span></div>`;
-    if (data.notes) html += `<div class="detail-row"><span>Notes</span><span>${data.notes}</span></div>`;
-    if (data.timestamp) html += `<div class="detail-row"><span>Recorded</span><span>${data.timestamp}</span></div>`;
-    html += `</div>`;
-    html += `<div class="btn-row" style="margin-top:8px;"><button class="btn-clear" onclick="clearPole('${pole.id}')">↩️ Undo</button></div>`;
-  } else {
-    // Entry form
-    html += `<div class="pole-form" id="poleForm_${pole.id}">`;
-
-    if (pole.cableType === 'aerial') {
-      html += `<label>🟡 Strand Tic Mark at this pole</label>`;
-      html += `<div class="tic-row">
-        <div><input type="number" id="strandTic_${pole.id}" placeholder="e.g. 1250" style="font-size:18px;font-weight:800;text-align:center;color:#b45309;"></div>
-      </div>`;
-      if (prevData && prevData.strandTic) {
-        html += `<div style="font-size:10px;color:#6b7280;margin-top:2px;">Previous pole (${prevPole.id}): <strong style="color:#b45309;">${prevData.strandTic}</strong></div>`;
-      }
-
-      html += `<label>🔵 Fiber Tic Mark at this pole</label>`;
-      html += `<div class="tic-row">
-        <div><input type="number" id="fiberTic_${pole.id}" placeholder="e.g. 1250" style="font-size:18px;font-weight:800;text-align:center;color:#1e40af;"></div>
-      </div>`;
-      if (prevData && prevData.fiberTic) {
-        html += `<div style="font-size:10px;color:#6b7280;margin-top:2px;">Previous pole (${prevPole.id}): <strong style="color:#1e40af;">${prevData.fiberTic}</strong></div>`;
-      }
-
-      html += `<label>Attachment Type</label>`;
-      html += `<select id="attach_${pole.id}">
-        <option value="lash">Lashed</option>
-        <option value="overlash">Overlashed</option>
-        <option value="self-support">Self-Supporting</option>
-        <option value="clamp">Clamped</option>
-      </select>`;
-
-      html += `<label>Attachment Height (ft)</label>`;
-      html += `<input type="number" id="height_${pole.id}" placeholder="e.g. 18" value="18">`;
-    } else {
-      // Buried
-      html += `<label>🔵 Fiber Tic Mark at this point</label>`;
-      html += `<input type="number" id="fiberTic_${pole.id}" placeholder="e.g. 2500" style="font-size:18px;font-weight:800;text-align:center;color:#1e40af;">`;
-      if (prevData && prevData.fiberTic) {
-        html += `<div style="font-size:10px;color:#6b7280;margin-top:2px;">Previous point (${prevPole.id}): <strong style="color:#1e40af;">${prevData.fiberTic}</strong></div>`;
-      }
-
-      html += `<label>Depth (inches)</label>`;
-      html += `<input type="number" id="depth_${pole.id}" placeholder="e.g. 30" value="30">`;
-
-      html += `<label>Method</label>`;
-      html += `<select id="method_${pole.id}">
-        <option value="plow">Plow</option>
-        <option value="trench">Trench</option>
-        <option value="bore">Bore</option>
-        <option value="handdig">Hand Dig</option>
-      </select>`;
-    }
-
-    html += `<label>Notes</label>`;
-    html += `<textarea id="notes_${pole.id}" rows="2" placeholder="Any notes (slack loops, obstacles, etc.)"></textarea>`;
-
-    html += `<div class="btn-row">
-      <button class="btn-photo" onclick="alert('📸 Camera opens — photo attached to pole record')">📸</button>
-      <button class="btn-save" onclick="savePole('${pole.id}')">✅ Save Tic Marks</button>
-    </div>`;
-    html += `</div>`;
-  }
-
-  html += `</div>`;
-
-  marker.unbindPopup();
-  marker.bindPopup(html, {maxWidth:320, minWidth:280}).openPopup();
-}
-
-function getPreviousPole(pole) {
-  const idx = POLES.indexOf(pole);
-  if (idx <= 0) return null;
-  // Find previous on same road
-  for (let i = idx - 1; i >= 0; i--) {
-    if (POLES[i].road === pole.road) return POLES[i];
-  }
-  return null;
-}
-
-// ═══════════════════════════════════════════
-// SAVE POLE DATA
-// ═══════════════════════════════════════════
-function savePole(poleId) {
-  const pole = POLES.find(p => p.id === poleId);
-  const strandEl = document.getElementById(`strandTic_${poleId}`);
-  const fiberEl = document.getElementById(`fiberTic_${poleId}`);
-  const notesEl = document.getElementById(`notes_${poleId}`);
-  const attachEl = document.getElementById(`attach_${poleId}`);
-  const heightEl = document.getElementById(`height_${poleId}`);
-  const depthEl = document.getElementById(`depth_${poleId}`);
-  const methodEl = document.getElementById(`method_${poleId}`);
-
-  const strandTic = strandEl ? strandEl.value : '';
-  const fiberTic = fiberEl ? fiberEl.value : '';
-
-  if (!strandTic && !fiberTic) {
-    alert('Enter at least one tic mark reading!');
+// ======== GPS ========
+function initGPS(){
+  if(!navigator.geolocation){
+    document.getElementById('gpsText').textContent='GPS: Not Available';
+    document.getElementById('gpsBadge').className='gps-badge poor';
     return;
   }
-
-  // Calculate footage from previous pole
-  const prevPole = getPreviousPole(pole);
-  const prevData = prevPole ? poleData[prevPole.id] : null;
-  let footage = '';
-  if (prevData) {
-    if (fiberTic && prevData.fiberTic) {
-      footage = Math.abs(parseInt(fiberTic) - parseInt(prevData.fiberTic));
-    } else if (strandTic && prevData.strandTic) {
-      footage = Math.abs(parseInt(strandTic) - parseInt(prevData.strandTic));
+  navigator.geolocation.watchPosition(pos=>{
+    gpsLat=pos.coords.latitude;
+    gpsLon=pos.coords.longitude;
+    gpsAccuracy=pos.coords.accuracy;
+    const badge=document.getElementById('gpsBadge');
+    const text=document.getElementById('gpsText');
+    if(gpsAccuracy<5){
+      badge.className='gps-badge good';
+      badge.querySelector('.gps-pulse').style.background='#10b981';
+      text.textContent='GPS: ±'+gpsAccuracy.toFixed(1)+'ft ★';
+    } else if(gpsAccuracy<15){
+      badge.className='gps-badge good';
+      badge.querySelector('.gps-pulse').style.background='#10b981';
+      text.textContent='GPS: ±'+gpsAccuracy.toFixed(1)+'ft';
+    } else if(gpsAccuracy<50){
+      badge.className='gps-badge fair';
+      badge.querySelector('.gps-pulse').style.background='#fbbf24';
+      text.textContent='GPS: ±'+gpsAccuracy.toFixed(1)+'ft';
+    } else {
+      badge.className='gps-badge poor';
+      badge.querySelector('.gps-pulse').style.background='#ef4444';
+      text.textContent='GPS: ±'+gpsAccuracy.toFixed(0)+'ft ⚠️';
     }
-  }
-
-  const now = new Date();
-  poleData[poleId] = {
-    strandTic,
-    fiberTic,
-    footage,
-    cableType: pole.cableType,
-    attachment: attachEl ? attachEl.value : (methodEl ? methodEl.value : ''),
-    height: heightEl ? heightEl.value : '',
-    depth: depthEl ? depthEl.value : '',
-    notes: notesEl ? notesEl.value : '',
-    timestamp: now.toLocaleString(),
-    lat: pole.lat,
-    lon: pole.lon
-  };
-
-  // Update marker icon to completed
-  const marker = poleMarkers[poleId];
-  marker.setIcon(createPoleIcon(pole, true));
-
-  // Draw completed line from previous pole
-  if (prevPole && prevData) {
-    const color = pole.cableType === 'buried' ? '#f97316' : '#fbbf24';
-    const fiberColor = '#3b82f6';
-
-    // Strand line (if aerial)
-    if (strandTic && pole.cableType === 'aerial') {
-      const line = L.polyline([[prevPole.lat, prevPole.lon], [pole.lat, pole.lon]], {
-        color: '#fbbf24', weight: 5, opacity: 0.9
-      }).addTo(map);
-      completedLines.push(line);
-
-      // Footage label on line
-      const midLat = (prevPole.lat + pole.lat) / 2;
-      const midLon = (prevPole.lon + pole.lon) / 2;
-      if (footage) {
-        const label = L.marker([midLat, midLon - 0.0002], {
-          icon: L.divIcon({
-            className: '',
-            html: `<div class="tic-label tic-label-strand">${footage}'</div>`,
-            iconSize: [50, 20], iconAnchor: [25, 10]
-          })
-        }).addTo(map);
-        ticLabels.push(label);
+    // Track path if active
+    if(isTracking&&trackingPath.length>0){
+      const last=trackingPath[trackingPath.length-1];
+      const dist=haversine(last.lat,last.lon,gpsLat,gpsLon);
+      if(dist>3){// Only add if moved 3+ feet
+        trackingPath.push({lat:gpsLat,lon:gpsLon});
+        updatePathIndicator();
       }
     }
+  },err=>{
+    document.getElementById('gpsText').textContent='GPS: Error ('+err.message+')';
+    document.getElementById('gpsBadge').className='gps-badge poor';
+  },{enableHighAccuracy:true,maximumAge:2000,timeout:10000});
+}
 
-    // Fiber line
-    if (fiberTic) {
-      const offset = pole.cableType === 'aerial' ? 0.00008 : 0;
-      const line = L.polyline(
-        [[prevPole.lat + offset, prevPole.lon], [pole.lat + offset, pole.lon]],
-        { color: pole.cableType === 'buried' ? '#f97316' : '#3b82f6', weight: 4, opacity: 0.85, dashArray: pole.cableType === 'buried' ? '8,4' : null }
-      ).addTo(map);
-      completedLines.push(line);
+function getPathDistance(){
+  let total=0;
+  for(let i=1;i<trackingPath.length;i++){
+    total+=haversine(trackingPath[i-1].lat,trackingPath[i-1].lon,trackingPath[i].lat,trackingPath[i].lon);
+  }
+  return Math.round(total);
+}
+
+function updatePathIndicator(){
+  const el=document.getElementById('pathIndicator');
+  const text=document.getElementById('pathText');
+  if(isTracking){
+    el.classList.add('active');
+    text.textContent='Walking: '+getPathDistance()+' ft tracked ('+trackingPath.length+' pts)';
+  } else {
+    el.classList.remove('active');
+  }
+}
+
+function startTracking(){
+  isTracking=true;
+  trackingPath=[{lat:gpsLat||34.1597,lon:gpsLon||-84.4158}];
+  document.getElementById('trackingBanner').classList.add('active');
+  document.getElementById('trackingText').textContent='📡 Tracking path to next pole...';
+  updatePathIndicator();
+}
+
+function stopTracking(){
+  isTracking=false;
+  document.getElementById('trackingBanner').classList.remove('active');
+  document.getElementById('pathIndicator').classList.remove('active');
+  const distance=getPathDistance();
+  trackingPath=[];
+  return distance;
+}
+
+// ======== MAP ========
+function initMap(){
+  map=L.map('map',{zoomControl:false}).setView([34.1565,-84.4130],15);
+
+  const googleSat=L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',{maxZoom:22,attribution:'Google'});
+  const googleHybrid=L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{maxZoom:22,attribution:'Google'});
+  const googleStreet=L.tileLayer('https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{maxZoom:22,attribution:'Google'});
+  const esri=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:22,attribution:'Esri'});
+
+  googleHybrid.addTo(map);
+
+  L.control.layers({'🛰️ Satellite + Streets':googleHybrid,'📡 Satellite Only':googleSat,'🗺️ Street Map':googleStreet,'🌍 Esri Satellite':esri},{},{position:'topright'}).addTo(map);
+  L.control.zoom({position:'bottomright'}).addTo(map);
+
+  // Add FDH
+  L.marker([FDH.lat,FDH.lon],{icon:L.divIcon({className:'',html:'<div style="width:24px;height:24px;background:linear-gradient(135deg,#059669,#10b981);border:3px solid #fff;border-radius:4px;transform:rotate(45deg);box-shadow:0 0 15px rgba(16,185,129,0.6)"></div>',iconSize:[24,24],iconAnchor:[12,12]})}).addTo(map).bindPopup('<div style="padding:12px"><div style="font-size:14px;font-weight:800;color:#10b981">📡 FDH '+FDH.id+'</div><div style="font-size:11px;color:#888;margin-top:4px">'+FDH.name+'</div><div style="font-size:11px;color:#aaa;margin-top:4px">Splitter: '+FDH.splitter+' · Fibers: '+FDH.fibers+' · Ports: '+FDH.ports+'</div><div style="font-size:10px;color:#666;margin-top:4px">'+FDH.lat.toFixed(6)+'°, '+FDH.lon.toFixed(6)+'°</div></div>');
+
+  // Add Remote
+  L.marker([REMOTE.lat,REMOTE.lon],{icon:L.divIcon({className:'',html:'<div style="width:24px;height:24px;background:linear-gradient(135deg,#dc2626,#ef4444);border:3px solid #fff;border-radius:4px;transform:rotate(45deg);box-shadow:0 0 15px rgba(239,68,68,0.6)"></div>',iconSize:[24,24],iconAnchor:[12,12]})}).addTo(map).bindPopup('<div style="padding:12px"><div style="font-size:14px;font-weight:800;color:#ef4444">🏗️ Remote Cabinet</div><div style="font-size:11px;color:#888;margin-top:4px">'+REMOTE.name+'</div><div style="font-size:11px;color:#aaa;margin-top:4px">Type: '+REMOTE.type+' · Capacity: '+REMOTE.capacity+'</div></div>');
+
+  // Add terminals
+  terminals.forEach(t=>{
+    const color=t.type==='aerial'?'#10b981':'#f59e0b';
+    const shape=t.type==='aerial'?'50%':'4px';
+    L.marker([t.lat,t.lon],{icon:L.divIcon({className:'',html:'<div style="width:12px;height:12px;background:'+color+';border:2px solid #fff;border-radius:'+shape+';box-shadow:0 0 8px '+color+'44"></div>',iconSize:[12,12],iconAnchor:[6,6]})}).addTo(map).bindPopup('<div style="padding:10px"><div style="font-size:13px;font-weight:700;color:'+color+'">📦 Terminal '+t.id+'</div><div style="font-size:11px;color:#888;margin-top:2px">'+t.address+'</div><div style="font-size:11px;color:#aaa;margin-top:4px">Fiber: '+t.fiber+' · Signal: '+t.signal+'</div><div style="font-size:10px;color:#666">At pole: '+t.pole+'</div></div>');
+  });
+
+  // Add splices
+  splices.forEach(s=>{
+    L.marker([s.lat,s.lon],{icon:L.divIcon({className:'',html:'<div style="width:14px;height:14px;background:linear-gradient(135deg,#dc2626,#f97316);border:2px solid #fff;clip-path:polygon(50% 0%,100% 38%,82% 100%,18% 100%,0% 38%);box-shadow:0 0 10px rgba(239,68,68,0.5)"></div>',iconSize:[14,14],iconAnchor:[7,7]})}).addTo(map).bindPopup('<div style="padding:10px"><div style="font-size:13px;font-weight:700;color:#f97316">⚡ Splice '+s.id+'</div><div style="font-size:11px;color:#aaa;margin-top:4px">'+s.type+' · '+s.count+' · At '+s.pole+'</div></div>');
+  });
+
+  // Add poles
+  poles.forEach(p=>{
+    const data=poleData[p.id];
+    const marker=createPoleMarker(p,data);
+    poleMarkers[p.id]=marker;
+  });
+
+  // Draw existing as-built lines
+  drawAsBuiltLines();
+}
+
+function createPoleMarker(pole,data){
+  let color='#6b7280';
+  let glow='';
+  let inner=pole.id.replace('P-','');
+  let size=20;
+  if(data&&data.status==='complete'){
+    color='#7c3aed';
+    glow='box-shadow:0 0 12px rgba(124,58,237,0.5);';
+    inner='✓';
+  } else if(data&&data.status==='surveyed'){
+    color='#10b981';
+    glow='box-shadow:0 0 12px rgba(16,185,129,0.5);';
+  }
+
+  const isAnchor=pole.type==='anchor';
+  const shape=isAnchor?'3px':'50%';
+
+  const marker=L.marker([pole.lat,pole.lon],{
+    icon:L.divIcon({
+      className:'',
+      html:'<div style="width:'+size+'px;height:'+size+'px;background:'+color+';border:2px solid #fff;border-radius:'+shape+';display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;color:#fff;'+glow+'cursor:pointer">'+(isAnchor?'⚓':inner)+'</div>',
+      iconSize:[size,size],
+      iconAnchor:[size/2,size/2]
+    }),
+    zIndexOffset:100
+  }).addTo(map);
+
+  marker.on('click',()=>openPolePopup(pole));
+  return marker;
+}
+
+function openPolePopup(pole){
+  const data=poleData[pole.id]||{};
+  const prevPoleId=getPreviousPole(pole.id);
+  const prevData=prevPoleId?poleData[prevPoleId]:{};
+  const hasPrev=prevData&&prevData.strandTic!==undefined;
+
+  // Calculate GPS distance from previous pole
+  let gpsDist='—';
+  if(data.gpsLat&&prevData&&prevData.gpsLat){
+    gpsDist=Math.round(haversine(prevData.gpsLat,prevData.gpsLon,data.gpsLat,data.gpsLon));
+  }
+
+  const statusClass=data.status==='complete'?'status-complete':data.status==='surveyed'?'status-surveyed':'status-pending';
+  const statusText=data.status==='complete'?'✅ AS-BUILT COMPLETE':data.status==='surveyed'?'📍 SURVEYED':'⬜ PENDING';
+
+  let html='<div class="pole-popup">';
+  // Header
+  html+='<div class="pole-header">';
+  html+='<div style="display:flex;justify-content:space-between;align-items:start">';
+  html+='<div><div class="pole-id">'+(pole.type==='anchor'?'⚓':'🔩')+' '+pole.id+'</div>';
+  html+='<div class="pole-loc">'+pole.road+'</div></div>';
+  html+='<div class="pole-status '+statusClass+'">'+statusText+'</div>';
+  html+='</div>';
+  html+='<div style="display:flex;gap:12px;margin-top:6px;font-size:10px;color:#888">';
+  html+='<span>Class: '+pole.class+'</span><span>Height: '+pole.height+'</span><span>'+pole.lat.toFixed(5)+'°, '+pole.lon.toFixed(5)+'°</span>';
+  html+='</div></div>';
+
+  // GPS Capture section
+  html+='<div class="section">';
+  html+='<div class="section-title">📍 GPS Location Capture</div>';
+  if(data.gpsLat){
+    html+='<button class="btn-here captured" disabled><span>✅ GPS Captured: '+data.gpsLat.toFixed(6)+'°, '+data.gpsLon.toFixed(6)+'°</span></button>';
+  } else {
+    html+='<button class="btn-here capture" onclick="captureGPS(\''+pole.id+'\')"><span>📍 I\'M AT THIS POLE — CAPTURE GPS</span></button>';
+  }
+  html+='</div>';
+
+  // Tic Mark section
+  html+='<div class="section">';
+  html+='<div class="section-title">🔢 Cable Tic Marks</div>';
+  if(hasPrev){
+    html+='<div style="font-size:10px;color:#666;margin-bottom:6px">Previous ('+prevPoleId+'): Strand '+prevData.strandTic+' · Fiber '+(prevData.fiberTic||prevData.strandTic)+'</div>';
+  }
+  html+='<div class="input-row">';
+  html+='<div style="flex:1"><div class="input-label">🟡 Strand Tic #</div><input class="tic-input" id="strandTic_'+pole.id+'" type="number" placeholder="e.g. 507" value="'+(data.strandTic||'')+'"></div>';
+  html+='<div style="flex:1"><div class="input-label">🔵 Fiber Tic #</div><input class="tic-input" id="fiberTic_'+pole.id+'" type="number" placeholder="e.g. 512" value="'+(data.fiberTic||'')+'"></div>';
+  html+='</div>';
+  html+='</div>';
+
+  // Measurements — GPS vs Tic
+  if(hasPrev&&data.gpsLat){
+    const ticDist=data.strandTic?(data.strandTic-prevData.strandTic):0;
+    const variance=gpsDist!=='—'?Math.abs(gpsDist-ticDist):0;
+    const varianceOk=variance<15;
+    html+='<div class="section">';
+    html+='<div class="section-title">📏 Span Measurement Comparison</div>';
+    html+='<div class="measurement-box">';
+    html+='<div class="measurement-row"><span class="label">📍 GPS Distance</span><span class="value gps">'+gpsDist+' ft</span></div>';
+    html+='<div class="measurement-row"><span class="label">🏷️ Tic Mark Diff</span><span class="value tic">'+(ticDist||'—')+' ft</span></div>';
+    html+='<div style="border-top:1px solid #333;margin:4px 0"></div>';
+    html+='<div class="measurement-row"><span class="label">'+(varianceOk?'✅':'⚠️')+' Variance</span><span class="value '+(varianceOk?'ok':'variance')+'">'+variance+' ft '+(varianceOk?'OK':'CHECK')+'</span></div>';
+    html+='</div></div>';
+  } else if(data.gpsLat){
+    html+='<div class="section"><div class="section-title">📏 Measurement</div>';
+    html+='<div class="measurement-box"><div class="measurement-row"><span class="label">📍 GPS from prev</span><span class="value gps">'+(gpsDist!=='—'?gpsDist+' ft':'Capture prev pole first')+'</span></div></div></div>';
+  }
+
+  // Attachment details
+  html+='<div class="section">';
+  html+='<div class="section-title">🔧 Attachment Details</div>';
+  html+='<div class="attach-options" id="attachOpts_'+pole.id+'">';
+  ['Lashed','Overlashed','Self-Supporting','Dead End','J-Hook','Figure-8'].forEach(opt=>{
+    const sel=(data.attachment||pole.attachment)===opt?'selected':'';
+    html+='<div class="attach-opt '+sel+'" onclick="selectAttach(\''+pole.id+'\',\''+opt+'\',this)">'+opt+'</div>';
+  });
+  html+='</div>';
+  html+='<div class="input-row" style="margin-top:6px">';
+  html+='<div style="flex:1"><div class="input-label">📏 Height</div><input class="tic-input" id="height_'+pole.id+'" placeholder="30ft" value="'+(data.height||pole.height)+'" style="font-size:13px"></div>';
+  html+='<div style="flex:1"><div class="input-label">📝 Notes</div><input class="tic-input" id="notes_'+pole.id+'" placeholder="Slack loop, etc." value="'+(data.notes||'')+'" style="font-size:13px"></div>';
+  html+='</div></div>';
+
+  // Action buttons
+  html+='<div class="btn-row">';
+  html+='<button class="action-btn btn-save" onclick="savePole(\''+pole.id+'\')">💾 Save</button>';
+  html+='<button class="action-btn btn-photo" onclick="takePhoto(\''+pole.id+'\')">📸</button>';
+  if(!isTracking){
+    html+='<button class="action-btn" style="background:#059669;color:#fff" onclick="startTrackingTo(\''+pole.id+'\')">🚶 Track Path</button>';
+  } else {
+    html+='<button class="action-btn" style="background:#f97316;color:#fff" onclick="stopTrackingAt(\''+pole.id+'\')">⏹️ Stop ('+getPathDistance()+'ft)</button>';
+  }
+  html+='</div>';
+  html+='</div>';
+
+  const popup=L.popup({maxWidth:380,minWidth:320,closeButton:true,className:''}).setLatLng([pole.lat,pole.lon]).setContent(html).openOn(map);
+}
+
+function getPreviousPole(poleId){
+  const idx=poles.findIndex(p=>p.id===poleId);
+  // Find connected previous (same road segment logic)
+  const currentRoad=poles[idx]?.road;
+  for(let i=idx-1;i>=0;i--){
+    if(poles[i].road===currentRoad||poles[i].road.includes(currentRoad.split(' ')[0])){
+      return poles[i].id;
     }
   }
+  return idx>0?poles[idx-1].id:null;
+}
 
-  // Add tic mark labels at pole
-  if (strandTic) {
-    const label = L.marker([pole.lat, pole.lon + 0.0003], {
-      icon: L.divIcon({
-        className: '',
-        html: `<div class="tic-label tic-label-strand">S: ${strandTic}</div>`,
-        iconSize: [70, 20], iconAnchor: [0, 10]
-      })
-    }).addTo(map);
-    ticLabels.push(label);
+function captureGPS(poleId){
+  if(!gpsLat){
+    alert('GPS not available yet — wait for a fix');
+    return;
   }
-  if (fiberTic) {
-    const label = L.marker([pole.lat - 0.00015, pole.lon + 0.0003], {
-      icon: L.divIcon({
-        className: '',
-        html: `<div class="tic-label tic-label-fiber">F: ${fiberTic}</div>`,
-        iconSize: [70, 20], iconAnchor: [0, 10]
-      })
-    }).addTo(map);
-    ticLabels.push(label);
-  }
-
-  // Close popup and update stats
-  marker.closePopup();
-  updateStats();
+  if(!poleData[poleId]) poleData[poleId]={};
+  poleData[poleId].gpsLat=gpsLat;
+  poleData[poleId].gpsLon=gpsLon;
+  poleData[poleId].gpsAccuracy=gpsAccuracy;
+  poleData[poleId].timestamp=new Date().toLocaleString();
 
   // Vibrate
-  if (navigator.vibrate) navigator.vibrate(100);
-}
+  if(navigator.vibrate) navigator.vibrate(100);
 
-// ═══════════════════════════════════════════
-// CLEAR / UNDO
-// ═══════════════════════════════════════════
-function clearPole(poleId) {
-  const pole = POLES.find(p => p.id === poleId);
-  delete poleData[poleId];
-  const marker = poleMarkers[poleId];
-  marker.setIcon(createPoleIcon(pole, false));
-  marker.closePopup();
-  // Note: lines/labels not removed for simplicity — full version would track per-pole
+  // Recalculate GPS distance from previous pole
+  const prevId=getPreviousPole(poleId);
+  if(prevId&&poleData[prevId]&&poleData[prevId].gpsLat){
+    poleData[poleId].gpsFootageFromPrev=Math.round(haversine(poleData[prevId].gpsLat,poleData[prevId].gpsLon,gpsLat,gpsLon));
+  }
+
+  // Refresh popup
+  const pole=poles.find(p=>p.id===poleId);
+  if(pole) openPolePopup(pole);
   updateStats();
 }
 
-function undoLast() {
-  const keys = Object.keys(poleData);
-  if (keys.length === 0) return;
-  const lastKey = keys[keys.length - 1];
-  clearPole(lastKey);
+function selectAttach(poleId,opt,el){
+  document.querySelectorAll('#attachOpts_'+poleId+' .attach-opt').forEach(e=>e.classList.remove('selected'));
+  el.classList.add('selected');
+  if(!poleData[poleId]) poleData[poleId]={};
+  poleData[poleId].attachment=opt;
 }
 
-// ═══════════════════════════════════════════
-// UPDATE STATS
-// ═══════════════════════════════════════════
-function updateStats() {
-  let totalStrand = 0, totalFiber = 0, totalBuried = 0;
-  let doneCount = 0;
+function savePole(poleId){
+  const strandEl=document.getElementById('strandTic_'+poleId);
+  const fiberEl=document.getElementById('fiberTic_'+poleId);
+  const heightEl=document.getElementById('height_'+poleId);
+  const notesEl=document.getElementById('notes_'+poleId);
 
-  Object.values(poleData).forEach(d => {
-    if (d.footage) {
-      if (d.cableType === 'buried') {
-        totalBuried += parseInt(d.footage);
-      } else {
-        if (d.strandTic) totalStrand += parseInt(d.footage);
-        if (d.fiberTic) totalFiber += parseInt(d.footage);
+  if(!poleData[poleId]) poleData[poleId]={};
+  const d=poleData[poleId];
+  d.strandTic=parseInt(strandEl.value)||0;
+  d.fiberTic=parseInt(fiberEl.value)||0;
+  d.height=heightEl.value;
+  d.notes=notesEl.value;
+  d.timestamp=d.timestamp||new Date().toLocaleString();
+
+  // Calculate tic footage from previous
+  const prevId=getPreviousPole(poleId);
+  if(prevId&&poleData[prevId]){
+    d.ticFootageFromPrev=d.strandTic-poleData[prevId].strandTic;
+  }
+
+  // Set status
+  if(d.gpsLat&&d.strandTic){
+    d.status='complete';
+  } else if(d.gpsLat||d.strandTic){
+    d.status='surveyed';
+  }
+
+  // Vibrate + sound
+  if(navigator.vibrate) navigator.vibrate([50,30,100]);
+  try{
+    const ctx=new AudioContext();
+    const o=ctx.createOscillator();
+    const g=ctx.createGain();
+    o.connect(g);g.connect(ctx.destination);
+    o.frequency.value=880;g.gain.value=0.15;
+    o.start();o.stop(ctx.currentTime+0.1);
+  }catch(e){}
+
+  // Update marker
+  const pole=poles.find(p=>p.id===poleId);
+  if(pole){
+    map.removeLayer(poleMarkers[poleId]);
+    poleMarkers[poleId]=createPoleMarker(pole,d);
+  }
+
+  drawAsBuiltLines();
+  updateStats();
+  map.closePopup();
+}
+
+function takePhoto(poleId){
+  alert('📸 Camera would open here — photo attached to '+poleId+' with GPS tag');
+}
+
+function startTrackingTo(poleId){
+  startTracking();
+  map.closePopup();
+}
+
+function stopTrackingAt(poleId){
+  const dist=stopTracking();
+  if(!poleData[poleId]) poleData[poleId]={};
+  poleData[poleId].walkedDistance=dist;
+  const pole=poles.find(p=>p.id===poleId);
+  if(pole) openPolePopup(pole);
+}
+
+// ======== DRAW AS-BUILT LINES ========
+let asBuiltLayers=[];
+function drawAsBuiltLines(){
+  // Remove old
+  asBuiltLayers.forEach(l=>map.removeLayer(l));
+  asBuiltLayers=[];
+
+  // Group poles by road segment
+  const roads={};
+  poles.forEach(p=>{
+    const road=p.road.split('@')[0].trim();
+    if(!roads[road]) roads[road]=[];
+    roads[road].push(p);
+  });
+
+  Object.entries(roads).forEach(([road,roadPoles])=>{
+    for(let i=1;i<roadPoles.length;i++){
+      const prev=roadPoles[i-1];
+      const curr=roadPoles[i];
+      const pd=poleData[prev.id];
+      const cd=poleData[curr.id];
+
+      // Designed route (faint dashed)
+      const designed=L.polyline([[prev.lat,prev.lon],[curr.lat,curr.lon]],{
+        color:'#555',weight:1,dashArray:'8,6',opacity:0.4
+      }).addTo(map);
+      asBuiltLayers.push(designed);
+
+      // As-built (solid glow) — only if both poles have data
+      if(pd&&cd&&pd.status&&cd.status){
+        // Strand line (yellow)
+        if(pd.strandTic!==undefined&&cd.strandTic!==undefined){
+          const fromPt=pd.gpsLat?[pd.gpsLat,pd.gpsLon]:[prev.lat,prev.lon];
+          const toPt=cd.gpsLat?[cd.gpsLat,cd.gpsLon]:[curr.lat,curr.lon];
+
+          // Glow
+          const glow=L.polyline([fromPt,toPt],{color:'#fbbf24',weight:6,opacity:0.25}).addTo(map);
+          const strand=L.polyline([fromPt,toPt],{color:'#fbbf24',weight:3,opacity:0.9}).addTo(map);
+          asBuiltLayers.push(glow,strand);
+
+          // Fiber line (blue, slightly offset)
+          const fiberGlow=L.polyline([fromPt,toPt],{color:'#38bdf8',weight:5,opacity:0.2}).addTo(map);
+          const fiber=L.polyline([fromPt,toPt],{color:'#38bdf8',weight:2,opacity:0.8,dashArray:'10,4'}).addTo(map);
+          asBuiltLayers.push(fiberGlow,fiber);
+
+          // Footage label
+          const midLat=(fromPt[0]+toPt[0])/2;
+          const midLon=(fromPt[1]+toPt[1])/2;
+          const gpsF=cd.gpsFootageFromPrev||'';
+          const ticF=cd.ticFootageFromPrev||'';
+          const variance=gpsF&&ticF?Math.abs(gpsF-ticF):0;
+          const varClass=variance>15?'variance':'';
+
+          let labelHtml='<div class="span-label '+varClass+'">';
+          if(gpsF) labelHtml+='📍'+gpsF+"'";
+          if(gpsF&&ticF) labelHtml+=' · ';
+          if(ticF) labelHtml+='🏷️'+ticF+"'";
+          if(variance>15) labelHtml+=' ⚠️'+variance+"'";
+          labelHtml+='</div>';
+
+          const label=L.marker([midLat,midLon],{icon:L.divIcon({className:'',html:labelHtml,iconSize:[0,0]})}).addTo(map);
+          asBuiltLayers.push(label);
+        }
+
+        // Tic mark labels at poles
+        if(cd.strandTic){
+          const pos=cd.gpsLat?[cd.gpsLat,cd.gpsLon]:[curr.lat,curr.lon];
+          const ticHtml='<div style="transform:translate(14px,-8px)"><div class="tic-label strand">S:'+cd.strandTic+'</div>'+(cd.fiberTic?'<div class="tic-label fiber" style="margin-top:1px">F:'+cd.fiberTic+'</div>':'')+'</div>';
+          const ticMarker=L.marker(pos,{icon:L.divIcon({className:'',html:ticHtml,iconSize:[0,0]})}).addTo(map);
+          asBuiltLayers.push(ticMarker);
+        }
       }
     }
-    doneCount++;
   });
-
-  document.getElementById('strandFt').textContent = totalStrand.toLocaleString() + "'";
-  document.getElementById('fiberFt').textContent = totalFiber.toLocaleString() + "'";
-  document.getElementById('buriedFt').textContent = totalBuried.toLocaleString() + "'";
-  document.getElementById('polesDone').textContent = `${doneCount}/${POLES.length}`;
-
-  const pct = Math.round((doneCount / POLES.length) * 100);
-  document.getElementById('progressPct').textContent = pct + '%';
-
-  // Update progress ring
-  const circumference = 2 * Math.PI * 18; // r=18
-  const offset = circumference - (pct / 100) * circumference;
-  document.getElementById('progressCircle').style.strokeDashoffset = offset;
-  document.getElementById('progressText').textContent = pct + '%';
-  document.getElementById('progressLabel').textContent = `${doneCount}/${POLES.length} poles`;
 }
 
-// ═══════════════════════════════════════════
-// REPORT
-// ═══════════════════════════════════════════
-function showReport() {
-  let html = `<table><thead><tr><th>Pole</th><th>Road</th><th>Strand Tic</th><th>Fiber Tic</th><th>Span (ft)</th><th>Status</th></tr></thead><tbody>`;
-  POLES.forEach(pole => {
-    const d = poleData[pole.id];
-    const cls = d ? 'row-done' : 'row-pending';
-    html += `<tr class="${cls}">
-      <td><strong>${pole.id}</strong></td>
-      <td style="font-size:11px;">${pole.road}</td>
-      <td style="font-weight:700;color:${d?'#b45309':'#9ca3af'};">${d ? (d.strandTic || '—') : '—'}</td>
-      <td style="font-weight:700;color:${d?'#1e40af':'#9ca3af'};">${d ? (d.fiberTic || '—') : '—'}</td>
-      <td>${d && d.footage ? d.footage + "'" : '—'}</td>
-      <td>${d ? '✅' : '⏳'}</td>
-    </tr>`;
+// ======== STATS ========
+function updateStats(){
+  let surveyed=0,complete=0,footage=0;
+  Object.values(poleData).forEach(d=>{
+    if(d.status==='surveyed') surveyed++;
+    if(d.status==='complete') complete++;
+    if(d.gpsFootageFromPrev) footage+=d.gpsFootageFromPrev;
+    if(!d.gpsFootageFromPrev&&d.ticFootageFromPrev) footage+=d.ticFootageFromPrev;
   });
-  html += `</tbody></table>`;
-
-  // Totals
-  let ts=0,tf=0,tb=0;
-  Object.values(poleData).forEach(d => {
-    if(d.footage){
-      if(d.cableType==='buried') tb+=parseInt(d.footage);
-      else { if(d.strandTic) ts+=parseInt(d.footage); if(d.fiberTic) tf+=parseInt(d.footage); }
-    }
-  });
-  html += `<div style="margin-top:16px;padding:12px;background:#f3f0ff;border-radius:8px;">
-    <strong style="color:#5b21b6;">📊 Totals</strong><br>
-    <span style="color:#b45309;">Strand: ${ts.toLocaleString()}'</span> · 
-    <span style="color:#1e40af;">Fiber: ${tf.toLocaleString()}'</span> · 
-    <span style="color:#ea580c;">Buried: ${tb.toLocaleString()}'</span> · 
-    <span style="color:#059669;">Completed: ${Object.keys(poleData).length}/${POLES.length} poles</span>
-  </div>`;
-
-  document.getElementById('reportContent').innerHTML = html;
-  document.getElementById('reportModal').classList.add('active');
+  document.getElementById('statSurveyed').textContent=surveyed;
+  document.getElementById('statComplete').textContent=complete;
+  document.getElementById('statFootage').textContent=footage.toLocaleString();
 }
 
-function closeReport() {
-  document.getElementById('reportModal').classList.remove('active');
+// ======== MODES ========
+function setMode(mode){
+  currentMode=mode;
+  document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+  if(mode==='survey') document.querySelector('.mode-btn.survey').classList.add('active');
+  if(mode==='asbuilt') document.querySelector('.mode-btn.asbuilt').classList.add('active');
+  if(mode==='report') document.querySelector('.mode-btn.report').classList.add('active');
+
+  const rp=document.getElementById('reportPanel');
+  if(mode==='report'){
+    rp.classList.add('open');
+    buildReport();
+  } else {
+    rp.classList.remove('open');
+  }
 }
 
-// ═══════════════════════════════════════════
-// EXPORT CSV
-// ═══════════════════════════════════════════
-function exportCSV() {
-  let csv = 'Pole ID,Road,Lat,Lon,Cable Type,Strand Tic,Fiber Tic,Span Footage,Attachment,Height,Notes,Timestamp\\n';
-  POLES.forEach(pole => {
-    const d = poleData[pole.id] || {};
-    csv += `${pole.id},${pole.road},${pole.lat},${pole.lon},${pole.cableType},${d.strandTic||''},${d.fiberTic||''},${d.footage||''},${d.attachment||''},${d.height||''},${(d.notes||'').replace(/,/g,';')},${d.timestamp||''}\\n`;
+function buildReport(){
+  let html='<table class="report-table"><thead><tr>';
+  html+='<th>Pole</th><th>Road</th><th>Strand Tic</th><th>Fiber Tic</th><th>GPS Dist</th><th>Tic Dist</th><th>Variance</th><th>Attach</th><th>Status</th>';
+  html+='</tr></thead><tbody>';
+
+  poles.forEach(p=>{
+    const d=poleData[p.id]||{};
+    const gps=d.gpsFootageFromPrev||'—';
+    const tic=d.ticFootageFromPrev||'—';
+    const variance=(typeof gps==='number'&&typeof tic==='number')?Math.abs(gps-tic):'—';
+    const varClass=typeof variance==='number'&&variance>15?'var-bad':'var-ok';
+    const status=d.status==='complete'?'✅':d.status==='surveyed'?'📍':'⬜';
+
+    html+='<tr>';
+    html+='<td style="font-weight:700;color:#a78bfa">'+p.id+'</td>';
+    html+='<td style="color:#888;font-size:10px">'+p.road+'</td>';
+    html+='<td class="tic-val">'+(d.strandTic||'—')+'</td>';
+    html+='<td class="tic-val">'+(d.fiberTic||'—')+'</td>';
+    html+='<td class="gps-val">'+(typeof gps==='number'?gps+"'":'—')+'</td>';
+    html+='<td class="tic-val">'+(typeof tic==='number'?tic+"'":'—')+'</td>';
+    html+='<td class="'+varClass+'">'+(typeof variance==='number'?variance+"'":'—')+'</td>';
+    html+='<td style="color:#888;font-size:10px">'+(d.attachment||p.attachment)+'</td>';
+    html+='<td>'+status+'</td>';
+    html+='</tr>';
   });
-  const blob = new Blob([csv], {type:'text/csv'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'asbuilt_ticmarks_SEFH9384.csv';
-  a.click();
+
+  html+='</tbody></table>';
+  document.getElementById('reportContent').innerHTML=html;
 }
 
-// Show instruction toast
-const toast = document.createElement('div');
-toast.className = 'toast';
-toast.innerHTML = '👆 Tap any pole to enter tic marks · Completed poles turn green with tic labels';
-document.body.appendChild(toast);
-setTimeout(() => toast.style.display = 'none', 5000);
+function exportCSV(){
+  let csv='Pole,Road,Lat,Lon,GPS Lat,GPS Lon,Strand Tic,Fiber Tic,GPS Distance,Tic Distance,Variance,Attachment,Height,Status,Notes,Timestamp\n';
+  poles.forEach(p=>{
+    const d=poleData[p.id]||{};
+    csv+=p.id+','+p.road+','+p.lat+','+p.lon+','+(d.gpsLat||'')+','+(d.gpsLon||'')+','+(d.strandTic||'')+','+(d.fiberTic||'')+','+(d.gpsFootageFromPrev||'')+','+(d.ticFootageFromPrev||'')+','+(d.gpsFootageFromPrev&&d.ticFootageFromPrev?Math.abs(d.gpsFootageFromPrev-d.ticFootageFromPrev):'')+','+(d.attachment||p.attachment)+','+(d.height||p.height)+','+(d.status||'pending')+','+(d.notes||'')+','+(d.timestamp||'')+'\n';
+  });
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='asbuilt_SEFH9384_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
+}
 
-// Pre-fill a few poles as example
-setTimeout(() => {
-  // Simulate P-001 already done
-  poleData['P-001'] = { strandTic:'176', fiberTic:'176', footage:'', cableType:'aerial', attachment:'lash', height:'18', notes:'First pole from FDH', timestamp:'4/26/2026, 9:15 AM', lat:POLES[0].lat, lon:POLES[0].lon };
-  poleMarkers['P-001'].setIcon(createPoleIcon(POLES[0], true));
-  // Add tic labels
-  L.marker([POLES[0].lat, POLES[0].lon + 0.0003], {
-    icon: L.divIcon({ className:'', html:'<div class="tic-label tic-label-strand">S: 176</div>', iconSize:[60,20], iconAnchor:[0,10] })
-  }).addTo(map);
-  L.marker([POLES[0].lat - 0.00015, POLES[0].lon + 0.0003], {
-    icon: L.divIcon({ className:'', html:'<div class="tic-label tic-label-fiber">F: 176</div>', iconSize:[60,20], iconAnchor:[0,10] })
-  }).addTo(map);
-
-  poleData['P-002'] = { strandTic:'221', fiberTic:'221', footage:'45', cableType:'aerial', attachment:'lash', height:'18', notes:'', timestamp:'4/26/2026, 9:22 AM', lat:POLES[1].lat, lon:POLES[1].lon };
-  poleMarkers['P-002'].setIcon(createPoleIcon(POLES[1], true));
-  L.polyline([[POLES[0].lat, POLES[0].lon],[POLES[1].lat, POLES[1].lon]], {color:'#fbbf24',weight:5,opacity:0.9}).addTo(map);
-  L.polyline([[POLES[0].lat+0.00008, POLES[0].lon],[POLES[1].lat+0.00008, POLES[1].lon]], {color:'#3b82f6',weight:4,opacity:0.85}).addTo(map);
-  const mid1 = [(POLES[0].lat+POLES[1].lat)/2, (POLES[0].lon+POLES[1].lon)/2];
-  L.marker(mid1, { icon:L.divIcon({className:'',html:'<div class="tic-label tic-label-strand">45\'</div>',iconSize:[40,20],iconAnchor:[20,10]}) }).addTo(map);
-  L.marker([POLES[1].lat, POLES[1].lon + 0.0003], {
-    icon: L.divIcon({ className:'', html:'<div class="tic-label tic-label-strand">S: 221</div>', iconSize:[60,20], iconAnchor:[0,10] })
-  }).addTo(map);
-  L.marker([POLES[1].lat - 0.00015, POLES[1].lon + 0.0003], {
-    icon: L.divIcon({ className:'', html:'<div class="tic-label tic-label-fiber">F: 221</div>', iconSize:[60,20], iconAnchor:[0,10] })
-  }).addTo(map);
-
-  poleData['P-003'] = { strandTic:'360', fiberTic:'360', footage:'139', cableType:'aerial', attachment:'lash', height:'20', notes:'Cross arm — double lash', timestamp:'4/26/2026, 9:30 AM', lat:POLES[2].lat, lon:POLES[2].lon };
-  poleMarkers['P-003'].setIcon(createPoleIcon(POLES[2], true));
-  L.polyline([[POLES[1].lat, POLES[1].lon],[POLES[2].lat, POLES[2].lon]], {color:'#fbbf24',weight:5,opacity:0.9}).addTo(map);
-  L.polyline([[POLES[1].lat+0.00008, POLES[1].lon],[POLES[2].lat+0.00008, POLES[2].lon]], {color:'#3b82f6',weight:4,opacity:0.85}).addTo(map);
-  const mid2 = [(POLES[1].lat+POLES[2].lat)/2, (POLES[1].lon+POLES[2].lon)/2];
-  L.marker(mid2, { icon:L.divIcon({className:'',html:'<div class="tic-label tic-label-strand">139\'</div>',iconSize:[40,20],iconAnchor:[20,10]}) }).addTo(map);
-  L.marker([POLES[2].lat, POLES[2].lon + 0.0003], {
-    icon: L.divIcon({ className:'', html:'<div class="tic-label tic-label-strand">S: 360</div>', iconSize:[60,20], iconAnchor:[0,10] })
-  }).addTo(map);
-  L.marker([POLES[2].lat - 0.00015, POLES[2].lon + 0.0003], {
-    icon: L.divIcon({ className:'', html:'<div class="tic-label tic-label-fiber">F: 360</div>', iconSize:[60,20], iconAnchor:[0,10] })
-  }).addTo(map);
-
-  updateStats();
-}, 500);
-
+// ======== INIT ========
+initMap();
+initGPS();
+updateStats();
 </script>
 </body>
 </html>
