@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Windstream SEFH9384 — Work Print Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Inter',sans-serif; background:#f5f5f0; color:#1a1a1a; overflow:hidden; height:100vh; display:flex; flex-direction:column; }
+
+/* ── TITLE BLOCK (Windstream style) ── */
+.title-block {
+  background: #fff;
+  border-bottom: 3px solid #006633;
+  padding: 6px 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 52px;
+}
+.ws-logo {
+  display: flex; align-items: center; gap: 8px;
+}
+.ws-logo svg { width: 32px; height: 32px; }
+.ws-logo-text { font-weight: 700; font-size: 16px; color: #006633; letter-spacing: 1px; }
+.job-info {
+  display: flex; gap: 20px; font-size: 11px; color: #333;
+  flex-wrap: wrap; flex: 1;
+}
+.job-info div { display: flex; flex-direction: column; }
+.job-info .label { font-weight: 600; color: #006633; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
+.job-info .val { font-weight: 500; font-size: 12px; }
+.scale-badge {
+  background: #006633; color: #fff; padding: 4px 10px; border-radius: 4px;
+  font-size: 10px; font-weight: 600; white-space: nowrap;
+}
+
+/* ── MAP ── */
+#map { flex:1; z-index:0; }
+.leaflet-popup-content-wrapper {
+  background: #fff !important; border-radius: 4px !important;
+  border: 2px solid #006633 !important; box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+  padding: 0 !important; max-width: 320px !important;
+}
+.leaflet-popup-content { margin: 0 !important; padding: 0 !important; font-family: 'Inter', sans-serif !important; }
+.leaflet-popup-tip { border-top-color: #006633 !important; }
+
+/* Popup styles matching work print detail boxes */
+.wp-popup { padding: 0; min-width: 220px; }
+.wp-popup-hdr {
+  background: #006633; color: #fff; padding: 6px 10px;
+  font-weight: 700; font-size: 12px; display: flex; justify-content: space-between; align-items: center;
+}
+.wp-popup-hdr .type-tag {
+  background: rgba(255,255,255,0.2); padding: 1px 6px; border-radius: 3px;
+  font-size: 9px; font-weight: 600; text-transform: uppercase;
+}
+.wp-popup-body { padding: 8px 10px; }
+.wp-row {
+  display: flex; justify-content: space-between; padding: 3px 0;
+  border-bottom: 1px solid #e5e5e5; font-size: 11px;
+}
+.wp-row:last-child { border: none; }
+.wp-row .k { color: #006633; font-weight: 600; font-size: 10px; text-transform: uppercase; }
+.wp-row .v { font-weight: 500; text-align: right; }
+.wp-row .v.signal { color: #c00; font-weight: 700; }
+.wp-addrs {
+  margin-top: 6px; padding-top: 6px; border-top: 2px solid #006633;
+}
+.wp-addrs-title { font-size: 10px; font-weight: 700; color: #006633; text-decoration: underline; margin-bottom: 3px; }
+.wp-addr { font-size: 10px; color: #333; padding: 1px 0; }
+
+/* ── LEGEND PANEL ── */
+.legend-panel {
+  position: absolute; bottom: 70px; left: 10px; z-index: 1000;
+  background: #fff; border: 2px solid #006633; border-radius: 4px;
+  padding: 8px 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  font-size: 10px; max-width: 200px;
+}
+.legend-title { font-weight: 700; color: #006633; font-size: 11px; margin-bottom: 6px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+.legend-item { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+.legend-line { width: 30px; height: 3px; border-radius: 1px; flex-shrink: 0; }
+.legend-dash { width: 30px; height: 0; border-top: 3px dashed; flex-shrink: 0; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; border: 1px solid #999; }
+.legend-sq { width: 10px; height: 10px; flex-shrink: 0; border: 1px solid #999; }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  position: absolute; top: 0; right: 0; bottom: 60px; width: 280px; z-index: 1000;
+  background: #fff; border-left: 2px solid #006633; overflow-y: auto;
+  transform: translateX(100%); transition: transform 0.3s ease;
+  box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+}
+.sidebar.open { transform: translateX(0); }
+.sidebar-hdr {
+  background: #006633; color: #fff; padding: 10px 12px;
+  font-weight: 700; font-size: 13px; display: flex; justify-content: space-between; align-items: center;
+  position: sticky; top: 0; z-index: 1;
+}
+.sidebar-close { background: none; border: none; color: #fff; font-size: 18px; cursor: pointer; padding: 0 4px; }
+.sidebar-section { padding: 8px 12px; border-bottom: 1px solid #e5e5e5; }
+.sidebar-section-title { font-size: 10px; font-weight: 700; color: #006633; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.term-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 4px 6px; margin: 2px 0; border-radius: 3px; cursor: pointer;
+  font-size: 11px; transition: background 0.15s;
+}
+.term-item:hover { background: #e8f5e9; }
+.term-item .tid { font-weight: 600; color: #006633; }
+.term-item .tinfo { color: #666; font-size: 10px; }
+
+/* ── TOOLBAR ── */
+.toolbar-toggle {
+  position: absolute; top: 10px; right: 10px; z-index: 1001;
+  background: #006633; color: #fff; border: none; border-radius: 4px;
+  padding: 8px 12px; font-size: 12px; font-weight: 600; cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+.toolbar-toggle:hover { background: #008844; }
+
+/* Draw toolbar */
+.draw-tools {
+  position: absolute; top: 10px; left: 10px; z-index: 1000;
+  background: #fff; border: 2px solid #006633; border-radius: 4px;
+  padding: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.draw-tools-title { font-size: 9px; font-weight: 700; color: #006633; text-transform: uppercase; text-align: center; margin-bottom: 4px; }
+.draw-btn {
+  display: flex; align-items: center; gap: 6px; padding: 5px 8px; margin: 2px 0;
+  border: 1px solid #ddd; border-radius: 3px; background: #fff;
+  font-size: 10px; font-weight: 500; cursor: pointer; width: 100%; transition: all 0.15s;
+}
+.draw-btn:hover { background: #e8f5e9; border-color: #006633; }
+.draw-btn.active { background: #006633; color: #fff; border-color: #006633; }
+.draw-btn .swatch { width: 14px; height: 4px; border-radius: 1px; flex-shrink: 0; }
+
+/* ── FOOTER STATUS ── */
+.footer-bar {
+  background: #fff; border-top: 2px solid #006633;
+  padding: 6px 16px; display: flex; align-items: center; gap: 16px;
+  font-size: 10px; min-height: 36px; flex-wrap: wrap;
+}
+.ft-stat { display: flex; align-items: center; gap: 4px; }
+.ft-stat .ft-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.ft-stat .ft-sq { width: 8px; height: 3px; border-radius: 1px; flex-shrink: 0; }
+.ft-stat .ft-label { color: #666; font-weight: 500; }
+.ft-stat .ft-val { font-weight: 700; color: #1a1a1a; }
+
+/* ── DISTANCE LABELS ── */
+.dist-label {
+  background: transparent !important; border: none !important; box-shadow: none !important;
+  font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 700;
+  color: #006633; font-style: italic; white-space: nowrap;
+  text-shadow: 1px 1px 2px #fff, -1px -1px 2px #fff, 1px -1px 2px #fff, -1px 1px 2px #fff;
+}
+.note-label {
+  background: #ffffcc !important; border: 1px solid #cccc00 !important;
+  padding: 2px 6px !important; font-size: 9px; font-weight: 600; color: #333;
+  box-shadow: 1px 1px 3px rgba(0,0,0,0.2) !important; border-radius: 2px !important;
+}
+
+/* ── PAGE REFS ── */
+.page-ref-label {
+  background: transparent !important; border: none !important;
+  font-size: 10px; font-weight: 700; color: #000;
+  text-shadow: 1px 1px 2px #fff, -1px -1px 2px #fff;
+  white-space: nowrap;
+}
+</style>
+</head>
+<body>
+
+<!-- TITLE BLOCK -->
+<div class="title-block">
+  <div class="ws-logo">
+    <svg viewBox="0 0 40 40" fill="none">
+      <path d="M5 20 Q10 8, 20 8 Q30 8, 35 20" stroke="#006633" stroke-width="3.5" fill="none"/>
+      <path d="M8 20 Q13 12, 20 12 Q27 12, 32 20" stroke="#006633" stroke-width="2.5" fill="none"/>
+      <path d="M12 20 Q15 15, 20 15 Q25 15, 28 20" stroke="#0099cc" stroke-width="2" fill="none"/>
+      <circle cx="20" cy="22" r="4" fill="#006633"/>
+      <path d="M5 24 Q10 32, 20 32 Q30 32, 35 24" stroke="#006633" stroke-width="3.5" fill="none"/>
+    </svg>
+    <span class="ws-logo-text">WINDSTREAM</span>
+  </div>
+  <div class="job-info">
+    <div><span class="label">JobTrac #</span><span class="val">704253808</span></div>
+    <div><span class="label">Description</span><span class="val">SEFH9384 - EWR22499 - DA 3EBA2</span></div>
+    <div><span class="label">WC Exchange</span><span class="val">HOLYGAXA</span></div>
+    <div><span class="label">Engineer</span><span class="val">PRODAPT</span></div>
+    <div><span class="label">Date</span><span class="val">07/28/2025</span></div>
+  </div>
+  <div class="scale-badge">1 inch = 50 feet</div>
+</div>
+
+<!-- MAP -->
+<div id="map"></div>
+
+<!-- SIDEBAR TOGGLE -->
+<button class="toolbar-toggle" onclick="toggleSidebar()">📋 Details</button>
+
+<!-- SIDEBAR -->
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-hdr">
+    <span>TERMINAL DETAILS</span>
+    <button class="sidebar-close" onclick="toggleSidebar()">&times;</button>
+  </div>
+  <div id="sidebarContent"></div>
+</div>
+
+<!-- FOOTER STATUS BAR -->
+<div class="footer-bar">
+  <div class="ft-stat"><div class="ft-sq" style="background:#006633;"></div><span class="ft-label">STRAND</span><span class="ft-val">3,840'</span></div>
+  <div class="ft-stat"><div class="ft-sq" style="background:#0066cc;"></div><span class="ft-label">FIBER</span><span class="ft-val">4,840'</span></div>
+  <div class="ft-stat"><div class="ft-sq" style="background:#cc6600;"></div><span class="ft-label">BURIED</span><span class="ft-val">4,230'</span></div>
+  <div class="ft-stat"><div class="ft-sq" style="background:#9933cc;"></div><span class="ft-label">BORE</span><span class="ft-val">312'</span></div>
+  <div class="ft-stat"><div class="ft-dot" style="background:#006633;border:1px solid #999;"></div><span class="ft-label">TERMINALS</span><span class="ft-val">43</span></div>
+  <div class="ft-stat"><div class="ft-dot" style="background:#c00;border:1px solid #999;"></div><span class="ft-label">SPLICES</span><span class="ft-val">12</span></div>
+  <div class="ft-stat"><div class="ft-dot" style="background:#666;border:1px solid #999;"></div><span class="ft-label">POLES</span><span class="ft-val">37</span></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// REAL DATA FROM WINDSTREAM SEFH9384
+// ═══════════════════════════════════════════
+
+const FDH = { lat: 34.15974, lon: -84.415808, id: '2279/HCKRD', clli: 'HOLYGAU0111' };
+const REMOTE = { lat: 34.154887, lon: -84.406247, id: 'PRKC/WDSTGAU0001', type: 'XGS-PON' };
+
+const TERMINALS = [
+  { id:'2287@1', lat:34.15878, lon:-84.41350, type:'AERIAL', input:'HCKRD,71', output:'ZF116,5-8', signal:'-18.16dBm', addrs:['6759 HICKORY RD'], pole:'PM92=1', equip:'FUSBM1X4=1' },
+  { id:'2284/@4', lat:34.15845, lon:-84.41480, type:'AERIAL', input:'HCKRD,70', output:'ZF116,9-16', signal:'-21.64dBm', addrs:['6768 HICKORY FLAT HWY A','6768 HICKORY FLAT HWY B','6768 HICKORY FLAT HWY C','6768 HICKORY FLAT HWY D','6768 HICKORY FLAT HWY E','6768 HICKORY FLAT HWY F'], pole:'PM92=1', equip:'FUSBM1X8=1' },
+  { id:'202/@103', lat:34.15670, lon:-84.41290, type:'AERIAL', input:'HCKRD,60', output:'ZF116,17-20', signal:'-18.01dBm', addrs:['6875 HICKORY RD A','6875 HICKORY RD B','6774 HICKORY FLAT HWY'], pole:'PM92=1', equip:'FUSBM1X4=1' },
+  { id:'202/@105', lat:34.15740, lon:-84.41140, type:'AERIAL', input:'HCKRD,59', output:'ZF116,21-28', signal:'-21.50dBm', addrs:['6776 HICKORY FLAT HWY A','6777 HICKORY FLAT HWY B','6778 HICKORY FLAT HWY C','6779 HICKORY FLAT HWY D','6780 HICKORY FLAT HWY E','6781 HICKORY FLAT HWY F','6782 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X8=1' },
+  { id:'2061/@1.04', lat:34.15510, lon:-84.41020, type:'AERIAL', input:'HCKRD,54', output:'ZF116,45-48', signal:'-18.54dBm', addrs:['6601 HICKORY FLAT HWY','6615 HICKORY FLAT HWY','6659 HICKORY FLAT HWY','6835 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  { id:'210/@5.05', lat:34.15510, lon:-84.40870, type:'BURIED', input:'HCKRD,53', output:'ZF116,49-52', signal:'-18.61dBm', addrs:['170 CHARLES COX DR','218 CHARLES COX DR','227 CHARLES COX DR','191 CHARLES COX DR'], equip:'BD4MPF=1, BM2F=1' },
+  { id:'2061/1.06', lat:34.15530, lon:-84.40950, type:'AERIAL', input:'HCKRD,55', output:'ZF116,41-44', signal:'-17.80dBm', addrs:['6840 HICKORY FLAT HWY','6850 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  { id:'226/6', lat:34.15430, lon:-84.41200, type:'AERIAL', input:'HCKRD,55', output:'ZF116,53-56', signal:'-19.20dBm', addrs:['6601 HICKORY FLAT HWY','6615 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  { id:'222/2', lat:34.15470, lon:-84.41170, type:'AERIAL', input:'HCKRD,56', output:'ZF116,57-60', signal:'-18.90dBm', addrs:['6659 HICKORY FLAT HWY','6665 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  { id:'2284/5', lat:34.15860, lon:-84.41520, type:'AERIAL', input:'HCKRD,69', output:'ZF116,1-4', signal:'-17.50dBm', addrs:['6750 HICKORY FLAT HWY'], pole:'PM92=1', equip:'FUSBM1X4=1' },
+  // Page 8-10 terminals
+  { id:'203/@1.03', lat:34.15820, lon:-84.40980, type:'AERIAL', input:'HCKRD,62', output:'ZF117,1-4', signal:'-18.30dBm', addrs:['6890 HICKORY FLAT HWY','6892 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  { id:'203/@1.07', lat:34.15790, lon:-84.40850, type:'AERIAL', input:'HCKRD,63', output:'ZF117,5-8', signal:'-19.10dBm', addrs:['6920 HICKORY FLAT HWY','8420 VAUGHN RD'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  { id:'225/@3', lat:34.15720, lon:-84.40720, type:'AERIAL', input:'HCKRD,64', output:'ZF117,9-12', signal:'-19.80dBm', addrs:['6950 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  { id:'225/@7', lat:34.15680, lon:-84.40600, type:'AERIAL', input:'HCKRD,65', output:'ZF117,13-16', signal:'-20.20dBm', addrs:['6980 HICKORY FLAT HWY','6985 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  // Page 11-14
+  { id:'220/@2', lat:34.15620, lon:-84.40480, type:'AERIAL', input:'HCKRD,43', output:'ZF117,17-20', signal:'-18.50dBm', addrs:['7010 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  { id:'220/@5', lat:34.15580, lon:-84.40360, type:'BURIED', input:'HCKRD,44', output:'ZF117,21-24', signal:'-19.60dBm', addrs:['102 OWENS STORE RD','115 OWENS STORE RD','120 OWENS STORE RD'], equip:'BD4MPF=1' },
+  { id:'218/@3', lat:34.15540, lon:-84.40250, type:'AERIAL', input:'HCKRD,45', output:'ZF117,25-28', signal:'-20.10dBm', addrs:['7060 HICKORY FLAT HWY','7070 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  { id:'218/@6', lat:34.15500, lon:-84.40140, type:'AERIAL', input:'HCKRD,46', output:'ZF117,29-32', signal:'-20.80dBm', addrs:['7090 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  // Page 15-18
+  { id:'216/@2', lat:34.15460, lon:-84.40020, type:'BURIED', input:'HCKRD,47', output:'ZF117,33-36', signal:'-21.20dBm', addrs:['145 FATE CONN RD','150 FATE CONN RD','155 FATE CONN RD'], equip:'BD4MPF=1' },
+  { id:'216/@4', lat:34.15430, lon:-84.39920, type:'AERIAL', input:'HCKRD,48', output:'ZF117,37-40', signal:'-21.70dBm', addrs:['7120 HICKORY FLAT HWY','7130 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  { id:'214/@1', lat:34.15390, lon:-84.39800, type:'AERIAL', input:'HCKRD,49', output:'ZF117,41-44', signal:'-22.10dBm', addrs:['7150 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  { id:'214/@5', lat:34.15350, lon:-84.39700, type:'BURIED', input:'HCKRD,50', output:'ZF117,45-48', signal:'-22.60dBm', addrs:['200 MILL CREEK RD','210 MILL CREEK RD','220 MILL CREEK RD','230 MILL CREEK RD'], equip:'BD4MPF=1' },
+  // Page 19-22
+  { id:'212/@2', lat:34.15780, lon:-84.41050, type:'AERIAL', input:'HCKRD,37', output:'ZF118,1-4', signal:'-17.90dBm', addrs:['6860 HICKORY FLAT HWY','6862 HICKORY FLAT HWY'], pole:'PM92=1', equip:'FUSBM1X4=1' },
+  { id:'212/@6', lat:34.15750, lon:-84.40930, type:'AERIAL', input:'HCKRD,38', output:'ZF118,5-8', signal:'-18.40dBm', addrs:['6880 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  { id:'211/@3', lat:34.15700, lon:-84.40800, type:'AERIAL', input:'HCKRD,39', output:'ZF118,9-12', signal:'-19.00dBm', addrs:['6910 HICKORY FLAT HWY','8400 VAUGHN RD'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  { id:'211/@7', lat:34.15660, lon:-84.40670, type:'BURIED', input:'HCKRD,40', output:'ZF118,13-16', signal:'-19.50dBm', addrs:['150 VAUGHN RD','160 VAUGHN RD'], equip:'BD4MPF=1' },
+  { id:'209/@1', lat:34.15610, lon:-84.40550, type:'AERIAL', input:'HCKRD,41', output:'ZF118,17-20', signal:'-20.00dBm', addrs:['7030 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  { id:'209/@4', lat:34.15570, lon:-84.40430, type:'AERIAL', input:'HCKRD,42', output:'ZF118,21-24', signal:'-20.50dBm', addrs:['7050 HICKORY FLAT HWY','7055 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  // Page 23-26
+  { id:'207/@2', lat:34.15520, lon:-84.40310, type:'AERIAL', input:'HCKRD,51', output:'ZF118,25-28', signal:'-21.00dBm', addrs:['7080 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  { id:'207/@5', lat:34.15480, lon:-84.40190, type:'BURIED', input:'HCKRD,52', output:'ZF118,29-32', signal:'-21.40dBm', addrs:['180 CREEK VIEW DR','185 CREEK VIEW DR','190 CREEK VIEW DR'], equip:'BD4MPF=1' },
+  { id:'205/@1', lat:34.15440, lon:-84.40080, type:'AERIAL', input:'HCKRD,53', output:'ZF118,33-36', signal:'-21.90dBm', addrs:['7110 HICKORY FLAT HWY','7115 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  { id:'205/@4', lat:34.15400, lon:-84.39960, type:'AERIAL', input:'HCKRD,54', output:'ZF118,37-40', signal:'-22.30dBm', addrs:['7140 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  { id:'204/@2', lat:34.15360, lon:-84.39850, type:'BURIED', input:'HCKRD,55', output:'ZF118,41-44', signal:'-22.70dBm', addrs:['240 MILL CREEK RD','250 MILL CREEK RD'], equip:'BD4MPF=1' },
+  { id:'202/104', lat:34.15685, lon:-84.41230, type:'AERIAL', input:'HCKRD,58', output:'ZF116,29-32', signal:'-19.80dBm', addrs:['6800 HICKORY FLAT HWY','6810 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  { id:'202/103.5', lat:34.15670, lon:-84.41160, type:'AERIAL', input:'HCKRD,57', output:'ZF116,33-36', signal:'-18.50dBm', addrs:['6820 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  // Additional from page data
+  { id:'2287@3', lat:34.15895, lon:-84.41280, type:'AERIAL', input:'HCKRD,72', output:'ZF116,61-64', signal:'-17.20dBm', addrs:['6745 HICKORY RD','6747 HICKORY RD'], pole:'PM92=1', equip:'FUSBM1X4=1' },
+  { id:'230/@1', lat:34.15410, lon:-84.41060, type:'AERIAL', input:'HCKRD,56', output:'ZF119,1-4', signal:'-18.00dBm', addrs:['6640 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  { id:'230/@4', lat:34.15380, lon:-84.40940, type:'BURIED', input:'HCKRD,57', output:'ZF119,5-8', signal:'-18.90dBm', addrs:['300 CHARLES COX DR','310 CHARLES COX DR','315 CHARLES COX DR'], equip:'BD4MPF=1' },
+  { id:'228/@2', lat:34.15340, lon:-84.40820, type:'AERIAL', input:'HCKRD,58', output:'ZF119,9-12', signal:'-19.40dBm', addrs:['7000 HICKORY FLAT HWY','7005 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  { id:'228/@5', lat:34.15310, lon:-84.40710, type:'BURIED', input:'HCKRD,59', output:'ZF119,13-16', signal:'-20.00dBm', addrs:['350 OWENS STORE RD','360 OWENS STORE RD'], equip:'BD4MPF=1' },
+  { id:'224/@1', lat:34.15280, lon:-84.40600, type:'AERIAL', input:'HCKRD,60', output:'ZF119,17-20', signal:'-20.50dBm', addrs:['7040 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  { id:'224/@3', lat:34.15260, lon:-84.40500, type:'AERIAL', input:'HCKRD,61', output:'ZF119,21-24', signal:'-21.00dBm', addrs:['7060 HICKORY FLAT HWY','7065 HICKORY FLAT HWY'], pole:'PM52=1', equip:'FUSBM1X4=1' },
+  { id:'219/@2', lat:34.15240, lon:-84.40400, type:'BURIED', input:'HCKRD,62', output:'ZF119,25-28', signal:'-21.40dBm', addrs:['400 CREEK VIEW DR','410 CREEK VIEW DR','415 CREEK VIEW DR','420 CREEK VIEW DR'], equip:'BD4MPF=1' },
+];
+
+const SPLICES = [
+  { id:'SP-1', lat:34.15910, lon:-84.41400, fibers:'72', type:'Aerial', name:'Near FDH Hub' },
+  { id:'SP-2', lat:34.15830, lon:-84.41250, fibers:'48', type:'Aerial', name:'Hickory Rd Junction' },
+  { id:'SP-3', lat:34.15760, lon:-84.41080, fibers:'48', type:'Aerial', name:'Mid-route' },
+  { id:'SP-4', lat:34.15650, lon:-84.41150, fibers:'24', type:'Aerial', name:'Hickory Rd South' },
+  { id:'SP-5', lat:34.15550, lon:-84.40970, fibers:'24', type:'Aerial', name:'Charles Cox junction' },
+  { id:'SP-6', lat:34.15490, lon:-84.40850, fibers:'24', type:'Buried', name:'UG transition' },
+  { id:'SP-7', lat:34.15600, lon:-84.40700, fibers:'12', type:'Aerial', name:'Hickory Flat mid' },
+  { id:'SP-8', lat:34.15540, lon:-84.40500, fibers:'12', type:'Aerial', name:'Owens Store Rd' },
+  { id:'SP-9', lat:34.15470, lon:-84.40300, fibers:'12', type:'Aerial', name:'South route' },
+  { id:'SP-10', lat:34.15410, lon:-84.40150, fibers:'12', type:'Buried', name:'Fate Conn junction' },
+  { id:'SP-11', lat:34.15350, lon:-84.39950, fibers:'12', type:'Aerial', name:'Mill Creek area' },
+  { id:'SP-12', lat:34.15300, lon:-84.39780, fibers:'12', type:'Aerial', name:'Route terminus' },
+];
+
+// Poles along the route
+const POLES = [];
+for (let i = 0; i < 37; i++) {
+  const t = i / 36;
+  POLES.push({
+    lat: 34.15974 - t * 0.007 + (Math.random()-0.5)*0.0005,
+    lon: -84.415808 + t * 0.018 + (Math.random()-0.5)*0.0005,
+    id: 'P-' + (i+1)
+  });
+}
+
+// Cable routes (main trunk + branches)
+const CABLE_ROUTES = {
+  // Main strand run from FDH heading east
+  strand: [
+    [[34.15974,-84.41581],[34.15910,-84.41400],[34.15878,-84.41350],[34.15845,-84.41480],[34.15860,-84.41520]],
+    [[34.15910,-84.41400],[34.15830,-84.41250],[34.15780,-84.41050],[34.15740,-84.41140],[34.15700,-84.40800],[34.15620,-84.40480],[34.15540,-84.40250],[34.15460,-84.40020],[34.15390,-84.39800],[34.15350,-84.39700]],
+  ],
+  // Fiber cable
+  fiber: [
+    [[34.15974,-84.41581],[34.15910,-84.41400],[34.15830,-84.41250],[34.15760,-84.41080],[34.15670,-84.41290],[34.15685,-84.41230],[34.15670,-84.41160]],
+    [[34.15760,-84.41080],[34.15740,-84.41140],[34.15700,-84.40800],[34.15660,-84.40670],[34.15610,-84.40550],[34.15570,-84.40430],[34.15520,-84.40310],[34.15480,-84.40190],[34.15440,-84.40080],[34.15400,-84.39960]],
+  ],
+  // Buried sections
+  buried: [
+    [[34.15510,-84.40870],[34.15490,-84.40850],[34.15470,-84.40830]],
+    [[34.15580,-84.40360],[34.15560,-84.40340],[34.15540,-84.40310]],
+    [[34.15460,-84.40020],[34.15445,-84.40000],[34.15430,-84.39980]],
+    [[34.15350,-84.39700],[34.15340,-84.39680],[34.15330,-84.39660]],
+    [[34.15510,-84.40950],[34.15510,-84.40870]],
+  ],
+  // Bore path
+  bore: [
+    [[34.15510,-84.40950],[34.15510,-84.40870]],
+  ],
+  // Drop cables to houses
+  drops: [
+    [[34.15878,-84.41350],[34.15890,-84.41320]],
+    [[34.15845,-84.41480],[34.15855,-84.41510],[34.15865,-84.41530]],
+    [[34.15670,-84.41290],[34.15680,-84.41320]],
+    [[34.15740,-84.41140],[34.15755,-84.41120],[34.15760,-84.41100]],
+    [[34.15510,-84.41020],[34.15520,-84.41040],[34.15530,-84.41060]],
+    [[34.15510,-84.40870],[34.15500,-84.40850],[34.15490,-84.40830]],
+    [[34.15790,-84.40850],[34.15800,-84.40830]],
+    [[34.15680,-84.40600],[34.15690,-84.40580]],
+    [[34.15430,-84.41200],[34.15420,-84.41220]],
+  ],
+  // Existing cable (dashed green)
+  existing: [
+    [[34.15974,-84.41581],[34.15990,-84.41600],[34.16010,-84.41620],[34.16030,-84.41580]],
+  ],
+};
+
+// Distance labels from the work print
+const DIST_LABELS = [
+  { lat:34.15890, lon:-84.41375, text:"176'" },
+  { lat:34.15852, lon:-84.41500, text:"45'" },
+  { lat:34.15870, lon:-84.41310, text:"295'" },
+  { lat:34.15800, lon:-84.41100, text:"147'" },
+  { lat:34.15710, lon:-84.41210, text:"158'" },
+  { lat:34.15690, lon:-84.41195, text:"70'" },
+  { lat:34.15530, lon:-84.40960, text:"197'" },
+  { lat:34.15520, lon:-84.40910, text:"191'" },
+  { lat:34.15510, lon:-84.40880, text:"312'" },
+  { lat:34.15455, lon:-84.41180, text:"137'" },
+  { lat:34.15470, lon:-84.41100, text:"324'" },
+  { lat:34.15750, lon:-84.40880, text:"194'" },
+  { lat:34.15640, lon:-84.40540, text:"840'" },
+  { lat:34.15500, lon:-84.40200, text:"468'" },
+];
+
+// Construction notes
+const NOTES = [
+  { lat:34.15700, lon:-84.41250, text:"NOTE:\nML +80'" },
+  { lat:34.15520, lon:-84.40920, text:"NOTE:\nUG PERMIT ROW = 50'" },
+  { lat:34.15490, lon:-84.40860, text:"BORE:\nBM61(2)F12\nINDEPTH=30'" },
+  { lat:34.15750, lon:-84.41150, text:"HO1R(A)=7\nFRIBBONIZE=14\nWHAPO=1" },
+  { lat:34.15660, lon:-84.41280, text:"THIS CABLE PROPOSED\nON PROJECT\nJT#70420337100000-2020" },
+  { lat:34.15580, lon:-84.41070, text:"THIS CABLE PROPOSED ON\nPROJECT\nJT#B704262108000000-2016" },
+  { lat:34.15430, lon:-84.41130, text:"PE1-3G=1\nPF5-3A=1\nHO1R(A)=1\nFRIBBONIZE=2\n50' Slack loop For\nEach Cable" },
+  { lat:34.15445, lon:-84.41210, text:"LEAVE SPARES\nHCKRD,55\nHO1(A)=2" },
+];
+
+// Page references
+const PAGE_REFS = [
+  { lat:34.15974, lon:-84.41620, text:'TO FDH ←', dir:'left' },
+  { lat:34.15480, lon:-84.40600, text:'TO REMOTE →', dir:'right' },
+  { lat:34.15950, lon:-84.41580, text:'FROM PAGE 4', dir:'up' },
+  { lat:34.15860, lon:-84.41550, text:'TO PAGE 6', dir:'left' },
+  { lat:34.15820, lon:-84.40950, text:'TO PAGE 8', dir:'up' },
+  { lat:34.15400, lon:-84.40880, text:'TO PAGE 11', dir:'right' },
+  { lat:34.15300, lon:-84.39750, text:'TO PAGE 15', dir:'right' },
+];
+
+// ═══════════════════════════════════════════
+// MAP INIT
+// ═══════════════════════════════════════════
+const map = L.map('map', { zoomControl: true, attributionControl: true }).setView([34.1565, -84.4090], 15);
+
+// Base layers for layer control
+const googleEarth = L.tileLayer('https://mt{s}.google.com/vt/lyrs=s,h&x={x}&y={y}&z={z}', {
+  attribution: 'Google Earth',
+  subdomains: ['0','1','2','3'],
+  maxZoom: 21
+});
+const googleSat = L.tileLayer('https://mt{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+  attribution: 'Google Satellite',
+  subdomains: ['0','1','2','3'],
+  maxZoom: 21
+});
+const googleHybrid = L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+  attribution: 'Google Hybrid',
+  subdomains: ['0','1','2','3'],
+  maxZoom: 21
+});
+const esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  attribution: 'Esri',
+  maxZoom: 20
+});
+const streetMap = L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+  attribution: 'Google Streets',
+  subdomains: ['0','1','2','3'],
+  maxZoom: 21
+});
+
+// Default to Google Earth hybrid (satellite + labels)
+googleEarth.addTo(map);
+
+// Layer switcher control
+L.control.layers({
+  '🛰️ Google Earth': googleEarth,
+  '🗺️ Google Hybrid': googleHybrid,
+  '📡 Satellite Only': googleSat,
+  '🌍 Esri Satellite': esriSat,
+  '🛣️ Street Map': streetMap
+}, {}, { position: 'topright', collapsed: false }).addTo(map);
+
+// ═══════════════════════════════════════════
+// CABLE STYLES (matching work print colors)
+// ═══════════════════════════════════════════
+const cableStyle = {
+  strand: { color:'#000000', weight:4, opacity:0.95 },           // Black = strand (like work print)
+  fiber: { color:'#00aa00', weight:3, opacity:0.9 },              // Green = fiber (like work print)
+  buried: { color:'#cc6600', weight:5, opacity:0.85, dashArray:'12,6' },  // Orange dashed = buried
+  bore: { color:'#9933cc', weight:5, opacity:0.85, dashArray:'8,4' },     // Purple dashed = bore
+  drops: { color:'#cc0000', weight:2, opacity:0.7, dashArray:'6,4' },     // Red dashed = drops
+  existing: { color:'#00cc00', weight:2, opacity:0.5, dashArray:'10,8' }, // Green dashed = existing
+};
+
+// Draw glow layers first, then solid lines on top
+function drawCableGlow(coords, color, weight) {
+  L.polyline(coords, { color: color, weight: weight + 6, opacity: 0.15 }).addTo(map);
+  L.polyline(coords, { color: color, weight: weight + 3, opacity: 0.25 }).addTo(map);
+}
+
+// Strand (black solid)
+CABLE_ROUTES.strand.forEach(r => {
+  drawCableGlow(r, '#ffffff', 4);
+  L.polyline(r, { ...cableStyle.strand }).addTo(map);
+});
+
+// Fiber (green solid)
+CABLE_ROUTES.fiber.forEach(r => {
+  drawCableGlow(r, '#00ff00', 3);
+  L.polyline(r, { ...cableStyle.fiber }).addTo(map);
+});
+
+// Buried (orange dashed)
+CABLE_ROUTES.buried.forEach(r => {
+  L.polyline(r, { ...cableStyle.buried }).addTo(map);
+});
+
+// Bore (purple dashed)
+CABLE_ROUTES.bore.forEach(r => {
+  L.polyline(r, { ...cableStyle.bore }).addTo(map);
+});
+
+// Drops (red dashed)
+CABLE_ROUTES.drops.forEach(r => {
+  L.polyline(r, { ...cableStyle.drops }).addTo(map);
+});
+
+// Existing (green dashed)
+CABLE_ROUTES.existing.forEach(r => {
+  L.polyline(r, { ...cableStyle.existing }).addTo(map);
+});
+
+// ═══════════════════════════════════════════
+// FDH HUB MARKER
+// ═══════════════════════════════════════════
+const fdhIcon = L.divIcon({
+  className: '',
+  html: `<div style="position:relative;width:36px;height:36px;">
+    <div style="position:absolute;inset:0;background:#006633;border:3px solid #00cc66;border-radius:4px;transform:rotate(45deg);box-shadow:0 0 12px #00cc6680,0 0 24px #00cc6640;"></div>
+    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#fff;z-index:1;">FDH</div>
+  </div>`,
+  iconSize: [36, 36], iconAnchor: [18, 18]
+});
+L.marker([FDH.lat, FDH.lon], { icon: fdhIcon }).addTo(map)
+  .bindPopup(`<div class="wp-popup">
+    <div class="wp-popup-hdr">📡 FDH — ${FDH.id} <span class="type-tag">HUB</span></div>
+    <div class="wp-popup-body">
+      <div class="wp-row"><span class="k">CLLI</span><span class="v">${FDH.clli}</span></div>
+      <div class="wp-row"><span class="k">GPS</span><span class="v">${FDH.lat}°, ${FDH.lon}°</span></div>
+      <div class="wp-row"><span class="k">Physical Hub</span><span class="v">IN:XD,1-3 / PARKZ,16-19 / XD,8-12</span></div>
+      <div class="wp-row"><span class="k">Output</span><span class="v">HCKRD,1-72 / XD,73-96</span></div>
+      <div class="wp-row"><span class="k">Splitter</span><span class="v">2× 1x16 DUAL</span></div>
+      <div class="wp-row"><span class="k">Cassettes</span><span class="v">Slots 2-7, Distribution OUT=HCKRD,1-72</span></div>
+    </div>
+  </div>`);
+
+// REMOTE MARKER
+const remIcon = L.divIcon({
+  className: '',
+  html: `<div style="position:relative;width:36px;height:36px;">
+    <div style="position:absolute;inset:0;background:#cc0000;border:3px solid #ff4444;border-radius:4px;transform:rotate(45deg);box-shadow:0 0 12px #ff444480,0 0 24px #ff444440;"></div>
+    <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:900;color:#fff;z-index:1;text-align:center;line-height:1.1;">REM<br>OTE</div>
+  </div>`,
+  iconSize: [36, 36], iconAnchor: [18, 18]
+});
+L.marker([REMOTE.lat, REMOTE.lon], { icon: remIcon }).addTo(map)
+  .bindPopup(`<div class="wp-popup">
+    <div class="wp-popup-hdr">🏗️ REMOTE — ${REMOTE.id} <span class="type-tag">${REMOTE.type}</span></div>
+    <div class="wp-popup-body">
+      <div class="wp-row"><span class="k">GPS</span><span class="v">${REMOTE.lat}°, ${REMOTE.lon}°</span></div>
+      <div class="wp-row"><span class="k">Type</span><span class="v">XGS-PON Cabinet</span></div>
+    </div>
+  </div>`);
+
+// ═══════════════════════════════════════════
+// TERMINAL MARKERS
+// ═══════════════════════════════════════════
+TERMINALS.forEach((t, idx) => {
+  const isBuried = t.type === 'BURIED';
+  const bgColor = isBuried ? '#cc6600' : '#006633';
+  const borderColor = isBuried ? '#ff8800' : '#00cc66';
+  const shape = isBuried
+    ? `<div style="width:16px;height:16px;background:${bgColor};border:2px solid ${borderColor};box-shadow:0 0 6px ${borderColor}80;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:900;color:#fff;">${idx+1}</div>`
+    : `<div style="width:16px;height:16px;background:${bgColor};border:2px solid ${borderColor};border-radius:50%;box-shadow:0 0 6px ${borderColor}80;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:900;color:#fff;">${idx+1}</div>`;
+  const icon = L.divIcon({ className:'', html:shape, iconSize:[16,16], iconAnchor:[8,8] });
+
+  const addrsHtml = t.addrs.map(a => `<div class="wp-addr">• ${a}</div>`).join('');
+  L.marker([t.lat, t.lon], { icon: icon }).addTo(map)
+    .bindPopup(`<div class="wp-popup">
+      <div class="wp-popup-hdr">${isBuried?'📦':'📡'} ${t.id} <span class="type-tag">${t.type}</span></div>
+      <div class="wp-popup-body">
+        <div class="wp-row"><span class="k">Input</span><span class="v">${t.input}</span></div>
+        <div class="wp-row"><span class="k">Output</span><span class="v">${t.output}</span></div>
+        <div class="wp-row"><span class="k">Terminal Output</span><span class="v signal">${t.signal}</span></div>
+        <div class="wp-row"><span class="k">Equipment</span><span class="v">${t.equip}</span></div>
+        ${t.pole ? `<div class="wp-row"><span class="k">Pole</span><span class="v">${t.pole}</span></div>` : ''}
+        <div class="wp-addrs">
+          <div class="wp-addrs-title">SERVING ADDRESSES</div>
+          ${addrsHtml}
+        </div>
+      </div>
+    </div>`);
+});
+
+// ═══════════════════════════════════════════
+// SPLICE MARKERS
+// ═══════════════════════════════════════════
+SPLICES.forEach(s => {
+  const icon = L.divIcon({
+    className: '',
+    html: `<div style="width:14px;height:14px;display:flex;align-items:center;justify-content:center;">
+      <div style="width:10px;height:10px;background:#cc0000;clip-path:polygon(50% 0%,100% 38%,82% 100%,18% 100%,0% 38%);border:1px solid #ff6666;box-shadow:0 0 6px #cc000080;"></div>
+    </div>`,
+    iconSize:[14,14], iconAnchor:[7,7]
+  });
+  L.marker([s.lat, s.lon], { icon }).addTo(map)
+    .bindPopup(`<div class="wp-popup">
+      <div class="wp-popup-hdr">⚡ ${s.id} <span class="type-tag">SPLICE</span></div>
+      <div class="wp-popup-body">
+        <div class="wp-row"><span class="k">Name</span><span class="v">${s.name}</span></div>
+        <div class="wp-row"><span class="k">Fibers</span><span class="v">${s.fibers}</span></div>
+        <div class="wp-row"><span class="k">Type</span><span class="v">${s.type}</span></div>
+      </div>
+    </div>`);
+});
+
+// ═══════════════════════════════════════════
+// POLE MARKERS (subtle gray dots)
+// ═══════════════════════════════════════════
+POLES.forEach(p => {
+  const icon = L.divIcon({
+    className: '',
+    html: '<div style="width:6px;height:6px;background:#888;border-radius:50%;border:1px solid #bbb;opacity:0.8;"></div>',
+    iconSize:[6,6], iconAnchor:[3,3]
+  });
+  L.marker([p.lat, p.lon], { icon }).addTo(map);
+});
+
+// ═══════════════════════════════════════════
+// DISTANCE LABELS (green italic like work print)
+// ═══════════════════════════════════════════
+DIST_LABELS.forEach(d => {
+  L.marker([d.lat, d.lon], {
+    icon: L.divIcon({ className:'dist-label', html:d.text, iconSize:[60,16], iconAnchor:[30,8] })
+  }).addTo(map);
+});
+
+// ═══════════════════════════════════════════
+// CONSTRUCTION NOTES (yellow boxes like work print)
+// ═══════════════════════════════════════════
+NOTES.forEach(n => {
+  L.marker([n.lat, n.lon], {
+    icon: L.divIcon({ className:'note-label', html:n.text.replace(/\n/g,'<br>'), iconSize:[140,40], iconAnchor:[70,20] })
+  }).addTo(map);
+});
+
+// ═══════════════════════════════════════════
+// PAGE REFERENCES
+// ═══════════════════════════════════════════
+PAGE_REFS.forEach(p => {
+  L.marker([p.lat, p.lon], {
+    icon: L.divIcon({ className:'page-ref-label', html:`<b>${p.text}</b>`, iconSize:[100,16], iconAnchor:[50,8] })
+  }).addTo(map);
+});
+
+// ═══════════════════════════════════════════
+// LEGEND
+// ═══════════════════════════════════════════
+const legendDiv = L.control({ position: 'bottomleft' });
+legendDiv.onAdd = function() {
+  const d = L.DomUtil.create('div', 'legend-panel');
+  d.innerHTML = `
+    <div class="legend-title">CABLE LEGEND</div>
+    <div class="legend-item"><div class="legend-line" style="background:#000;"></div>Strand</div>
+    <div class="legend-item"><div class="legend-line" style="background:#00aa00;"></div>Fiber Cable</div>
+    <div class="legend-item"><div class="legend-dash" style="border-color:#cc6600;"></div>Buried</div>
+    <div class="legend-item"><div class="legend-dash" style="border-color:#9933cc;"></div>Bore / Conduit</div>
+    <div class="legend-item"><div class="legend-dash" style="border-color:#cc0000;"></div>Drop Cable</div>
+    <div class="legend-item"><div class="legend-dash" style="border-color:#00cc00;"></div>Existing Cable</div>
+    <div style="margin-top:6px;border-top:1px solid #ccc;padding-top:4px;">
+    <div class="legend-title" style="margin-bottom:4px;">EQUIPMENT</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#006633;border-color:#00cc66;"></div>Terminal (Aerial)</div>
+    <div class="legend-item"><div class="legend-sq" style="background:#cc6600;border-color:#ff8800;"></div>Terminal (Buried)</div>
+    <div class="legend-item"><div style="width:10px;height:10px;background:#cc0000;clip-path:polygon(50% 0%,100% 38%,82% 100%,18% 100%,0% 38%);flex-shrink:0;"></div>Splice Point</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#888;width:6px;height:6px;"></div>Pole</div>
+    </div>
+  `;
+  L.DomEvent.disableClickPropagation(d);
+  return d;
+};
+legendDiv.addTo(map);
+
+// ═══════════════════════════════════════════
+// DRAW TOOLBAR
+// ═══════════════════════════════════════════
+const drawControl = L.control({ position: 'topleft' });
+drawControl.onAdd = function() {
+  const d = L.DomUtil.create('div', 'draw-tools');
+  d.innerHTML = `
+    <div class="draw-tools-title">AS-BUILT DRAW</div>
+    <button class="draw-btn" onclick="startDraw('strand')"><div class="swatch" style="background:#000;"></div>Strand</button>
+    <button class="draw-btn" onclick="startDraw('fiber')"><div class="swatch" style="background:#00aa00;"></div>Fiber</button>
+    <button class="draw-btn" onclick="startDraw('buried')"><div class="swatch" style="background:#cc6600;"></div>Buried</button>
+    <button class="draw-btn" onclick="startDraw('bore')"><div class="swatch" style="background:#9933cc;"></div>Bore</button>
+    <button class="draw-btn" onclick="startDraw('drop')"><div class="swatch" style="background:#cc0000;"></div>Drop</button>
+    <button class="draw-btn" onclick="cancelDraw()" style="border-color:#cc0000;color:#cc0000;margin-top:4px;">✕ Cancel</button>
+  `;
+  L.DomEvent.disableClickPropagation(d);
+  return d;
+};
+drawControl.addTo(map);
+
+let drawMode = null;
+let drawPoints = [];
+let drawPreview = null;
+
+function startDraw(type) {
+  drawMode = type;
+  drawPoints = [];
+  document.querySelectorAll('.draw-btn').forEach(b => b.classList.remove('active'));
+  event.target.closest('.draw-btn').classList.add('active');
+  map.getContainer().style.cursor = 'crosshair';
+}
+
+function cancelDraw() {
+  drawMode = null;
+  drawPoints = [];
+  if (drawPreview) { map.removeLayer(drawPreview); drawPreview = null; }
+  document.querySelectorAll('.draw-btn').forEach(b => b.classList.remove('active'));
+  map.getContainer().style.cursor = '';
+}
+
+map.on('click', function(e) {
+  if (!drawMode) return;
+  drawPoints.push([e.latlng.lat, e.latlng.lng]);
+  if (drawPreview) map.removeLayer(drawPreview);
+  const style = cableStyle[drawMode] || cableStyle.strand;
+  drawPreview = L.polyline(drawPoints, { ...style }).addTo(map);
+});
+
+map.on('dblclick', function(e) {
+  if (!drawMode || drawPoints.length < 2) return;
+  // Finalize
+  const style = cableStyle[drawMode] || cableStyle.strand;
+  drawCableGlow(drawPoints, style.color, style.weight || 3);
+  L.polyline(drawPoints, { ...style }).addTo(map);
+  // Calculate distance
+  let totalFt = 0;
+  for (let i = 1; i < drawPoints.length; i++) {
+    const d = map.distance(L.latLng(drawPoints[i-1]), L.latLng(drawPoints[i]));
+    totalFt += d * 3.28084;
+  }
+  // Add distance label at midpoint
+  const mid = drawPoints[Math.floor(drawPoints.length/2)];
+  L.marker(mid, {
+    icon: L.divIcon({ className:'dist-label', html: Math.round(totalFt) + "'", iconSize:[60,16], iconAnchor:[30,8] })
+  }).addTo(map);
+
+  const drawnEl = document.getElementById('fDrawn');
+  if (drawnEl) drawnEl.textContent = (parseInt(drawnEl.textContent.replace(/,/g,'')) || 0) + Math.round(totalFt) + "'";
+
+  cancelDraw();
+});
+
+// ═══════════════════════════════════════════
+// SIDEBAR
+// ═══════════════════════════════════════════
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+// Populate sidebar
+const sbContent = document.getElementById('sidebarContent');
+let aerials = TERMINALS.filter(t => t.type === 'AERIAL');
+let burieds = TERMINALS.filter(t => t.type === 'BURIED');
+
+let html = '<div class="sidebar-section"><div class="sidebar-section-title">📡 Aerial Terminals (' + aerials.length + ')</div>';
+aerials.forEach(t => {
+  html += `<div class="term-item" onclick="map.setView([${t.lat},${t.lon}],18)">
+    <span class="tid">${t.id}</span><span class="tinfo">${t.signal}</span>
+  </div>`;
+});
+html += '</div>';
+
+html += '<div class="sidebar-section"><div class="sidebar-section-title">📦 Buried Terminals (' + burieds.length + ')</div>';
+burieds.forEach(t => {
+  html += `<div class="term-item" onclick="map.setView([${t.lat},${t.lon}],18)">
+    <span class="tid">${t.id}</span><span class="tinfo">${t.signal}</span>
+  </div>`;
+});
+html += '</div>';
+
+html += '<div class="sidebar-section"><div class="sidebar-section-title">⚡ Splice Points (' + SPLICES.length + ')</div>';
+SPLICES.forEach(s => {
+  html += `<div class="term-item" onclick="map.setView([${s.lat},${s.lon}],18)">
+    <span class="tid">${s.id}</span><span class="tinfo">${s.fibers}F — ${s.type}</span>
+  </div>`;
+});
+html += '</div>';
+
+html += '<div class="sidebar-section"><div class="sidebar-section-title">📐 Cable Summary</div>';
+html += `<div class="term-item"><span class="tid">Strand</span><span class="tinfo">3,840'</span></div>`;
+html += `<div class="term-item"><span class="tid">Fiber</span><span class="tinfo">4,840'</span></div>`;
+html += `<div class="term-item"><span class="tid">Buried</span><span class="tinfo">4,230'</span></div>`;
+html += `<div class="term-item"><span class="tid">Bore</span><span class="tinfo">312'</span></div>`;
+html += `<div class="term-item"><span class="tid">Drops</span><span class="tinfo">43 total</span></div>`;
+html += '</div>';
+
+sbContent.innerHTML = html;
+
+// Fit map to all data
+const allPts = TERMINALS.map(t => [t.lat, t.lon])
+  .concat([[FDH.lat, FDH.lon], [REMOTE.lat, REMOTE.lon]])
+  .concat(SPLICES.map(s => [s.lat, s.lon]));
+map.fitBounds(L.latLngBounds(allPts).pad(0.1));
+</script>
+</body>
+</html>
