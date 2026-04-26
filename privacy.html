@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy — Global Route™</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f0f1a;
+      --card-bg: #1a1a2e;
+      --border: rgba(139, 92, 246, 0.2);
+      --purple: #8b5cf6;
+      --gold: #f59e0b;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --emerald: #10b981;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+
+    .header {
+      text-align: center;
+      padding: 3rem 1.5rem 2rem;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(139, 92, 246, 0.08) 0%, transparent 100%);
+    }
+
+    .logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.8rem;
+      color: var(--gold);
+      letter-spacing: 2px;
+      margin-bottom: 0.5rem;
+    }
+
+    .logo-compass {
+      display: inline-block;
+      margin-right: 0.5rem;
+      font-size: 1.5rem;
+    }
+
+    .header h1 {
+      font-family: 'Inter', sans-serif;
+      font-size: 2rem;
+      font-weight: 700;
+      margin-top: 1rem;
+      background: linear-gradient(135deg, #fff 0%, var(--purple) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header .effective {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem 4rem;
+    }
+
+    .section {
+      margin-bottom: 2.5rem;
+    }
+
+    .section h2 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .section h2 .icon {
+      font-size: 1.2rem;
+    }
+
+    .section h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--purple);
+      margin: 1.25rem 0 0.5rem;
+    }
+
+    p, li {
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+    }
+
+    ul {
+      padding-left: 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    li {
+      margin-bottom: 0.4rem;
+    }
+
+    .highlight-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      margin: 1.25rem 0;
+    }
+
+    .highlight-card.green {
+      border-color: rgba(16, 185, 129, 0.3);
+      background: rgba(16, 185, 129, 0.05);
+    }
+
+    .highlight-card h4 {
+      color: var(--emerald);
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      font-size: 0.95rem;
+    }
+
+    .highlight-card p {
+      margin-bottom: 0;
+      font-size: 0.9rem;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.9rem;
+    }
+
+    .data-table th {
+      text-align: left;
+      padding: 0.75rem;
+      background: var(--card-bg);
+      color: #fff;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .data-table td {
+      padding: 0.75rem;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      color: var(--text-muted);
+    }
+
+    .data-table tr:hover td {
+      background: rgba(139, 92, 246, 0.03);
+    }
+
+    .contact-card {
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(245, 158, 11, 0.05));
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      text-align: center;
+    }
+
+    .contact-card a {
+      color: var(--purple);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    .contact-card a:hover {
+      text-decoration: underline;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--purple);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-top: 2rem;
+    }
+
+    .back-link:hover { text-decoration: underline; }
+
+    .footer {
+      text-align: center;
+      padding: 2rem;
+      border-top: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    @media (max-width: 640px) {
+      .header h1 { font-size: 1.5rem; }
+      .container { padding: 1.5rem 1rem 3rem; }
+      .data-table { font-size: 0.8rem; }
+      .data-table th, .data-table td { padding: 0.5rem; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <span class="logo-compass">🧭</span> GLOBAL ROUTE
+  </div>
+  <h1>Privacy Policy</h1>
+  <p class="effective">Effective Date: April 26, 2026 &nbsp;|&nbsp; Last Updated: April 26, 2026</p>
+</div>
+
+<div class="container">
+
+  <div class="section">
+    <p>Global Route™ ("we," "our," or "us") is operated by <strong>Global West Group LLC</strong>. This Privacy Policy explains how we collect, use, store, and protect your personal information when you use the Global Route application and related services (the "Service").</p>
+    <p>By using Global Route, you agree to the collection and use of information as described in this policy. If you do not agree, please do not use the Service.</p>
+  </div>
+
+  <div class="section">
+    <h2><span class="icon">📋</span> 1. Information We Collect</h2>
+
+    <h3>A. Information You Provide</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>Data Type</th><th>Details</th><th>Purpose</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Account Information</strong></td>
+          <td>Name, email address, password (or Google account credentials)</td>
+          <td>Authentication and account management</td>
+        </tr>
+        <tr>
+          <td><strong>Profile Photo</strong></td>
+          <td>Selfie photo used as your avatar and team identifier</td>
+          <td>Team identification, completion attribution</td>
+        </tr>
+        <tr>
+          <td><strong>Site Photos</strong></td>
+          <td>Before/after photos taken at job sites, optional captions</td>
+          <td>Job documentation and verification</td>
+        </tr>
+        <tr>
+          <td><strong>Notes &amp; Voice Notes</strong></td>
+          <td>Text messages and audio recordings left at sites</td>
+          <td>Team communication and site documentation</td>
+        </tr>
+        <tr>
+          <td><strong>KMZ/KML Files</strong></td>
+          <td>Geographic data files you import into the app</td>
+          <td>Route and site management</td>
+        </tr>
+        <tr>
+          <td><strong>Payment Information</strong></td>
+          <td>Billing details processed through Stripe</td>
+          <td>Subscription billing (we never store card numbers)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>B. Information Collected Automatically</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>Data Type</th><th>Details</th><th>Purpose</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Location Data</strong></td>
+          <td>GPS coordinates (with your permission)</td>
+          <td>Route navigation, nearest-site calculation, photo geocoding</td>
+        </tr>
+        <tr>
+          <td><strong>Activity Data</strong></td>
+          <td>Site completions, timestamps, time tracking, en-route claims</td>
+          <td>Team coordination, analytics, reporting</td>
+        </tr>
+        <tr>
+          <td><strong>Device Information</strong></td>
+          <td>Browser type, operating system, screen size</td>
+          <td>App optimization and troubleshooting</td>
+        </tr>
+        <tr>
+          <td><strong>Push Notification Tokens</strong></td>
+          <td>FCM tokens (if notifications are enabled)</td>
+          <td>Sending push notifications</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="highlight-card green">
+      <h4>🔒 What We Do NOT Collect</h4>
+      <p>We do not collect browsing history, contacts, text messages, call logs, or any data from other apps on your device. We do not sell your data to third parties. Ever.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2><span class="icon">🎯</span> 2. How We Use Your Information</h2>
+    <ul>
+      <li><strong>Provide the Service</strong> — Route your team to job sites, track completions, sync data in real time</li>
+      <li><strong>Team Coordination</strong> — Show teammates who is en-route, who completed what, and when</li>
+      <li><strong>Reports &amp; Analytics</strong> — Generate daily email reports, analytics dashboards, and client-facing PDF reports</li>
+      <li><strong>Photo Documentation</strong> — Store and display geocoded before/after photos for job verification</li>
+      <li><strong>Communication</strong> — Send daily activity reports, system notifications, and account-related emails</li>
+      <li><strong>Billing</strong> — Process subscription payments through Stripe</li>
+      <li><strong>Improve the Service</strong> — Analyze usage patterns to fix bugs and build better features</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2><span class="icon">🤝</span> 3. How We Share Your Information</h2>
+
+    <h3>Within Your Workspace</h3>
+    <p>Global Route is a team collaboration tool. Within your workspace, team members can see:</p>
+    <ul>
+      <li>Your profile name and photo</li>
+      <li>Site completions, notes, photos, and flags you create</li>
+      <li>Your en-route status (which site you're heading to)</li>
+      <li>Activity timestamps</li>
+    </ul>
+    <p>This team visibility is core to how the product works and is expected by all workspace members.</p>
+
+    <h3>Third-Party Service Providers</h3>
+    <table class="data-table">
+      <thead>
+        <tr><th>Provider</th><th>Purpose</th><th>Data Shared</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Google Firebase</strong></td>
+          <td>Authentication, database, file storage</td>
+          <td>Account info, app data, photos, voice notes</td>
+        </tr>
+        <tr>
+          <td><strong>Stripe</strong></td>
+          <td>Payment processing</td>
+          <td>Billing info (we never see your full card number)</td>
+        </tr>
+        <tr>
+          <td><strong>Open-Meteo</strong></td>
+          <td>Weather data on map</td>
+          <td>Approximate location coordinates only</td>
+        </tr>
+        <tr>
+          <td><strong>Google Maps</strong></td>
+          <td>Directions and navigation</td>
+          <td>Destination coordinates when you tap "Get Directions"</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="highlight-card green">
+      <h4>🚫 We Never Sell Your Data</h4>
+      <p>We do not sell, rent, or trade your personal information to advertisers, data brokers, or any third parties for marketing purposes.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2><span class="icon">📍</span> 4. Location Data</h2>
+    <p>Global Route requests access to your device's GPS location. This is used for:</p>
+    <ul>
+      <li>Calculating the nearest job site and optimizing your route</li>
+      <li>Geocoding photos (attaching GPS coordinates to site photos)</li>
+      <li>Displaying your position on the map</li>
+    </ul>
+    <p><strong>Location access is optional.</strong> You can deny or revoke location permission at any time through your device settings. The app will still function but routing features will be limited.</p>
+    <p>We do not continuously track your location in the background. Location is only accessed when the app is actively open and in use.</p>
+  </div>
+
+  <div class="section">
+    <h2><span class="icon">📸</span> 5. Photos &amp; Camera Access</h2>
+    <p>The app requests camera access for:</p>
+    <ul>
+      <li><strong>Profile selfie</strong> — Used as your team identifier and avatar</li>
+      <li><strong>Site photos</strong> — Before/after documentation at job sites</li>
+    </ul>
+    <p>Photos are stored securely in Firebase Cloud Storage and are only visible to members of your workspace. You can delete your own photos at any time.</p>
+    <p>Camera access is optional. You can use the app without taking photos.</p>
+  </div>
+
+  <div class="section">
+    <h2><span class="icon">🎙️</span> 6. Voice Notes &amp; Microphone Access</h2>
+    <p>The app requests microphone access to record voice notes at job sites. Voice recordings are:</p>
+    <ul>
+      <li>Stored securely in Firebase Cloud Storage</li>
+      <li>Only accessible to members of your workspace</li>
+      <li>Deletable by the author at any time</li>
+    </ul>
+    <p>Microphone access is optional and only activated when you tap the record button.</p>
+  </div>
+
+  <div class="section">
+    <h2><span class="icon">🔐</span> 7. Data Security</h2>
+    <p>We take the security of your data seriously and implement the following measures:</p>
+    <ul>
+      <li><strong>Encryption in transit</strong> — All data transmitted between your device and our servers uses TLS/SSL encryption (HTTPS)</li>
+      <li><strong>Encryption at rest</strong> — Data stored in Firebase is encrypted at rest using Google Cloud's default encryption</li>
+      <li><strong>Authentication</strong> — All data access requires authenticated user sessions via Firebase Authentication</li>
+      <li><strong>Workspace isolation</strong> — Data is scoped to individual workspaces; team members in one workspace cannot access another workspace's data</li>
+      <li><strong>Payment security</strong> — All payment processing is handled by Stripe, a PCI DSS Level 1 certified processor. We never store, process, or transmit credit card numbers</li>
+    </ul>
+    <p>While we implement industry-standard security measures, no method of electronic transmission or storage is 100% secure. We cannot guarantee absolute security.</p>
+  </div>
+
+  <div class="section">
+    <h2><span class="icon">⏳</span> 8. Data Retention</h2>
+    <ul>
+      <li><strong>Account data</strong> — Retained as long as your account is active</li>
+      <li><strong>Site completions, notes, photos</strong> — Retained as long as the workspace is active</li>
+      <li><strong>Voice notes</strong> — Retained until deleted by the author or workspace is deleted</li>
+      <li><strong>Payment records</strong> — Retained as required by law (typically 7 years for financial records)</li>
+    </ul>
+    <p>When you delete your account, we will remove your personal data within 30 days, except where retention is required by law.</p>
+  </div>
+
+  <div class="section">
+    <h2><span class="icon">⚖️</span> 9. Your Rights</h2>
+    <p>Depending on your location, you may have the following rights:</p>
+    <ul>
+      <li><strong>Access</strong> — Request a copy of the personal data we hold about you</li>
+      <li><strong>Correction</strong> — Request correction of inaccurate data</li>
+      <li><strong>Deletion</strong> — Request deletion of your personal data</li>
+      <li><strong>Portability</strong> — Request an export of your data in a portable format (CSV download is available in-app)</li>
+      <li><strong>Opt-out of communications</strong> — Unsubscribe from daily email reports at any time</li>
+      <li><strong>Revoke permissions</strong> — Disable location, camera, or microphone access through your device settings</li>
+    </ul>
+    <p>To exercise any of these rights, contact us at the email address below. We will respond within 30 days.</p>
+  </div>
+
+  <div class="section">
+    <h2><span class="icon">👶</span> 10. Children's Privacy</h2>
+    <p>Global Route is not intended for use by individuals under the age of 16. We do not knowingly collect personal information from children. If you believe a child under 16 has provided us with personal data, please contact us and we will promptly delete it.</p>
+  </div>
+
+  <div class="section">
+    <h2><span class="icon">🌍</span> 11. International Data Transfers</h2>
+    <p>Your data is processed and stored on servers located in the United States via Google Firebase. By using Global Route, you consent to the transfer of your data to the United States. We comply with applicable data protection laws regarding international transfers.</p>
+  </div>
+
+  <div class="section">
+    <h2><span class="icon">🍪</span> 12. Cookies &amp; Local Storage</h2>
+    <p>Global Route uses browser local storage to:</p>
+    <ul>
+      <li>Maintain your login session</li>
+      <li>Store app preferences</li>
+      <li>Queue offline actions for sync when connectivity is restored</li>
+      <li>Cache PWA assets for faster loading</li>
+    </ul>
+    <p>We do not use third-party advertising cookies or tracking pixels.</p>
+  </div>
+
+  <div class="section">
+    <h2><span class="icon">🔄</span> 13. Changes to This Policy</h2>
+    <p>We may update this Privacy Policy from time to time. When we make material changes, we will:</p>
+    <ul>
+      <li>Update the "Last Updated" date at the top of this page</li>
+      <li>Notify active users via email or in-app notification</li>
+    </ul>
+    <p>Your continued use of the Service after changes are posted constitutes acceptance of the updated policy.</p>
+  </div>
+
+  <div class="section">
+    <h2><span class="icon">📬</span> 14. Contact Us</h2>
+    <div class="contact-card">
+      <p style="font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 0.75rem;">Global West Group LLC</p>
+      <p><strong>Email:</strong> <a href="mailto:d.west@globalwestgroupllc.com">d.west@globalwestgroupllc.com</a></p>
+      <p style="margin-top: 1rem; font-size: 0.85rem; color: var(--text-muted);">For privacy-related inquiries, please include "Privacy" in your subject line.<br>We will respond within 30 business days.</p>
+    </div>
+  </div>
+
+  <a href="/global-route/landing.html" class="back-link">← Back to Global Route</a>
+
+</div>
+
+<div class="footer">
+  <p>© 2026 Global West Group LLC. All rights reserved. Global Route™ is a trademark of Global West Group LLC.</p>
+</div>
+
+</body>
+</html>
