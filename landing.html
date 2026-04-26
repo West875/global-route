@@ -21,18 +21,28 @@
     .playfair { font-family: 'Playfair Display', serif; }
 
     /* Hero */
-    .hero { min-height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; position: relative; padding: 2rem; }
+    .hero { min-height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; position: relative; padding: 2rem 2rem 3rem; }
     .hero::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 0%, rgba(139,92,246,0.15) 0%, transparent 60%), radial-gradient(ellipse at 80% 100%, rgba(99,102,241,0.1) 0%, transparent 50%); }
-    .hero-content { position: relative; z-index: 1; max-width: 800px; }
+    .hero-content { position: relative; z-index: 1; max-width: 900px; }
     .hero h1 { font-size: clamp(2.5rem, 6vw, 4.5rem); line-height: 1.1; }
     .gold { color: var(--amber); }
     .tagline { font-size: 1rem; letter-spacing: 0.3em; color: rgba(255,255,255,0.5); margin-top: 0.5rem; text-transform: uppercase; }
     .hero-desc { font-size: 1.25rem; color: rgba(255,255,255,0.7); margin-top: 1.5rem; max-width: 600px; margin-left: auto; margin-right: auto; line-height: 1.6; }
-    .cta-row { display: flex; gap: 1rem; justify-content: center; margin-top: 2.5rem; flex-wrap: wrap; }
+
+    /* Video */
+    .video-wrapper { margin-top: 2.5rem; position: relative; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 60px rgba(139,92,246,0.25), 0 0 0 1px rgba(139,92,246,0.2); max-width: 720px; margin-left: auto; margin-right: auto; }
+    .video-wrapper::before { content: ''; position: absolute; inset: -2px; border-radius: 18px; background: linear-gradient(135deg, var(--purple), var(--indigo), var(--amber)); z-index: -1; }
+    .video-wrapper video { width: 100%; display: block; border-radius: 16px; }
+    .video-label { display: inline-flex; align-items: center; gap: 0.5rem; margin-top: 1rem; padding: 0.4rem 1rem; border-radius: 99px; background: rgba(139,92,246,0.15); border: 1px solid rgba(139,92,246,0.3); font-size: 0.85rem; color: rgba(255,255,255,0.7); }
+
+    .cta-row { display: flex; gap: 1rem; justify-content: center; margin-top: 2rem; flex-wrap: wrap; }
     .btn-primary { padding: 1rem 2.5rem; border-radius: 12px; font-weight: 700; font-size: 1.1rem; border: none; cursor: pointer; text-decoration: none; color: white; background: linear-gradient(135deg, var(--purple), var(--indigo)); box-shadow: 0 8px 30px rgba(139,92,246,0.3); transition: all 0.2s; }
     .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 40px rgba(139,92,246,0.4); }
     .btn-secondary { padding: 1rem 2.5rem; border-radius: 12px; font-weight: 600; font-size: 1.1rem; border: 2px solid rgba(255,255,255,0.2); cursor: pointer; text-decoration: none; color: white; background: transparent; transition: all 0.2s; }
     .btn-secondary:hover { border-color: var(--purple); background: rgba(139,92,246,0.1); }
+
+    /* Trial badge */
+    .trial-badge { display: inline-block; margin-top: 0.75rem; padding: 0.3rem 1rem; border-radius: 99px; background: linear-gradient(135deg, var(--emerald), #059669); color: white; font-weight: 700; font-size: 0.85rem; letter-spacing: 0.05em; }
 
     /* Sections */
     section { padding: 5rem 2rem; }
@@ -60,11 +70,12 @@
     .price-features { list-style: none; text-align: left; margin-bottom: 2rem; }
     .price-features li { padding: 0.4rem 0; color: rgba(255,255,255,0.7); font-size: 0.9rem; }
     .price-features li::before { content: '✓ '; color: var(--emerald); font-weight: 700; }
-    .price-btn { display: block; width: 100%; padding: 0.9rem; border-radius: 10px; font-weight: 700; font-size: 1rem; border: none; cursor: pointer; color: white; transition: all 0.2s; }
+    .price-btn { display: block; width: 100%; padding: 0.9rem; border-radius: 10px; font-weight: 700; font-size: 1rem; border: none; cursor: pointer; color: white; transition: all 0.2s; text-decoration: none; }
     .price-btn-primary { background: linear-gradient(135deg, var(--purple), var(--indigo)); }
     .price-btn-primary:hover { box-shadow: 0 6px 25px rgba(139,92,246,0.4); }
     .price-btn-outline { background: transparent; border: 2px solid rgba(255,255,255,0.2); }
     .price-btn-outline:hover { border-color: var(--purple); }
+    .free-trial-note { color: var(--emerald); font-size: 0.8rem; font-weight: 600; margin-top: 0.5rem; }
 
     /* Stats */
     .stats-row { display: flex; justify-content: center; gap: 4rem; margin: 4rem 0; flex-wrap: wrap; }
@@ -80,9 +91,17 @@
     .compass { display: inline-block; animation: spin 20s linear infinite; }
     @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
+    /* Pulse glow on video */
+    @keyframes videoGlow {
+      0%, 100% { box-shadow: 0 20px 60px rgba(139,92,246,0.25), 0 0 0 1px rgba(139,92,246,0.2); }
+      50% { box-shadow: 0 20px 60px rgba(139,92,246,0.4), 0 0 0 2px rgba(139,92,246,0.4); }
+    }
+    .video-wrapper:hover { animation: videoGlow 2s ease-in-out infinite; }
+
     @media (max-width: 640px) {
       .stats-row { gap: 2rem; }
       .cta-row { flex-direction: column; align-items: center; }
+      .video-wrapper { margin-left: 0.5rem; margin-right: 0.5rem; }
     }
   </style>
 </head>
@@ -100,10 +119,21 @@
       The all-in-one field operations platform. Route your crews, track progress in real-time,
       and manage documentation — all from one beautiful app.
     </p>
+
+    <!-- Video -->
+    <div class="video-wrapper">
+      <video controls preload="metadata" poster="">
+        <source src="videos/global-route-ad.mp4" type="video/mp4" />
+        Your browser does not support the video tag.
+      </video>
+    </div>
+    <div class="video-label">▶ Watch the 2-minute demo</div>
+
     <div class="cta-row">
-      <a href="/global-route/v2/" class="btn-primary">🚀 Get Started Free</a>
+      <a href="/global-route/v2/" class="btn-primary">🚀 Start Your Free 30-Day Trial</a>
       <a href="#features" class="btn-secondary">See Features ↓</a>
     </div>
+    <div class="trial-badge">✨ 30-Day Free Trial — No Credit Card Required</div>
   </div>
 </div>
 
@@ -183,7 +213,7 @@
 <section id="pricing" style="background: rgba(139,92,246,0.03);">
   <div class="container">
     <h2 class="section-title playfair">Simple, <span class="gold">Transparent</span> Pricing</h2>
-    <p class="section-sub">Start free. Upgrade when you're ready.</p>
+    <p class="section-sub">Every plan includes a free 30-day trial. No credit card required.</p>
 
     <div class="pricing-grid">
       <div class="price-card">
@@ -198,7 +228,8 @@
           <li>Photo documentation</li>
           <li>Analytics dashboard</li>
         </ul>
-        <a href="/global-route/v2/" class="price-btn price-btn-outline">Get Started</a>
+        <a href="/global-route/v2/" class="price-btn price-btn-outline">Start 30-Day Free Trial</a>
+        <div class="free-trial-note">No credit card required</div>
       </div>
 
       <div class="price-card highlight">
@@ -214,7 +245,8 @@
           <li>Client PDF reports</li>
           <li>Voice notes</li>
         </ul>
-        <a href="/global-route/v2/" class="price-btn price-btn-primary">Start Free Trial</a>
+        <a href="/global-route/v2/" class="price-btn price-btn-primary">Start 30-Day Free Trial</a>
+        <div class="free-trial-note">No credit card required</div>
       </div>
 
       <div class="price-card">
@@ -230,7 +262,8 @@
           <li>API access (soon)</li>
           <li>Everything in Pro</li>
         </ul>
-        <a href="/global-route/v2/" class="price-btn price-btn-outline">Get Started</a>
+        <a href="/global-route/v2/" class="price-btn price-btn-outline">Start 30-Day Free Trial</a>
+        <div class="free-trial-note">No credit card required</div>
       </div>
     </div>
   </div>
@@ -242,8 +275,9 @@
     <h2 class="section-title playfair">Ready to <span class="gold">Optimize</span> Your Field Ops?</h2>
     <p class="section-sub">Join field teams who are saving hours every week with Global Route.</p>
     <div class="cta-row">
-      <a href="/global-route/v2/" class="btn-primary">🚀 Start Free — No Credit Card</a>
+      <a href="/global-route/v2/" class="btn-primary">🚀 Start Your 30-Day Free Trial</a>
     </div>
+    <p style="margin-top: 0.75rem; color: rgba(255,255,255,0.4); font-size: 0.9rem;">No credit card required. Cancel anytime.</p>
   </div>
 </section>
 
@@ -252,6 +286,7 @@
   <p>© 2026 Global West Group LLC. All rights reserved.</p>
   <p style="margin-top: 0.5rem;">
     <a href="/global-route/terms.html">Terms of Service</a> &bull;
+    <a href="/global-route/privacy.html">Privacy Policy</a> &bull;
     <a href="mailto:d.west@globalwestgroupllc.com">Contact</a>
   </p>
 </footer>
