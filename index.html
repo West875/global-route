@@ -1777,6 +1777,12 @@
       const [editSchedule, setEditSchedule] = useState(null);
       const [schedDate, setSchedDate] = useState(new Date().toISOString().split('T')[0]);
       const [asBuiltData, setAsBuiltData] = useState({});
+      const [correctedPins, setCorrectedPins] = useState({});
+      const [polePhotos, setPolePhotos] = useState({});
+      const [showPolePhotos, setShowPolePhotos] = useState(false);
+      const [uploadingPhoto, setUploadingPhoto] = useState(false);
+      const [correctingPin, setCorrectingPin] = useState(false);
+      const polePhotoInputRef = useRef(null);
       const fiberMapRef = useRef(null);
       const fiberMapInstance = useRef(null);
       const fiberSitesLayer = useRef(null);
@@ -1812,8 +1818,15 @@
             seen[s.id] = true;
           }
         });
-        return merged;
-      }, [sites]);
+        // Apply pin corrections from Firestore
+        return merged.map(function(s) {
+          var correction = correctedPins[s.id];
+          if (correction) {
+            return Object.assign({}, s, { lat: correction.correctedLat, lon: correction.correctedLon, pinCorrected: true, correctedBy: correction.correctedByName, correctedAt: correction.correctedAt });
+          }
+          return s;
+        });
+      }, [sites, correctedPins]);
 
       // Load as-built entries from Firestore (all poles)
       useEffect(function() {
@@ -1825,6 +1838,27 @@
           setAsBuiltData(data);
         });
       }, []);
+
+      // Load pin corrections from Firestore
+      useEffect(function() {
+        return db.collection('fiberPinCorrections').onSnapshot(function(snap) {
+          var data = {};
+          snap.docs.forEach(function(doc) { data[doc.id] = doc.data(); });
+          setCorrectedPins(data);
+        });
+      }, []);
+
+      // Load photos for selected pole
+      useEffect(function() {
+        if (!selectedPole) { setPolePhotos({}); return; }
+        return db.collection('fiberPolePhotos').doc(selectedPole.id).collection('photos')
+          .orderBy('createdAt', 'desc')
+          .onSnapshot(function(snap) {
+            var photos = {};
+            snap.docs.forEach(function(doc) { photos[doc.id] = Object.assign({ id: doc.id }, doc.data()); });
+            setPolePhotos(photos);
+          });
+      }, [selectedPole]);
 
       // Load history
       useEffect(function() {
@@ -1886,21 +1920,24 @@
           } else {
             label = (site.name || '').replace(/Pole\s*/i,'P');
           }
+          var correctedBadge = site.pinCorrected ? '<div style="position:absolute;top:-4px;right:-6px;background:#22c55e;border-radius:50%;width:14px;height:14px;display:flex;align-items:center;justify-content:center;font-size:8px;border:2px solid #0f0a1e;">✓</div>' : '';
           var icon = L.divIcon({
             className: '',
             html: '<div style="width:32px;height:40px;position:relative;display:flex;align-items:flex-start;justify-content:center;">' +
-              '<svg width="32" height="40" viewBox="0 0 32 40"><path d="M16 0C7.16 0 0 7.16 0 16c0 12 16 24 16 24s16-12 16-24C32 7.16 24.84 0 16 0z" fill="' + color + '"/><circle cx="16" cy="14" r="8" fill="white" fill-opacity="0.3"/></svg>' +
+              '<svg width="32" height="40" viewBox="0 0 32 40"><path d="M16 0C7.16 0 0 7.16 0 16c0 12 16 24 16 24s16-12 16-24C32 7.16 24.84 0 16 0z" fill="' + color + '"' + (site.pinCorrected ? ' stroke="#22c55e" stroke-width="2"' : '') + '/><circle cx="16" cy="14" r="8" fill="white" fill-opacity="0.3"/></svg>' +
               '<div style="position:absolute;top:5px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:900;color:white;text-shadow:0 1px 2px rgba(0,0,0,0.5);white-space:nowrap;">' + label + '</div>' +
+              correctedBadge +
             '</div>',
             iconSize: [32, 40],
             iconAnchor: [16, 40]
           });
           var marker = L.marker([site.lat, site.lon], { icon: icon }).addTo(fiberSitesLayer.current);
-          marker.on('click', function() { setSelectedPole(site); setShowLogForm(true); });
+          marker.on('click', function() { setSelectedPole(site); setShowLogForm(true); setShowPolePhotos(false); });
           var tip = site.name || site.id;
           if (pType === 'transmission') tip += ' (Tower)';
           if (pType === 'key') tip += ' (' + (site.locationType || 'Key') + ')';
           if (hasWork) tip += ' ✅';
+          if (site.pinCorrected) tip += ' 📍';
           marker.bindTooltip(tip, { direction: 'top', offset: [0, -40] });
         });
         if (allFiberSites.length > 0 && fiberMapInstance.current) {
@@ -1955,6 +1992,93 @@
           setTimeout(function() { setShowLogForm(false); setFormQty({}); setFormNotes(''); setSaved(false); setSelectedPole(null); }, 800);
         } catch(e) { alert('Save failed: ' + e.message); }
         setSaving(false);
+      }
+
+      // ── Correct pin to current GPS location ──
+      async function correctPinLocation() {
+        if (!selectedPole) return;
+        setCorrectingPin(true);
+        try {
+          var pos = await new Promise(function(resolve, reject) {
+            navigator.geolocation.getCurrentPosition(
+              function(p) { resolve({ lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy }); },
+              function(e) { reject(e); },
+              { enableHighAccuracy: true, timeout: 15000 }
+            );
+          });
+          await db.collection('fiberPinCorrections').doc(selectedPole.id).set({
+            originalLat: selectedPole.lat,
+            originalLon: selectedPole.lon,
+            correctedLat: pos.lat,
+            correctedLon: pos.lon,
+            accuracy: Math.round(pos.accuracy),
+            correctedBy: user.uid,
+            correctedByName: user.displayName || user.email.split('@')[0],
+            correctedByPhoto: avatarURL || user.photoURL || null,
+            correctedAt: new Date().toISOString()
+          });
+          if (navigator.vibrate) navigator.vibrate([50, 50, 100]);
+          setSelectedPole(Object.assign({}, selectedPole, { lat: pos.lat, lon: pos.lon, pinCorrected: true }));
+        } catch(e) {
+          alert('Could not get your location: ' + e.message);
+        }
+        setCorrectingPin(false);
+      }
+
+      // ── Capture & upload geotagged photo ──
+      async function capturePolePhoto(file) {
+        if (!file || !selectedPole) return;
+        setUploadingPhoto(true);
+        try {
+          // Compress image
+          var canvas = document.createElement('canvas');
+          var img = new Image();
+          var dataUrl = await new Promise(function(resolve) {
+            var reader = new FileReader();
+            reader.onload = function(e) { resolve(e.target.result); };
+            reader.readAsDataURL(file);
+          });
+          await new Promise(function(resolve) { img.onload = resolve; img.src = dataUrl; });
+          var maxDim = 1200;
+          var w = img.width, h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+            else { w = Math.round(w * maxDim / h); h = maxDim; }
+          }
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          var compressed = canvas.toDataURL('image/jpeg', 0.6);
+
+          // Get GPS
+          var gps = null;
+          try {
+            var gpsPos = await new Promise(function(resolve, reject) {
+              navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 });
+            });
+            gps = { lat: gpsPos.coords.latitude, lon: gpsPos.coords.longitude, accuracy: Math.round(gpsPos.coords.accuracy) };
+          } catch(ge) {}
+
+          await db.collection('fiberPolePhotos').doc(selectedPole.id).collection('photos').add({
+            imageData: compressed,
+            siteId: selectedPole.id,
+            siteName: selectedPole.name,
+            userId: user.uid,
+            userName: user.displayName || user.email.split('@')[0],
+            userPhoto: avatarURL || user.photoURL || null,
+            gps: gps,
+            createdAt: new Date().toISOString(),
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          if (navigator.vibrate) navigator.vibrate(30);
+        } catch(e) {
+          alert('Photo upload failed: ' + e.message);
+        }
+        setUploadingPhoto(false);
+      }
+
+      async function deletePolePhoto(photoId) {
+        if (!selectedPole) return;
+        await db.collection('fiberPolePhotos').doc(selectedPole.id).collection('photos').doc(photoId).delete();
       }
 
       // Count work entries per pole
@@ -2109,6 +2233,64 @@
                   </div>
 
                   <div style={{padding:16}}>
+                    {/* ─── ACTION BUTTONS: Correct Pin + Photos ─── */}
+                    <div style={{display:'flex',gap:8,marginBottom:12}}>
+                      <button onClick={correctPinLocation} disabled={correctingPin}
+                        style={{flex:1,padding:'10px 8px',borderRadius:10,border:'1px solid rgba(59,130,246,0.4)',background:'linear-gradient(135deg,#1e3a5f,#2563eb)',color:'white',fontSize:13,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+                        {correctingPin ? '⏳ Getting GPS...' : '📍 Correct Pin'}
+                      </button>
+                      <button onClick={function(){setShowPolePhotos(!showPolePhotos);}}
+                        style={{flex:1,padding:'10px 8px',borderRadius:10,border:'1px solid rgba(236,72,153,0.4)',background:showPolePhotos?'linear-gradient(135deg,#9d174d,#ec4899)':'linear-gradient(135deg,#831843,#be185d)',color:'white',fontSize:13,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+                        📷 Photos {Object.keys(polePhotos).length > 0 && <span style={{background:'#ec4899',borderRadius:10,padding:'1px 7px',fontSize:11}}>{Object.keys(polePhotos).length}</span>}
+                      </button>
+                    </div>
+                    {selectedPole.pinCorrected && (
+                      <div style={{background:'rgba(34,197,94,0.15)',border:'1px solid rgba(34,197,94,0.3)',borderRadius:8,padding:'6px 10px',marginBottom:10,fontSize:11,color:'#4ade80',display:'flex',alignItems:'center',gap:6}}>
+                        ✅ Pin corrected{selectedPole.correctedBy ? ' by ' + selectedPole.correctedBy : ''}{selectedPole.correctedAt ? ' • ' + new Date(selectedPole.correctedAt).toLocaleDateString() : ''}
+                      </div>
+                    )}
+
+                    {/* ─── PHOTO GALLERY ─── */}
+                    {showPolePhotos && (
+                      <div style={{marginBottom:16,background:'rgba(30,20,60,0.5)',borderRadius:12,border:'1px solid rgba(236,72,153,0.2)',padding:12}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                          <div style={{fontSize:13,fontWeight:700,color:'#f9a8d4'}}>📷 SITE PHOTOS</div>
+                          <label style={{background:'linear-gradient(135deg,#ec4899,#f472b6)',color:'white',padding:'6px 12px',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
+                            {uploadingPhoto ? '⏳ Uploading...' : '📸 Take Photo'}
+                            <input ref={polePhotoInputRef} type="file" accept="image/*" capture="environment" style={{display:'none'}}
+                              onChange={function(e){if(e.target.files&&e.target.files[0]){capturePolePhoto(e.target.files[0]); e.target.value='';}}} />
+                          </label>
+                        </div>
+
+                        {Object.keys(polePhotos).length === 0 && (
+                          <div style={{textAlign:'center',padding:20,color:'#64748b',fontSize:12}}>No photos yet — tap 📸 to capture the first one</div>
+                        )}
+
+                        <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8}}>
+                          {Object.values(polePhotos).map(function(photo) {
+                            return (
+                              <div key={photo.id} style={{borderRadius:10,overflow:'hidden',border:'1px solid rgba(139,92,246,0.2)',background:'rgba(20,15,40,0.8)'}}>
+                                <img src={photo.imageData} style={{width:'100%',height:140,objectFit:'cover',display:'block'}} />
+                                <div style={{padding:6}}>
+                                  <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:2}}>
+                                    {photo.userPhoto ? <img src={photo.userPhoto} style={{width:16,height:16,borderRadius:'50%',objectFit:'cover'}} /> : <div style={{width:16,height:16,borderRadius:'50%',background:'#7c3aed',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontSize:8,fontWeight:700}}>{(photo.userName||'?')[0]}</div>}
+                                    <span style={{fontSize:10,color:'#94a3b8',fontWeight:600}}>{photo.userName}</span>
+                                  </div>
+                                  <div style={{fontSize:9,color:'#64748b'}}>{new Date(photo.createdAt).toLocaleString()}</div>
+                                  {photo.gps && (
+                                    <div style={{fontSize:9,color:'#4ade80',marginTop:2}}>📍 {photo.gps.lat.toFixed(5)}, {photo.gps.lon.toFixed(5)} (±{photo.gps.accuracy}m)</div>
+                                  )}
+                                  {photo.userId === user.uid && (
+                                    <button onClick={function(){deletePolePhoto(photo.id);}} style={{marginTop:4,padding:'2px 8px',borderRadius:4,border:'1px solid rgba(239,68,68,0.3)',background:'rgba(239,68,68,0.15)',color:'#f87171',fontSize:10,cursor:'pointer'}}>🗑️ Delete</button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Date picker */}
                     <input type="date" value={date} onChange={function(e){setDate(e.target.value);}} style={{width:'100%',padding:'10px 12px',borderRadius:8,border:'1px solid rgba(139,92,246,0.3)',background:'rgba(30,20,60,0.6)',color:'white',fontSize:14,marginBottom:12,boxSizing:'border-box'}} />
 
