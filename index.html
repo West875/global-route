@@ -2065,22 +2065,7 @@
               L.polyline(right, { color: '#22c55e', weight: 4, opacity: 1.0 }).addTo(fiberSpanLinesLayer.current);
             }
 
-            // Draw snowshoes on this span
-            var realSpanId = spanId;
-            var equipData = fiberEquipment[spanId] || fiberEquipment[reverseId];
-            if (equipData && equipData.snowshoes) {
-              equipData.snowshoes.forEach(function(shoe, idx) {
-                var shoeIcon = L.divIcon({
-                  className: '',
-                  html: '<div style="background:linear-gradient(135deg,#06b6d4,#0ea5e9);border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);font-size:12px;">❄️</div>' +
-                    '<div style="position:absolute;top:-8px;' + (shoe.ticType === 'in' ? 'left:-6px' : 'right:-6px') + ';background:#fff;border-radius:4px;padding:1px 3px;font-size:8px;font-weight:900;color:#0369a1;border:1px solid #0ea5e9;">' + (shoe.ticType === 'in' ? '→IN' : 'OUT→') + '</div>',
-                  iconSize: [28, 28],
-                  iconAnchor: [14, 14]
-                });
-                var shoeMarker = L.marker([shoe.lat, shoe.lon], { icon: shoeIcon }).addTo(fiberEquipLayer.current);
-                shoeMarker.bindTooltip('❄️ Snowshoe (' + shoe.ticType.toUpperCase() + ') • ' + shoe.placedBy, { direction: 'top' });
-              });
-            }
+            // (Snowshoes now rendered separately from allSnowshoes collection)
           });
         }
 
@@ -2252,6 +2237,17 @@
         });
       }, []);
 
+      // ── Firestore listener for standalone snowshoes ──
+      var [allSnowshoes, setAllSnowshoes] = useState([]);
+      var [placingSnowshoe, setPlacingSnowshoe] = useState(null); // null | 'in' | 'out'
+      useEffect(function() {
+        return db.collection('fiberSnowshoes').orderBy('placedAt','desc').onSnapshot(function(snap) {
+          var shoes = [];
+          snap.forEach(function(doc) { shoes.push(Object.assign({ id: doc.id }, doc.data())); });
+          setAllSnowshoes(shoes);
+        });
+      }, []);
+
       // ── Firestore listener for pole notes (selected pole) ──
       useEffect(function() {
         if (!selectedPole) { setPoleNotes([]); return; }
@@ -2345,36 +2341,39 @@
         if (navigator.vibrate) navigator.vibrate(50);
       }
 
-      // ── Add snowshoe at mid-span ──
-      async function addSnowshoe(fromPole, toPole, ticType) {
-        var spanId = fromPole.id + '__' + toPole.id;
-        var midLat = (fromPole.lat + toPole.lat) / 2;
-        var midLon = (fromPole.lon + toPole.lon) / 2;
-        var existing = fiberEquipment[spanId] || {};
-        var shoes = existing.snowshoes || [];
-        shoes.push({
-          lat: midLat,
-          lon: midLon,
-          ticType: ticType, // 'in' or 'out'
-          placedBy: user.displayName || user.email.split('@')[0],
-          placedByPhoto: avatarURL || user.photoURL || null,
-          placedByUid: user.uid,
-          placedAt: new Date().toISOString()
-        });
-        await db.collection('fiberEquipment').doc(spanId).set({
-          snowshoes: shoes,
-          fromId: fromPole.id,
-          toId: toPole.id
-        }, { merge: true });
-        if (navigator.vibrate) navigator.vibrate(50);
+      // ── Add snowshoe at CURRENT GPS location ──
+      async function addSnowshoeAtGPS(ticType) {
+        setPlacingSnowshoe(ticType);
+        try {
+          var pos = await new Promise(function(resolve, reject) {
+            navigator.geolocation.getCurrentPosition(
+              function(p) { resolve({ lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy }); },
+              function(e) { reject(e); },
+              { enableHighAccuracy: true, timeout: 15000 }
+            );
+          });
+          await db.collection('fiberSnowshoes').add({
+            lat: pos.lat,
+            lon: pos.lon,
+            accuracy: pos.acc,
+            ticType: ticType,
+            placedBy: user.displayName || user.email.split('@')[0],
+            placedByPhoto: avatarURL || user.photoURL || null,
+            placedByUid: user.uid,
+            placedAt: new Date().toISOString()
+          });
+          if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
+        } catch(e) {
+          alert('Could not get GPS location: ' + e.message);
+        }
+        setPlacingSnowshoe(null);
       }
 
-      // ── Remove snowshoe ──
-      async function removeSnowshoe(spanId, idx) {
-        var existing = fiberEquipment[spanId] || {};
-        var shoes = (existing.snowshoes || []).slice();
-        shoes.splice(idx, 1);
-        await db.collection('fiberEquipment').doc(spanId).set({ snowshoes: shoes }, { merge: true });
+      // ── Remove snowshoe by doc ID ──
+      async function removeSnowshoe(docId) {
+        if (confirm('Remove this snowshoe?')) {
+          await db.collection('fiberSnowshoes').doc(docId).delete();
+        }
       }
 
       // ── Save pole note ──
@@ -2514,6 +2513,20 @@
                     </div>
                   </div>
                 </div>
+                {/* ── Floating Snowshoe Buttons ── */}
+                <div style={{position:'absolute',bottom:10,right:10,zIndex:1000,display:'flex',flexDirection:'column',gap:6}}>
+                  <button onClick={function(){addSnowshoeAtGPS('in');}} disabled={placingSnowshoe !== null}
+                    style={{padding:'10px 14px',borderRadius:12,border:'2px solid rgba(6,182,212,0.5)',background:'linear-gradient(135deg,#0e7490,#06b6d4)',color:'white',fontSize:12,fontWeight:800,cursor:'pointer',boxShadow:'0 4px 15px rgba(6,182,212,0.4)',display:'flex',alignItems:'center',gap:6}}>
+                    {placingSnowshoe === 'in' ? '⏳ GPS...' : '❄️ Tic IN'}
+                  </button>
+                  <button onClick={function(){addSnowshoeAtGPS('out');}} disabled={placingSnowshoe !== null}
+                    style={{padding:'10px 14px',borderRadius:12,border:'2px solid rgba(6,182,212,0.5)',background:'linear-gradient(135deg,#155e75,#0891b2)',color:'white',fontSize:12,fontWeight:800,cursor:'pointer',boxShadow:'0 4px 15px rgba(6,182,212,0.4)',display:'flex',alignItems:'center',gap:6}}>
+                    {placingSnowshoe === 'out' ? '⏳ GPS...' : '❄️ Tic OUT'}
+                  </button>
+                  <div style={{background:'rgba(15,10,30,0.85)',borderRadius:8,padding:'4px 8px',fontSize:9,color:'#67e8f9',textAlign:'center'}}>
+                    {allSnowshoes.length} snowshoe{allSnowshoes.length !== 1 ? 's' : ''} placed
+                  </div>
+                </div>
                 {/* Legend */}
                 <div style={{position:'absolute',bottom:16,left:16,zIndex:1000,background:'rgba(15,10,30,0.9)',borderRadius:10,padding:'10px 14px',border:'1px solid rgba(139,92,246,0.3)',fontSize:12}}>
                   <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
@@ -2619,33 +2632,40 @@
                                     {stageData.updatedByName} • {new Date(stageData.updatedAt).toLocaleString()}
                                   </div>
                                 )}
-                                {/* ─── SNOWSHOE CONTROLS ─── */}
+                                {/* ─── SNOWSHOE CONTROLS — GPS-based ─── */}
                                 <div style={{padding:'4px 10px 8px',borderTop:'1px solid rgba(6,182,212,0.15)'}}>
                                   <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
                                     <span style={{fontSize:10,color:'#06b6d4',fontWeight:600}}>❄️ Snowshoes</span>
-                                    <button onClick={function(){
-                                      var fromP = allFiberSites.find(function(s){return s.id===selectedPole.id;}) || selectedPole;
-                                      var toP = allFiberSites.find(function(s){return s.id===span.id;});
-                                      if(toP) addSnowshoe(fromP, toP, 'in');
-                                    }} style={{padding:'2px 8px',borderRadius:5,background:'linear-gradient(135deg,#0e7490,#06b6d4)',border:'none',color:'white',fontSize:9,fontWeight:700,cursor:'pointer'}}>+ Tic IN</button>
-                                    <button onClick={function(){
-                                      var fromP = allFiberSites.find(function(s){return s.id===selectedPole.id;}) || selectedPole;
-                                      var toP = allFiberSites.find(function(s){return s.id===span.id;});
-                                      if(toP) addSnowshoe(fromP, toP, 'out');
-                                    }} style={{padding:'2px 8px',borderRadius:5,background:'linear-gradient(135deg,#0e7490,#06b6d4)',border:'none',color:'white',fontSize:9,fontWeight:700,cursor:'pointer'}}>+ Tic OUT</button>
+                                    <button onClick={function(){ addSnowshoeAtGPS('in'); }} disabled={placingSnowshoe !== null}
+                                      style={{padding:'2px 8px',borderRadius:5,background:'linear-gradient(135deg,#0e7490,#06b6d4)',border:'none',color:'white',fontSize:9,fontWeight:700,cursor:'pointer'}}>
+                                      {placingSnowshoe === 'in' ? '⏳...' : '+ Tic IN'}
+                                    </button>
+                                    <button onClick={function(){ addSnowshoeAtGPS('out'); }} disabled={placingSnowshoe !== null}
+                                      style={{padding:'2px 8px',borderRadius:5,background:'linear-gradient(135deg,#155e75,#0891b2)',border:'none',color:'white',fontSize:9,fontWeight:700,cursor:'pointer'}}>
+                                      {placingSnowshoe === 'out' ? '⏳...' : '+ Tic OUT'}
+                                    </button>
                                   </div>
+                                  <div style={{fontSize:9,color:'#67e8f9',marginBottom:4}}>📍 Uses your current GPS location</div>
+                                  {/* Show nearby snowshoes (within ~500ft of this pole) */}
                                   {(function(){
-                                    var sId = selectedPole.id + '__' + span.id;
-                                    var rId = span.id + '__' + selectedPole.id;
-                                    var eq = fiberEquipment[sId] || fiberEquipment[rId];
-                                    var realId = fiberEquipment[sId] ? sId : rId;
-                                    if (!eq || !eq.snowshoes || eq.snowshoes.length === 0) return null;
-                                    return eq.snowshoes.map(function(shoe, sIdx) {
+                                    var poleLat = selectedPole.lat;
+                                    var poleLon = selectedPole.lon;
+                                    var nearbyShoes = allSnowshoes.filter(function(shoe) {
+                                      var dLat = (shoe.lat - poleLat) * 111320;
+                                      var dLon = (shoe.lon - poleLon) * 111320 * Math.cos(poleLat * Math.PI / 180);
+                                      var dist = Math.sqrt(dLat * dLat + dLon * dLon);
+                                      return dist < 150; // ~500ft = 150m
+                                    });
+                                    if (nearbyShoes.length === 0) return <div style={{fontSize:9,color:'#475569'}}>No snowshoes nearby</div>;
+                                    return nearbyShoes.map(function(shoe) {
                                       return (
-                                        <div key={sIdx} style={{display:'flex',alignItems:'center',gap:6,padding:'3px 0',fontSize:10}}>
+                                        <div key={shoe.id} style={{display:'flex',alignItems:'center',gap:6,padding:'3px 0',fontSize:10}}>
                                           <span style={{color:'#06b6d4'}}>❄️ {shoe.ticType.toUpperCase()}</span>
-                                          <span style={{color:'#94a3b8'}}>by {shoe.placedBy}</span>
-                                          <button onClick={function(){removeSnowshoe(realId, sIdx);}} style={{marginLeft:'auto',background:'rgba(239,68,68,0.2)',border:'1px solid rgba(239,68,68,0.4)',color:'#f87171',borderRadius:4,padding:'1px 6px',fontSize:9,cursor:'pointer'}}>✕</button>
+                                          <span style={{color:'#94a3b8',fontSize:9}}>📍 {shoe.lat.toFixed(5)}, {shoe.lon.toFixed(5)}</span>
+                                          <span style={{color:'#64748b',fontSize:9}}>• {shoe.placedBy}</span>
+                                          {shoe.placedByUid === user.uid && (
+                                            <button onClick={function(){removeSnowshoe(shoe.id);}} style={{marginLeft:'auto',background:'rgba(239,68,68,0.2)',border:'1px solid rgba(239,68,68,0.4)',color:'#f87171',borderRadius:4,padding:'1px 6px',fontSize:9,cursor:'pointer'}}>✕</button>
+                                          )}
                                         </div>
                                       );
                                     });
