@@ -2338,7 +2338,7 @@
         await db.collection('fiberSchedule').doc(id).delete();
       }
 
-      // ── Update span stage ──
+      // ── Update span stage + auto-bill footage ──
       async function updateSpanStage(fromPole, toPole, stage, distFt) {
         var spanId = fromPole.id + '__' + toPole.id;
         await db.collection('fiberSpanStages').doc(spanId).set({
@@ -2354,34 +2354,137 @@
           updatedAt: new Date().toISOString(),
           timestamp: firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
+        // ── AUTO-BILL: footage by stage ──
+        var footage = Math.round(distFt || 0);
+        if (footage > 0) {
+          var today = new Date().toISOString().split('T')[0];
+          var autoKey = 'auto_span_' + spanId;
+          var billCode = null; var billNote = '';
+          if (stage === 'strand') { billCode = 'AE1'; billNote = '⚡ Auto: Strand placed ' + footage + 'ft (' + fromPole.name + ' → ' + toPole.name + ')'; }
+          else if (stage === 'cable') { billCode = 'AE1'; billNote = '⚡ Auto: Cable placed ' + footage + 'ft (' + fromPole.name + ' → ' + toPole.name + ')'; }
+          else if (stage === 'lashed') { billCode = 'AE2'; billNote = '⚡ Auto: Strand & Lash ' + footage + 'ft (' + fromPole.name + ' → ' + toPole.name + ')'; }
+          else if (stage === 'complete') { billCode = 'AE2'; billNote = '⚡ Auto: Completed ' + footage + 'ft (' + fromPole.name + ' → ' + toPole.name + ')'; }
+          
+          if (billCode) {
+            // Write to the "from" pole's production sheet
+            var existing = asBuiltData[fromPole.id] || {};
+            var entries = Object.assign({}, existing.entries || {});
+            entries[autoKey] = {
+              userId: user.uid,
+              userName: user.displayName || user.email.split('@')[0],
+              userPhoto: avatarURL || user.photoURL || null,
+              date: today,
+              codes: {},
+              notes: billNote,
+              auto: true,
+              spanId: spanId,
+              updatedAt: new Date().toISOString()
+            };
+            entries[autoKey].codes[billCode] = footage;
+            await db.collection('fiberAsBuilt').doc(fromPole.id).set({
+              siteId: fromPole.id, siteName: fromPole.name,
+              lat: fromPole.lat, lon: fromPole.lon,
+              entries: entries,
+              lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+          }
+          
+          // If going back to "none", remove auto entry
+          if (stage === 'none') {
+            var existing2 = asBuiltData[fromPole.id] || {};
+            var entries2 = Object.assign({}, existing2.entries || {});
+            if (entries2[autoKey]) {
+              delete entries2[autoKey];
+              await db.collection('fiberAsBuilt').doc(fromPole.id).update({
+                entries: entries2,
+                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+              });
+            }
+          }
+        }
         if (navigator.vibrate) navigator.vibrate(30);
       }
 
-      // ── Toggle SCREW ANCHOR at pole (AE10 - $250) ──
+      // ── AUTO-POPULATE: Equipment actions → production sheet entry ──
+      async function autoPopulateEquipment(poleId, billingCode, isPlacing) {
+        var today = new Date().toISOString().split('T')[0];
+        var autoEntryId = 'auto_' + billingCode + '_' + user.uid;
+        var poleSite = allFiberSites.find(function(s) { return s.id === poleId; });
+        var poleName = poleSite ? poleSite.name : poleId;
+        
+        var existing = asBuiltData[poleId] || {};
+        var existingEntries = Object.assign({}, existing.entries || {});
+        
+        if (isPlacing) {
+          // Add auto-billed entry
+          existingEntries[autoEntryId] = {
+            userId: user.uid,
+            userName: user.displayName || user.email.split('@')[0],
+            userPhoto: avatarURL || user.photoURL || null,
+            date: today,
+            codes: {},
+            notes: '⚡ Auto-billed from map action',
+            auto: true,
+            updatedAt: new Date().toISOString()
+          };
+          existingEntries[autoEntryId].codes[billingCode] = 1;
+        } else {
+          // Remove auto-billed entry
+          delete existingEntries[autoEntryId];
+        }
+        
+        await db.collection('fiberAsBuilt').doc(poleId).set({
+          siteId: poleId,
+          siteName: poleName,
+          lat: poleSite ? poleSite.lat : 0,
+          lon: poleSite ? poleSite.lon : 0,
+          entries: existingEntries,
+          lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      }
+
+      // ── AUTO-POPULATE: Snowshoe → nearest pole production sheet ──
+      function findNearestPoleId(lat, lon) {
+        var nearest = null; var nearDist = Infinity;
+        allFiberSites.forEach(function(s) {
+          if (s.type === 'tower' || s.type === 'key') return;
+          var d = haversine(lat, lon, s.lat, s.lon);
+          if (d < nearDist) { nearDist = d; nearest = s; }
+        });
+        return nearest;
+      }
+
+      // ── Toggle SCREW ANCHOR at pole (AE5 - $60.35) + auto-bill ──
       async function toggleScrewAnchor(poleId) {
         var existing = fiberEquipment[poleId] || {};
         var has = existing.screwAnchor;
+        var placing = !has;
         await db.collection('fiberEquipment').doc(poleId).set({
-          screwAnchor: !has,
-          screwAnchorBy: !has ? (user.displayName || user.email.split('@')[0]) : null,
-          screwAnchorByPhoto: !has ? (avatarURL || user.photoURL || null) : null,
-          screwAnchorAt: !has ? new Date().toISOString() : null,
-          screwAnchorUid: !has ? user.uid : null
+          screwAnchor: placing,
+          screwAnchorBy: placing ? (user.displayName || user.email.split('@')[0]) : null,
+          screwAnchorByPhoto: placing ? (avatarURL || user.photoURL || null) : null,
+          screwAnchorAt: placing ? new Date().toISOString() : null,
+          screwAnchorUid: placing ? user.uid : null
         }, { merge: true });
+        // ── AUTO-BILL: write/remove AE5 entry to production sheet ──
+        await autoPopulateEquipment(poleId, 'AE5', placing);
         if (navigator.vibrate) navigator.vibrate(50);
       }
 
-      // ── Toggle DOWN GUY at pole (AE4 - $15.30) ──
+      // ── Toggle DOWN GUY at pole (AE4 - $15.30) + auto-bill ──
       async function toggleDownGuy(poleId) {
         var existing = fiberEquipment[poleId] || {};
         var has = existing.downGuy;
+        var placing = !has;
         await db.collection('fiberEquipment').doc(poleId).set({
-          downGuy: !has,
-          downGuyBy: !has ? (user.displayName || user.email.split('@')[0]) : null,
-          downGuyByPhoto: !has ? (avatarURL || user.photoURL || null) : null,
-          downGuyAt: !has ? new Date().toISOString() : null,
-          downGuyUid: !has ? user.uid : null
+          downGuy: placing,
+          downGuyBy: placing ? (user.displayName || user.email.split('@')[0]) : null,
+          downGuyByPhoto: placing ? (avatarURL || user.photoURL || null) : null,
+          downGuyAt: placing ? new Date().toISOString() : null,
+          downGuyUid: placing ? user.uid : null
         }, { merge: true });
+        // ── AUTO-BILL: write/remove AE4 entry to production sheet ──
+        await autoPopulateEquipment(poleId, 'AE4', placing);
         if (navigator.vibrate) navigator.vibrate(50);
       }
 
@@ -2558,7 +2661,7 @@
               { enableHighAccuracy: true, timeout: 15000 }
             );
           });
-          await db.collection('fiberSnowshoes').add({
+          var docRef = await db.collection('fiberSnowshoes').add({
             lat: pos.lat,
             lon: pos.lon,
             accuracy: pos.acc,
@@ -2568,6 +2671,31 @@
             placedByUid: user.uid,
             placedAt: new Date().toISOString()
           });
+          // ── AUTO-BILL: AE6 Snow Shoe at nearest pole ──
+          var nearestPole = findNearestPoleId(pos.lat, pos.lon);
+          if (nearestPole) {
+            var today = new Date().toISOString().split('T')[0];
+            var autoKey = 'auto_AE6_' + docRef.id;
+            var existing = asBuiltData[nearestPole.id] || {};
+            var entries = Object.assign({}, existing.entries || {});
+            entries[autoKey] = {
+              userId: user.uid,
+              userName: user.displayName || user.email.split('@')[0],
+              userPhoto: avatarURL || user.photoURL || null,
+              date: today,
+              codes: { 'AE6': 1 },
+              notes: '⚡ Auto-billed: Snow Shoe (' + ticType.toUpperCase() + ') near ' + nearestPole.name,
+              auto: true,
+              snowshoeDocId: docRef.id,
+              updatedAt: new Date().toISOString()
+            };
+            await db.collection('fiberAsBuilt').doc(nearestPole.id).set({
+              siteId: nearestPole.id, siteName: nearestPole.name,
+              lat: nearestPole.lat, lon: nearestPole.lon,
+              entries: entries,
+              lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+          }
           if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
         } catch(e) {
           alert('Could not get GPS location: ' + e.message);
@@ -2579,6 +2707,21 @@
       async function removeSnowshoe(docId) {
         if (confirm('Remove this snowshoe?')) {
           await db.collection('fiberSnowshoes').doc(docId).delete();
+          // ── Also remove auto-billed AE6 entry from nearest pole ──
+          var autoKey = 'auto_AE6_' + docId;
+          var allPoleIds = Object.keys(asBuiltData);
+          for (var pi = 0; pi < allPoleIds.length; pi++) {
+            var poleEntries = asBuiltData[allPoleIds[pi]].entries || {};
+            if (poleEntries[autoKey]) {
+              var updatedEntries = Object.assign({}, poleEntries);
+              delete updatedEntries[autoKey];
+              await db.collection('fiberAsBuilt').doc(allPoleIds[pi]).update({
+                entries: updatedEntries,
+                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+              });
+              break;
+            }
+          }
         }
       }
 
@@ -3006,7 +3149,7 @@
                     {asBuiltData[selectedPole.id] && asBuiltData[selectedPole.id].entries && (
                       <div style={{marginBottom:16}}>
                         <div style={{fontSize:12,fontWeight:700,color:'#a78bfa',marginBottom:8}}>📜 PREVIOUS WORK AT THIS POLE</div>
-                        {Object.values(asBuiltData[selectedPole.id].entries).map(function(entry, idx) {
+                        {Object.values(asBuiltData[selectedPole.id].entries).sort(function(a,b){ return (b.updatedAt||'').localeCompare(a.updatedAt||''); }).map(function(entry, idx) {
                           return (
                             <div key={idx} style={{background:'rgba(30,20,60,0.6)',borderRadius:8,padding:10,marginBottom:6,border:'1px solid rgba(139,92,246,0.1)'}}>
                               <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
