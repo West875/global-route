@@ -1782,12 +1782,25 @@
       const [showPolePhotos, setShowPolePhotos] = useState(false);
       const [uploadingPhoto, setUploadingPhoto] = useState(false);
       const [correctingPin, setCorrectingPin] = useState(false);
+      const [spanStages, setSpanStages] = useState({});
+      const [poleNotes, setPoleNotes] = useState([]);
+      const [showPoleNotes, setShowPoleNotes] = useState(false);
+      const [newPoleNote, setNewPoleNote] = useState('');
       const polePhotoInputRef = useRef(null);
       const fiberMapRef = useRef(null);
       const fiberMapInstance = useRef(null);
       const fiberSitesLayer = useRef(null);
       const fiberRouteLayer = useRef(null);
       const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
+      // Work stages for cable runs between poles
+      var SPAN_STAGES = [
+        { key: 'none', label: 'Not Started', icon: '⬜', color: '#475569' },
+        { key: 'strand', label: 'Strand Placed', icon: '🟡', color: '#eab308' },
+        { key: 'cable', label: 'Cable Placed', icon: '🟠', color: '#f97316' },
+        { key: 'lashed', label: 'Lashed', icon: '🟢', color: '#22c55e' },
+        { key: 'complete', label: 'Complete', icon: '✅', color: '#10b981' }
+      ];
 
       // Merge OLT-57 built-in poles with any imported sites
       var allFiberSites = useMemo(function() {
@@ -2125,6 +2138,26 @@
         await db.collection('fiberPolePhotos').doc(selectedPole.id).collection('photos').doc(photoId).delete();
       }
 
+      // ── Firestore listener for span stages ──
+      useEffect(function() {
+        return db.collection('fiberSpanStages').onSnapshot(function(snap) {
+          var data = {};
+          snap.forEach(function(doc) { data[doc.id] = doc.data(); });
+          setSpanStages(data);
+        });
+      }, []);
+
+      // ── Firestore listener for pole notes (selected pole) ──
+      useEffect(function() {
+        if (!selectedPole) { setPoleNotes([]); return; }
+        return db.collection('fiberPoleNotes').doc(selectedPole.id).collection('messages')
+          .orderBy('timestamp', 'desc').onSnapshot(function(snap) {
+            var msgs = [];
+            snap.forEach(function(doc) { msgs.push(Object.assign({ id: doc.id }, doc.data())); });
+            setPoleNotes(msgs);
+          });
+      }, [selectedPole]);
+
       // Count work entries per pole
       function getPoleStatus(siteId) {
         var data = asBuiltData[siteId];
@@ -2174,8 +2207,76 @@
         await db.collection('fiberSchedule').doc(id).delete();
       }
 
+      // ── Update span stage ──
+      async function updateSpanStage(fromPole, toPole, stage, distFt) {
+        var spanId = fromPole.id + '__' + toPole.id;
+        await db.collection('fiberSpanStages').doc(spanId).set({
+          stage: stage,
+          fromId: fromPole.id,
+          toId: toPole.id,
+          fromName: fromPole.name,
+          toName: toPole.name,
+          distFt: distFt,
+          updatedBy: user.uid,
+          updatedByName: user.displayName || user.email.split('@')[0],
+          updatedByPhoto: avatarURL || user.photoURL || null,
+          updatedAt: new Date().toISOString(),
+          timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        if (navigator.vibrate) navigator.vibrate(30);
+      }
+
+      // ── Save pole note ──
+      async function savePoleNote(poleId, text) {
+        if (!text.trim()) return;
+        await db.collection('fiberPoleNotes').doc(poleId).collection('messages').add({
+          text: text.trim(),
+          userId: user.uid,
+          userName: user.displayName || user.email.split('@')[0],
+          userPhoto: avatarURL || user.photoURL || null,
+          createdAt: new Date().toISOString(),
+          timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        setNewPoleNote('');
+      }
+
+      // ── Delete pole note (own notes only) ──
+      async function deletePoleNote(poleId, noteId) {
+        await db.collection('fiberPoleNotes').doc(poleId).collection('messages').doc(noteId).delete();
+      }
+
+      // ── Calculate daily footage by stage ──
+      function calcDailyFootage() {
+        var today = new Date().toISOString().split('T')[0];
+        var byStage = { strand: 0, cable: 0, lashed: 0, complete: 0 };
+        var totalByStage = { strand: 0, cable: 0, lashed: 0, complete: 0 };
+        var totalActive = 0;
+        Object.values(spanStages).forEach(function(s) {
+          if (s.stage && s.stage !== 'none') {
+            totalByStage[s.stage] = (totalByStage[s.stage] || 0) + (s.distFt || 0);
+            totalActive += (s.distFt || 0);
+            // Check if updated today
+            if (s.updatedAt && s.updatedAt.startsWith(today)) {
+              byStage[s.stage] = (byStage[s.stage] || 0) + (s.distFt || 0);
+            }
+          }
+        });
+        return { today: byStage, total: totalByStage, totalActive: totalActive };
+      }
+
       function downloadCSV() {
         var rows = [['Pole','Site Name','Date','Worker','Code','Description','Unit','Qty'].concat(isAdmin ? ['Rate','Total'] : [])];
+        // Add span stages sheet data
+        var spanRows = [['\n--- SPAN STAGES ---'],['From Pole','To Pole','Distance (ft)','Stage','Updated By','Updated At']];
+        if (spanData._routeSpans) {
+          spanData._routeSpans.forEach(function(span) {
+            var spanId = span.from.id + '__' + span.to.id;
+            var reverseId = span.to.id + '__' + span.from.id;
+            var stageData = spanStages[spanId] || spanStages[reverseId] || { stage: 'none' };
+            var stg = SPAN_STAGES.find(function(s){return s.key===stageData.stage;}) || SPAN_STAGES[0];
+            spanRows.push([span.from.name, span.to.name, span.dist, stg.label, stageData.updatedByName||'', stageData.updatedAt||'']);
+          });
+        }
         Object.values(asBuiltData).forEach(function(pole) {
           Object.values(pole.entries || {}).forEach(function(entry) {
             Object.keys(entry.codes || {}).forEach(function(code) {
@@ -2189,6 +2290,7 @@
             });
           });
         });
+        rows = rows.concat(spanRows);
         var csv = rows.map(function(r) { return r.join(','); }).join('\n');
         var blob = new Blob([csv], { type: 'text/csv' });
         var a = document.createElement('a');
@@ -2294,24 +2396,53 @@
                       </div>
                     )}
 
-                    {/* ─── SPAN MEASUREMENTS ─── */}
+                    {/* ─── SPAN MEASUREMENTS + WORK STAGES ─── */}
                     {selectedPole && selectedPole.poleType === 'distribution' && spanData[selectedPole.id] && (
                       <div style={{marginBottom:14,background:'rgba(30,40,60,0.5)',borderRadius:12,border:'1px solid rgba(59,130,246,0.2)',padding:12}}>
-                        <div style={{fontSize:12,fontWeight:700,color:'#93c5fd',marginBottom:8,display:'flex',alignItems:'center',gap:6}}>📏 SPAN MEASUREMENTS <span style={{fontSize:10,color:'#64748b',fontWeight:400}}>(GPS-calculated)</span></div>
-                        <div style={{display:'flex',flexDirection:'column',gap:4}}>
+                        <div style={{fontSize:12,fontWeight:700,color:'#93c5fd',marginBottom:8,display:'flex',alignItems:'center',gap:6}}>📏 SPANS & WORK STAGES <span style={{fontSize:10,color:'#64748b',fontWeight:400}}>(tap stage to update)</span></div>
+                        <div style={{display:'flex',flexDirection:'column',gap:6}}>
                           {spanData[selectedPole.id].slice(0,6).map(function(span) {
+                            var spanId = selectedPole.id + '__' + span.id;
+                            var reverseId = span.id + '__' + selectedPole.id;
+                            var stageData = spanStages[spanId] || spanStages[reverseId] || { stage: 'none' };
+                            var currentStage = SPAN_STAGES.find(function(s){return s.key===stageData.stage;}) || SPAN_STAGES[0];
                             return (
-                              <div key={span.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 10px',borderRadius:8,background:'rgba(59,130,246,0.08)',border:'1px solid rgba(59,130,246,0.12)'}}>
-                                <div style={{display:'flex',alignItems:'center',gap:6}}>
-                                  <span style={{fontSize:14}}>↔</span>
-                                  <span style={{fontSize:12,color:'white',fontWeight:600}}>{selectedPole.name} → {span.name}</span>
+                              <div key={span.id} style={{borderRadius:10,background:'rgba(15,10,30,0.6)',border:'1px solid ' + currentStage.color + '33',overflow:'hidden'}}>
+                                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 10px'}}>
+                                  <div style={{display:'flex',alignItems:'center',gap:6}}>
+                                    <span style={{fontSize:14}}>↔</span>
+                                    <span style={{fontSize:12,color:'white',fontWeight:600}}>{selectedPole.name} → {span.name}</span>
+                                  </div>
+                                  <div style={{background:'linear-gradient(135deg,#1e3a5f,#2563eb)',borderRadius:6,padding:'3px 10px',fontSize:12,fontWeight:800,color:'white',minWidth:55,textAlign:'center'}}>{span.dist} ft</div>
                                 </div>
-                                <div style={{background:'linear-gradient(135deg,#1e3a5f,#2563eb)',borderRadius:6,padding:'3px 10px',fontSize:12,fontWeight:800,color:'white',minWidth:60,textAlign:'center'}}>{span.dist} ft</div>
+                                <div style={{display:'flex',gap:4,padding:'4px 10px 8px',flexWrap:'wrap'}}>
+                                  {SPAN_STAGES.map(function(stage) {
+                                    var isActive = stageData.stage === stage.key;
+                                    return (
+                                      <button key={stage.key} onClick={function(){ 
+                                        var fromPole = allFiberSites.find(function(s){return s.id===selectedPole.id;}) || selectedPole;
+                                        var toPole = allFiberSites.find(function(s){return s.id===span.id;});
+                                        if (toPole) updateSpanStage(fromPole, toPole, stage.key, span.dist);
+                                      }}
+                                        style={{padding:'4px 8px',borderRadius:6,border:'1px solid ' + (isActive ? stage.color : 'rgba(100,116,139,0.3)'),
+                                          background:isActive ? stage.color + '25' : 'transparent',color:isActive ? stage.color : '#64748b',
+                                          fontSize:10,fontWeight:isActive?700:400,cursor:'pointer',display:'flex',alignItems:'center',gap:3}}>
+                                        <span>{stage.icon}</span> {stage.label}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                                {stageData.updatedByName && (
+                                  <div style={{padding:'0 10px 6px',fontSize:9,color:'#64748b',display:'flex',alignItems:'center',gap:4}}>
+                                    {stageData.updatedByPhoto ? <img src={stageData.updatedByPhoto} style={{width:14,height:14,borderRadius:'50%',objectFit:'cover'}} /> : null}
+                                    {stageData.updatedByName} • {new Date(stageData.updatedAt).toLocaleString()}
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
                         </div>
-                        <div style={{fontSize:10,color:'#64748b',marginTop:6,textAlign:'center'}}>Distances auto-calculated from GPS coordinates • Tap pole to update with corrected pin</div>
+                        <div style={{fontSize:10,color:'#64748b',marginTop:6,textAlign:'center'}}>⬜ Not Started → 🟡 Strand → 🟠 Cable → 🟢 Lashed → ✅ Complete</div>
                       </div>
                     )}
 
@@ -2355,6 +2486,46 @@
                         </div>
                       </div>
                     )}
+
+                    {/* ─── POLE NOTES ─── */}
+                    <div style={{marginBottom:14,background:'rgba(30,40,60,0.5)',borderRadius:12,border:'1px solid rgba(251,191,36,0.2)',padding:12}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                        <div style={{fontSize:12,fontWeight:700,color:'#fbbf24',display:'flex',alignItems:'center',gap:6}}>📝 POLE NOTES</div>
+                        <div style={{fontSize:10,color:'#64748b'}}>{poleNotes.length} note{poleNotes.length!==1?'s':''}</div>
+                      </div>
+                      {/* Add note */}
+                      <div style={{display:'flex',gap:6,marginBottom:8}}>
+                        <input value={newPoleNote} onChange={function(e){setNewPoleNote(e.target.value);}}
+                          onKeyDown={function(e){if(e.key==='Enter'&&newPoleNote.trim()){savePoleNote(selectedPole.id,newPoleNote);}}}
+                          placeholder="Add a note... (e.g., strand only, tree in way, needs anchor)"
+                          style={{flex:1,padding:'8px 12px',borderRadius:8,border:'1px solid rgba(251,191,36,0.3)',background:'rgba(30,20,60,0.6)',color:'white',fontSize:12}} />
+                        <button onClick={function(){if(newPoleNote.trim())savePoleNote(selectedPole.id,newPoleNote);}}
+                          style={{padding:'8px 14px',borderRadius:8,border:'none',background:'linear-gradient(135deg,#d97706,#f59e0b)',color:'white',fontSize:12,fontWeight:700,cursor:'pointer'}}>Send</button>
+                      </div>
+                      {/* Notes list */}
+                      <div style={{maxHeight:180,overflow:'auto',display:'flex',flexDirection:'column',gap:4}}>
+                        {poleNotes.map(function(note) {
+                          return (
+                            <div key={note.id} style={{display:'flex',gap:8,padding:'6px 8px',borderRadius:8,background:'rgba(251,191,36,0.05)',border:'1px solid rgba(251,191,36,0.1)'}}>
+                              {note.userPhoto ? <img src={note.userPhoto} style={{width:24,height:24,borderRadius:'50%',objectFit:'cover',flexShrink:0}} /> : <div style={{width:24,height:24,borderRadius:'50%',background:'#d97706',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontSize:10,fontWeight:700,flexShrink:0}}>{(note.userName||'?')[0]}</div>}
+                              <div style={{flex:1}}>
+                                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                                  <span style={{fontSize:11,color:'#fbbf24',fontWeight:600}}>{note.userName}</span>
+                                  <span style={{fontSize:9,color:'#64748b'}}>{note.createdAt ? new Date(note.createdAt).toLocaleString() : ''}</span>
+                                </div>
+                                <div style={{fontSize:12,color:'white',marginTop:2}}>{note.text}</div>
+                                {note.userId === user.uid && (
+                                  <button onClick={function(){deletePoleNote(selectedPole.id, note.id);}} style={{marginTop:3,padding:'1px 6px',borderRadius:4,border:'1px solid rgba(239,68,68,0.3)',background:'rgba(239,68,68,0.1)',color:'#f87171',fontSize:9,cursor:'pointer'}}>🗑️ Delete</button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {poleNotes.length === 0 && (
+                        <div style={{textAlign:'center',padding:10,color:'#64748b',fontSize:11}}>No notes yet — document strand placements, issues, anchors, etc.</div>
+                      )}
+                    </div>
 
                     {/* Date picker */}
                     <input type="date" value={date} onChange={function(e){setDate(e.target.value);}} style={{width:'100%',padding:'10px 12px',borderRadius:8,border:'1px solid rgba(139,92,246,0.3)',background:'rgba(30,20,60,0.6)',color:'white',fontSize:14,marginBottom:12,boxSizing:'border-box'}} />
@@ -2448,6 +2619,34 @@
                 {/* ─── SPAN TABLE ─── */}
                 {spanData._routeSpans && spanData._routeSpans.length > 0 && (
                   <div style={{marginBottom:16}}>
+                    {/* Stage legend */}
+                    <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
+                      {SPAN_STAGES.map(function(s){return <span key={s.key} style={{fontSize:10,color:s.color,display:'flex',alignItems:'center',gap:3}}>{s.icon} {s.label}</span>;})}
+                    </div>
+                    {/* Footage by stage */}
+                    {(function() {
+                      var ft = calcDailyFootage();
+                      return (
+                        <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:6,marginBottom:12}}>
+                          <div style={{background:'rgba(234,179,8,0.1)',borderRadius:8,padding:10,textAlign:'center',border:'1px solid rgba(234,179,8,0.2)'}}>
+                            <div style={{fontSize:10,color:'#eab308',fontWeight:600}}>🟡 STRAND</div>
+                            <div style={{fontSize:18,fontWeight:900,color:'#eab308'}}>{(ft.total.strand||0).toLocaleString()} ft</div>
+                          </div>
+                          <div style={{background:'rgba(249,115,22,0.1)',borderRadius:8,padding:10,textAlign:'center',border:'1px solid rgba(249,115,22,0.2)'}}>
+                            <div style={{fontSize:10,color:'#f97316',fontWeight:600}}>🟠 CABLE</div>
+                            <div style={{fontSize:18,fontWeight:900,color:'#f97316'}}>{(ft.total.cable||0).toLocaleString()} ft</div>
+                          </div>
+                          <div style={{background:'rgba(34,197,94,0.1)',borderRadius:8,padding:10,textAlign:'center',border:'1px solid rgba(34,197,94,0.2)'}}>
+                            <div style={{fontSize:10,color:'#22c55e',fontWeight:600}}>🟢 LASHED</div>
+                            <div style={{fontSize:18,fontWeight:900,color:'#22c55e'}}>{(ft.total.lashed||0).toLocaleString()} ft</div>
+                          </div>
+                          <div style={{background:'rgba(16,185,129,0.1)',borderRadius:8,padding:10,textAlign:'center',border:'1px solid rgba(16,185,129,0.2)'}}>
+                            <div style={{fontSize:10,color:'#10b981',fontWeight:600}}>✅ COMPLETE</div>
+                            <div style={{fontSize:18,fontWeight:900,color:'#10b981'}}>{(ft.total.complete||0).toLocaleString()} ft</div>
+                          </div>
+                        </div>
+                      );
+                    })()}
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
                       <div style={{fontSize:13,fontWeight:700,color:'#93c5fd',display:'flex',alignItems:'center',gap:6}}>📏 ROUTE SPANS</div>
                       <div style={{background:'linear-gradient(135deg,#1e3a5f,#2563eb)',borderRadius:8,padding:'4px 12px',fontSize:12,fontWeight:800,color:'white'}}>
@@ -2456,19 +2655,22 @@
                     </div>
                     <div style={{background:'rgba(30,40,60,0.4)',borderRadius:12,border:'1px solid rgba(59,130,246,0.15)',overflow:'hidden'}}>
                       {spanData._routeSpans.map(function(span, idx) {
-                        var fromStatus = getPoleStatus(span.from.id);
-                        var toStatus = getPoleStatus(span.to.id);
-                        var bothDone = fromStatus.count > 0 && toStatus.count > 0;
+                        var spanId = span.from.id + '__' + span.to.id;
+                        var reverseId = span.to.id + '__' + span.from.id;
+                        var stageData = spanStages[spanId] || spanStages[reverseId] || { stage: 'none' };
+                        var stg = SPAN_STAGES.find(function(s){return s.key===stageData.stage;}) || SPAN_STAGES[0];
                         return (
-                          <div key={idx} style={{display:'flex',alignItems:'center',padding:'10px 14px',borderBottom:idx < spanData._routeSpans.length - 1 ? '1px solid rgba(59,130,246,0.08)' : 'none',background:bothDone?'rgba(34,197,94,0.05)':'transparent'}}>
-                            <div style={{flex:1,display:'flex',alignItems:'center',gap:6}}>
-                              <span style={{fontSize:10,color:fromStatus.count>0?'#22c55e':'#ef4444'}}>●</span>
-                              <span style={{fontSize:12,color:'white',fontWeight:600}}>{span.from.name}</span>
-                              <span style={{fontSize:11,color:'#64748b'}}>→</span>
-                              <span style={{fontSize:10,color:toStatus.count>0?'#22c55e':'#ef4444'}}>●</span>
-                              <span style={{fontSize:12,color:'white',fontWeight:600}}>{span.to.name}</span>
+                          <div key={idx} style={{display:'flex',alignItems:'center',padding:'10px 14px',borderBottom:idx < spanData._routeSpans.length - 1 ? '1px solid rgba(59,130,246,0.08)' : 'none',background:stg.color+'08'}}>
+                            <div style={{width:24,textAlign:'center',marginRight:8,fontSize:14}}>{stg.icon}</div>
+                            <div style={{flex:1}}>
+                              <div style={{display:'flex',alignItems:'center',gap:4}}>
+                                <span style={{fontSize:12,color:'white',fontWeight:600}}>{span.from.name}</span>
+                                <span style={{fontSize:11,color:'#64748b'}}>→</span>
+                                <span style={{fontSize:12,color:'white',fontWeight:600}}>{span.to.name}</span>
+                              </div>
+                              <div style={{fontSize:10,color:stg.color,fontWeight:600}}>{stg.label}{stageData.updatedByName ? ' • ' + stageData.updatedByName : ''}</div>
                             </div>
-                            <div style={{background:bothDone?'rgba(34,197,94,0.15)':'rgba(59,130,246,0.15)',borderRadius:6,padding:'3px 10px',fontSize:12,fontWeight:800,color:bothDone?'#22c55e':'#60a5fa',minWidth:60,textAlign:'center'}}>{span.dist} ft</div>
+                            <div style={{background:stg.color+'25',borderRadius:6,padding:'3px 10px',fontSize:12,fontWeight:800,color:stg.color,minWidth:60,textAlign:'center'}}>{span.dist} ft</div>
                           </div>
                         );
                       })}
@@ -2593,6 +2795,45 @@
                     </div>
                   )}
                 </div>
+
+                {/* ─── TODAY'S FOOTAGE ─── */}
+                {(function() {
+                  var ft = calcDailyFootage();
+                  var todayTotal = (ft.today.strand||0)+(ft.today.cable||0)+(ft.today.lashed||0)+(ft.today.complete||0);
+                  return (
+                    <div style={{marginBottom:20}}>
+                      <div style={{background:'linear-gradient(135deg,#1a2e1a,#0d3320)',borderRadius:12,padding:16,border:'1px solid rgba(34,197,94,0.3)',marginBottom:12}}>
+                        <div style={{fontSize:12,color:'#4ade80',fontWeight:600,textAlign:'center'}}>📏 TODAY'S FOOTAGE</div>
+                        <div style={{fontSize:28,fontWeight:900,color:'#22c55e',textAlign:'center'}}>{todayTotal.toLocaleString()} ft</div>
+                        {todayTotal > 0 && (
+                          <div style={{display:'flex',justifyContent:'center',gap:12,marginTop:8,flexWrap:'wrap'}}>
+                            {ft.today.strand > 0 && <span style={{fontSize:11,color:'#eab308'}}>🟡 {ft.today.strand.toLocaleString()} ft strand</span>}
+                            {ft.today.cable > 0 && <span style={{fontSize:11,color:'#f97316'}}>🟠 {ft.today.cable.toLocaleString()} ft cable</span>}
+                            {ft.today.lashed > 0 && <span style={{fontSize:11,color:'#22c55e'}}>🟢 {ft.today.lashed.toLocaleString()} ft lashed</span>}
+                            {ft.today.complete > 0 && <span style={{fontSize:11,color:'#10b981'}}>✅ {ft.today.complete.toLocaleString()} ft done</span>}
+                          </div>
+                        )}
+                      </div>
+                      {/* Total footage all time */}
+                      <div style={{background:'rgba(30,20,60,0.4)',borderRadius:12,padding:14,border:'1px solid rgba(139,92,246,0.15)'}}>
+                        <div style={{fontSize:12,color:'#a78bfa',fontWeight:600,marginBottom:8,textAlign:'center'}}>📊 TOTAL ROUTE FOOTAGE BY STAGE</div>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                          <div style={{textAlign:'center'}}><div style={{fontSize:10,color:'#eab308'}}>Strand</div><div style={{fontSize:16,fontWeight:800,color:'#eab308'}}>{(ft.total.strand||0).toLocaleString()} ft</div></div>
+                          <div style={{textAlign:'center'}}><div style={{fontSize:10,color:'#f97316'}}>Cable</div><div style={{fontSize:16,fontWeight:800,color:'#f97316'}}>{(ft.total.cable||0).toLocaleString()} ft</div></div>
+                          <div style={{textAlign:'center'}}><div style={{fontSize:10,color:'#22c55e'}}>Lashed</div><div style={{fontSize:16,fontWeight:800,color:'#22c55e'}}>{(ft.total.lashed||0).toLocaleString()} ft</div></div>
+                          <div style={{textAlign:'center'}}><div style={{fontSize:10,color:'#10b981'}}>Complete</div><div style={{fontSize:16,fontWeight:800,color:'#10b981'}}>{(ft.total.complete||0).toLocaleString()} ft</div></div>
+                        </div>
+                        <div style={{textAlign:'center',marginTop:8,paddingTop:8,borderTop:'1px solid rgba(139,92,246,0.1)'}}>
+                          <div style={{fontSize:10,color:'#64748b'}}>Total Active</div>
+                          <div style={{fontSize:22,fontWeight:900,color:'white'}}>{ft.totalActive.toLocaleString()} ft</div>
+                          {spanData._totalFootage > 0 && (
+                            <div style={{fontSize:10,color:'#64748b',marginTop:2}}>of {spanData._totalFootage.toLocaleString()} ft total route ({Math.round(ft.totalActive/(spanData._totalFootage||1)*100)}%)</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Admin-only category breakdown */}
                 {isAdmin && totals && GIGABEAM_CATEGORIES.map(function(cat) {
