@@ -1791,6 +1791,9 @@
       const fiberMapInstance = useRef(null);
       const fiberSitesLayer = useRef(null);
       const fiberRouteLayer = useRef(null);
+      const fiberSpanLinesLayer = useRef(null);
+      const fiberEquipLayer = useRef(null);
+      const [fiberEquipment, setFiberEquipment] = useState({});
       const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
 
       // Work stages for cable runs between poles
@@ -1945,6 +1948,8 @@
         fiberMapInstance.current = map;
         fiberSitesLayer.current = L.layerGroup().addTo(map);
         fiberRouteLayer.current = L.layerGroup().addTo(map);
+        fiberSpanLinesLayer.current = L.layerGroup().addTo(map);
+        fiberEquipLayer.current = L.layerGroup().addTo(map);
 
         // Draw fiber route path
         if (typeof OLT57_DATA !== 'undefined') {
@@ -2002,6 +2007,97 @@
           fiberMapInstance.current.fitBounds(bounds, { padding: [30, 30] });
         }
       }, [allFiberSites, asBuiltData, tab]);
+
+      // ── Draw color-coded span lines + equipment markers on map ──
+      useEffect(function() {
+        if (!fiberSpanLinesLayer.current || !fiberEquipLayer.current) return;
+        fiberSpanLinesLayer.current.clearLayers();
+        fiberEquipLayer.current.clearLayers();
+
+        // Helper: offset a line perpendicular to show 2 lines side by side
+        function offsetLine(p1, p2, offsetMeters) {
+          var dx = p2[1] - p1[1]; // lon diff
+          var dy = p2[0] - p1[0]; // lat diff
+          var len = Math.sqrt(dx * dx + dy * dy);
+          if (len === 0) return [p1, p2];
+          var scale = offsetMeters * 0.000009; // ~1m in degrees at mid-latitudes
+          var offLat = -dx / len * scale;
+          var offLon = dy / len * scale;
+          return [[p1[0] + offLat, p1[1] + offLon], [p2[0] + offLat, p2[1] + offLon]];
+        }
+
+        var siteMap = {};
+        allFiberSites.forEach(function(s) { siteMap[s.id] = s; });
+
+        // Draw span lines for each route span
+        if (spanData._routeSpans) {
+          spanData._routeSpans.forEach(function(span) {
+            var spanId = span.from.id + '__' + span.to.id;
+            var reverseId = span.to.id + '__' + span.from.id;
+            var stageData = spanStages[spanId] || spanStages[reverseId] || { stage: 'none' };
+            var stage = stageData.stage;
+            var p1 = [span.from.lat, span.from.lon];
+            var p2 = [span.to.lat, span.to.lon];
+
+            if (stage === 'none') {
+              // Thin gray dashed
+              L.polyline([p1, p2], { color: '#475569', weight: 1.5, opacity: 0.4, dashArray: '4,6' }).addTo(fiberSpanLinesLayer.current);
+            } else if (stage === 'strand') {
+              // Single yellow line = strand
+              L.polyline([p1, p2], { color: '#eab308', weight: 4, opacity: 0.9 }).addTo(fiberSpanLinesLayer.current);
+            } else if (stage === 'cable') {
+              // Yellow strand + orange cable (offset side by side)
+              var left = offsetLine(p1, p2, -3);
+              var right = offsetLine(p1, p2, 3);
+              L.polyline(left, { color: '#eab308', weight: 3, opacity: 0.9 }).addTo(fiberSpanLinesLayer.current);
+              L.polyline(right, { color: '#f97316', weight: 3, opacity: 0.9 }).addTo(fiberSpanLinesLayer.current);
+            } else if (stage === 'lashed') {
+              // Yellow strand + green lashed (orange removed)
+              var left = offsetLine(p1, p2, -3);
+              var right = offsetLine(p1, p2, 3);
+              L.polyline(left, { color: '#eab308', weight: 3, opacity: 0.9 }).addTo(fiberSpanLinesLayer.current);
+              L.polyline(right, { color: '#22c55e', weight: 3, opacity: 0.9 }).addTo(fiberSpanLinesLayer.current);
+            } else if (stage === 'complete') {
+              // Yellow strand + green lashed (thicker, solid)
+              var left = offsetLine(p1, p2, -3);
+              var right = offsetLine(p1, p2, 3);
+              L.polyline(left, { color: '#eab308', weight: 4, opacity: 1.0 }).addTo(fiberSpanLinesLayer.current);
+              L.polyline(right, { color: '#22c55e', weight: 4, opacity: 1.0 }).addTo(fiberSpanLinesLayer.current);
+            }
+
+            // Draw snowshoes on this span
+            var realSpanId = spanId;
+            var equipData = fiberEquipment[spanId] || fiberEquipment[reverseId];
+            if (equipData && equipData.snowshoes) {
+              equipData.snowshoes.forEach(function(shoe, idx) {
+                var shoeIcon = L.divIcon({
+                  className: '',
+                  html: '<div style="background:linear-gradient(135deg,#06b6d4,#0ea5e9);border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:2px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);font-size:12px;">❄️</div>' +
+                    '<div style="position:absolute;top:-8px;' + (shoe.ticType === 'in' ? 'left:-6px' : 'right:-6px') + ';background:#fff;border-radius:4px;padding:1px 3px;font-size:8px;font-weight:900;color:#0369a1;border:1px solid #0ea5e9;">' + (shoe.ticType === 'in' ? '→IN' : 'OUT→') + '</div>',
+                  iconSize: [28, 28],
+                  iconAnchor: [14, 14]
+                });
+                var shoeMarker = L.marker([shoe.lat, shoe.lon], { icon: shoeIcon }).addTo(fiberEquipLayer.current);
+                shoeMarker.bindTooltip('❄️ Snowshoe (' + shoe.ticType.toUpperCase() + ') • ' + shoe.placedBy, { direction: 'top' });
+              });
+            }
+          });
+        }
+
+        // Draw anchor icons at poles
+        allFiberSites.forEach(function(site) {
+          var equip = fiberEquipment[site.id];
+          if (equip && equip.anchor) {
+            var anchorIcon = L.divIcon({
+              className: '',
+              html: '<div style="position:relative;"><div style="background:linear-gradient(135deg,#78350f,#92400e);border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;border:2px solid #fbbf24;box-shadow:0 2px 8px rgba(0,0,0,0.5);font-size:12px;position:absolute;top:-32px;left:4px;">⚓</div></div>',
+              iconSize: [32, 0],
+              iconAnchor: [16, 0]
+            });
+            L.marker([site.lat, site.lon], { icon: anchorIcon, interactive: false }).addTo(fiberEquipLayer.current);
+          }
+        });
+      }, [spanData, spanStages, fiberEquipment, allFiberSites, tab]);
 
       function toggleCat(cat) {
         setExpandedCats(function(prev) {
@@ -2147,6 +2243,15 @@
         });
       }, []);
 
+      // ── Firestore listener for fiber equipment (anchors, snowshoes) ──
+      useEffect(function() {
+        return db.collection('fiberEquipment').onSnapshot(function(snap) {
+          var data = {};
+          snap.forEach(function(doc) { data[doc.id] = doc.data(); });
+          setFiberEquipment(data);
+        });
+      }, []);
+
       // ── Firestore listener for pole notes (selected pole) ──
       useEffect(function() {
         if (!selectedPole) { setPoleNotes([]); return; }
@@ -2224,6 +2329,52 @@
           timestamp: firebase.firestore.FieldValue.serverTimestamp()
         }, { merge: true });
         if (navigator.vibrate) navigator.vibrate(30);
+      }
+
+      // ── Toggle anchor at pole ──
+      async function toggleAnchor(poleId) {
+        var existing = fiberEquipment[poleId] || {};
+        var hasAnchor = existing.anchor;
+        await db.collection('fiberEquipment').doc(poleId).set({
+          anchor: !hasAnchor,
+          anchorBy: !hasAnchor ? (user.displayName || user.email.split('@')[0]) : null,
+          anchorByPhoto: !hasAnchor ? (avatarURL || user.photoURL || null) : null,
+          anchorAt: !hasAnchor ? new Date().toISOString() : null,
+          anchorUid: !hasAnchor ? user.uid : null
+        }, { merge: true });
+        if (navigator.vibrate) navigator.vibrate(50);
+      }
+
+      // ── Add snowshoe at mid-span ──
+      async function addSnowshoe(fromPole, toPole, ticType) {
+        var spanId = fromPole.id + '__' + toPole.id;
+        var midLat = (fromPole.lat + toPole.lat) / 2;
+        var midLon = (fromPole.lon + toPole.lon) / 2;
+        var existing = fiberEquipment[spanId] || {};
+        var shoes = existing.snowshoes || [];
+        shoes.push({
+          lat: midLat,
+          lon: midLon,
+          ticType: ticType, // 'in' or 'out'
+          placedBy: user.displayName || user.email.split('@')[0],
+          placedByPhoto: avatarURL || user.photoURL || null,
+          placedByUid: user.uid,
+          placedAt: new Date().toISOString()
+        });
+        await db.collection('fiberEquipment').doc(spanId).set({
+          snowshoes: shoes,
+          fromId: fromPole.id,
+          toId: toPole.id
+        }, { merge: true });
+        if (navigator.vibrate) navigator.vibrate(50);
+      }
+
+      // ── Remove snowshoe ──
+      async function removeSnowshoe(spanId, idx) {
+        var existing = fiberEquipment[spanId] || {};
+        var shoes = (existing.snowshoes || []).slice();
+        shoes.splice(idx, 1);
+        await db.collection('fiberEquipment').doc(spanId).set({ snowshoes: shoes }, { merge: true });
       }
 
       // ── Save pole note ──
@@ -2342,6 +2493,27 @@
             {tab === 'map' && (
               <div style={{height:'100%',position:'relative'}}>
                 <div ref={fiberMapRef} style={{height:'100%',width:'100%'}}></div>
+                {/* Map Legend */}
+                <div style={{position:'absolute',bottom:10,left:10,zIndex:1000,background:'rgba(15,10,30,0.9)',borderRadius:10,padding:'8px 12px',border:'1px solid rgba(139,92,246,0.3)',backdropFilter:'blur(8px)'}}>
+                  <div style={{fontSize:9,fontWeight:700,color:'#a78bfa',marginBottom:4}}>SPAN LINES</div>
+                  <div style={{display:'flex',flexDirection:'column',gap:3}}>
+                    <div style={{display:'flex',alignItems:'center',gap:6,fontSize:9,color:'#94a3b8'}}>
+                      <div style={{width:20,height:3,background:'#eab308',borderRadius:2}}></div> Strand
+                    </div>
+                    <div style={{display:'flex',alignItems:'center',gap:6,fontSize:9,color:'#94a3b8'}}>
+                      <div style={{display:'flex',gap:2}}><div style={{width:9,height:3,background:'#eab308',borderRadius:2}}></div><div style={{width:9,height:3,background:'#f97316',borderRadius:2}}></div></div> Strand+Cable
+                    </div>
+                    <div style={{display:'flex',alignItems:'center',gap:6,fontSize:9,color:'#94a3b8'}}>
+                      <div style={{display:'flex',gap:2}}><div style={{width:9,height:3,background:'#eab308',borderRadius:2}}></div><div style={{width:9,height:3,background:'#22c55e',borderRadius:2}}></div></div> Lashed ✓
+                    </div>
+                    <div style={{display:'flex',alignItems:'center',gap:6,fontSize:9,color:'#94a3b8'}}>
+                      <div style={{width:12,height:12,borderRadius:'50%',background:'linear-gradient(135deg,#78350f,#92400e)',border:'1px solid #fbbf24',display:'flex',alignItems:'center',justifyContent:'center',fontSize:7}}>⚓</div> Anchor
+                    </div>
+                    <div style={{display:'flex',alignItems:'center',gap:6,fontSize:9,color:'#94a3b8'}}>
+                      <div style={{width:12,height:12,borderRadius:'50%',background:'linear-gradient(135deg,#06b6d4,#0ea5e9)',border:'1px solid white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:7}}>❄️</div> Snowshoe
+                    </div>
+                  </div>
+                </div>
                 {/* Legend */}
                 <div style={{position:'absolute',bottom:16,left:16,zIndex:1000,background:'rgba(15,10,30,0.9)',borderRadius:10,padding:'10px 14px',border:'1px solid rgba(139,92,246,0.3)',fontSize:12}}>
                   <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
@@ -2379,17 +2551,26 @@
                   </div>
 
                   <div style={{padding:16}}>
-                    {/* ─── ACTION BUTTONS: Correct Pin + Photos ─── */}
-                    <div style={{display:'flex',gap:8,marginBottom:12}}>
+                    {/* ─── ACTION BUTTONS: Correct Pin + Photos + Anchor ─── */}
+                    <div style={{display:'flex',gap:6,marginBottom:8}}>
                       <button onClick={correctPinLocation} disabled={correctingPin}
-                        style={{flex:1,padding:'10px 8px',borderRadius:10,border:'1px solid rgba(59,130,246,0.4)',background:'linear-gradient(135deg,#1e3a5f,#2563eb)',color:'white',fontSize:13,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
-                        {correctingPin ? '⏳ Getting GPS...' : '📍 Correct Pin'}
+                        style={{flex:1,padding:'10px 6px',borderRadius:10,border:'1px solid rgba(59,130,246,0.4)',background:'linear-gradient(135deg,#1e3a5f,#2563eb)',color:'white',fontSize:12,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:4}}>
+                        {correctingPin ? '⏳...' : '📍 Pin'}
                       </button>
                       <button onClick={function(){setShowPolePhotos(!showPolePhotos);}}
-                        style={{flex:1,padding:'10px 8px',borderRadius:10,border:'1px solid rgba(236,72,153,0.4)',background:showPolePhotos?'linear-gradient(135deg,#9d174d,#ec4899)':'linear-gradient(135deg,#831843,#be185d)',color:'white',fontSize:13,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
-                        📷 Photos {Object.keys(polePhotos).length > 0 && <span style={{background:'#ec4899',borderRadius:10,padding:'1px 7px',fontSize:11}}>{Object.keys(polePhotos).length}</span>}
+                        style={{flex:1,padding:'10px 6px',borderRadius:10,border:'1px solid rgba(236,72,153,0.4)',background:showPolePhotos?'linear-gradient(135deg,#9d174d,#ec4899)':'linear-gradient(135deg,#831843,#be185d)',color:'white',fontSize:12,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:4}}>
+                        📷 Photos {Object.keys(polePhotos).length > 0 && <span style={{background:'#ec4899',borderRadius:10,padding:'1px 6px',fontSize:10}}>{Object.keys(polePhotos).length}</span>}
+                      </button>
+                      <button onClick={function(){toggleAnchor(selectedPole.id);}}
+                        style={{flex:1,padding:'10px 6px',borderRadius:10,border:'1px solid ' + ((fiberEquipment[selectedPole.id]||{}).anchor ? 'rgba(251,191,36,0.6)' : 'rgba(120,53,15,0.4)'),background:(fiberEquipment[selectedPole.id]||{}).anchor ? 'linear-gradient(135deg,#92400e,#b45309)' : 'linear-gradient(135deg,#451a03,#78350f)',color:'white',fontSize:12,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:4}}>
+                        ⚓ {(fiberEquipment[selectedPole.id]||{}).anchor ? 'Anchored' : 'Anchor'}
                       </button>
                     </div>
+                    {(fiberEquipment[selectedPole.id]||{}).anchor && (
+                      <div style={{background:'rgba(146,64,14,0.15)',border:'1px solid rgba(251,191,36,0.3)',borderRadius:8,padding:'6px 10px',marginBottom:8,fontSize:11,color:'#fbbf24',display:'flex',alignItems:'center',gap:6}}>
+                        ⚓ Anchor placed{(fiberEquipment[selectedPole.id]||{}).anchorBy ? ' by ' + fiberEquipment[selectedPole.id].anchorBy : ''}{(fiberEquipment[selectedPole.id]||{}).anchorAt ? ' • ' + new Date(fiberEquipment[selectedPole.id].anchorAt).toLocaleDateString() : ''}
+                      </div>
+                    )}
                     {selectedPole.pinCorrected && (
                       <div style={{background:'rgba(34,197,94,0.15)',border:'1px solid rgba(34,197,94,0.3)',borderRadius:8,padding:'6px 10px',marginBottom:10,fontSize:11,color:'#4ade80',display:'flex',alignItems:'center',gap:6}}>
                         ✅ Pin corrected{selectedPole.correctedBy ? ' by ' + selectedPole.correctedBy : ''}{selectedPole.correctedAt ? ' • ' + new Date(selectedPole.correctedAt).toLocaleDateString() : ''}
@@ -2438,6 +2619,38 @@
                                     {stageData.updatedByName} • {new Date(stageData.updatedAt).toLocaleString()}
                                   </div>
                                 )}
+                                {/* ─── SNOWSHOE CONTROLS ─── */}
+                                <div style={{padding:'4px 10px 8px',borderTop:'1px solid rgba(6,182,212,0.15)'}}>
+                                  <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+                                    <span style={{fontSize:10,color:'#06b6d4',fontWeight:600}}>❄️ Snowshoes</span>
+                                    <button onClick={function(){
+                                      var fromP = allFiberSites.find(function(s){return s.id===selectedPole.id;}) || selectedPole;
+                                      var toP = allFiberSites.find(function(s){return s.id===span.id;});
+                                      if(toP) addSnowshoe(fromP, toP, 'in');
+                                    }} style={{padding:'2px 8px',borderRadius:5,background:'linear-gradient(135deg,#0e7490,#06b6d4)',border:'none',color:'white',fontSize:9,fontWeight:700,cursor:'pointer'}}>+ Tic IN</button>
+                                    <button onClick={function(){
+                                      var fromP = allFiberSites.find(function(s){return s.id===selectedPole.id;}) || selectedPole;
+                                      var toP = allFiberSites.find(function(s){return s.id===span.id;});
+                                      if(toP) addSnowshoe(fromP, toP, 'out');
+                                    }} style={{padding:'2px 8px',borderRadius:5,background:'linear-gradient(135deg,#0e7490,#06b6d4)',border:'none',color:'white',fontSize:9,fontWeight:700,cursor:'pointer'}}>+ Tic OUT</button>
+                                  </div>
+                                  {(function(){
+                                    var sId = selectedPole.id + '__' + span.id;
+                                    var rId = span.id + '__' + selectedPole.id;
+                                    var eq = fiberEquipment[sId] || fiberEquipment[rId];
+                                    var realId = fiberEquipment[sId] ? sId : rId;
+                                    if (!eq || !eq.snowshoes || eq.snowshoes.length === 0) return null;
+                                    return eq.snowshoes.map(function(shoe, sIdx) {
+                                      return (
+                                        <div key={sIdx} style={{display:'flex',alignItems:'center',gap:6,padding:'3px 0',fontSize:10}}>
+                                          <span style={{color:'#06b6d4'}}>❄️ {shoe.ticType.toUpperCase()}</span>
+                                          <span style={{color:'#94a3b8'}}>by {shoe.placedBy}</span>
+                                          <button onClick={function(){removeSnowshoe(realId, sIdx);}} style={{marginLeft:'auto',background:'rgba(239,68,68,0.2)',border:'1px solid rgba(239,68,68,0.4)',color:'#f87171',borderRadius:4,padding:'1px 6px',fontSize:9,cursor:'pointer'}}>✕</button>
+                                        </div>
+                                      );
+                                    });
+                                  })()}
+                                </div>
                               </div>
                             );
                           })}
