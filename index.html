@@ -793,23 +793,35 @@
           {open && (
             <>
               <div className="fixed inset-0 z-[3000]" onClick={function() { setOpen(false); }}></div>
-              <div className="absolute right-0 top-full mt-1 z-[3001] bg-base-200 rounded-lg shadow-xl border border-base-300 min-w-[220px] fade-in">
-                <div className="p-3 border-b border-base-300">
-                  <p className="font-semibold text-sm">{displayName}</p>
-                  <p className="text-xs opacity-50">{user.email}</p>
+              <div style={{position:'fixed', right:12, top:56, zIndex:9999, background:'linear-gradient(135deg, #3b2980 0%, #4c35a0 100%)', borderRadius:12, boxShadow:'0 8px 32px rgba(0,0,0,0.5)', border:'1px solid rgba(168,139,250,0.3)', minWidth:240}} className="fade-in">
+                <div style={{padding:'14px 16px', borderBottom:'1px solid rgba(168,139,250,0.2)'}}>
+                  <p style={{fontWeight:600, fontSize:14, color:'#ffffff'}}>{displayName}</p>
+                  <p style={{fontSize:12, color:'rgba(255,255,255,0.6)'}}>{user.email}</p>
                 </div>
-                <div className="p-1">
-                  <button className="btn btn-sm btn-ghost w-full justify-start gap-2" onClick={function() { setOpen(false); onChangePhoto(); }}>
+                <div style={{padding:6}}>
+                  <button style={{display:'flex', alignItems:'center', gap:10, width:'100%', padding:'10px 12px', background:'transparent', border:'none', borderRadius:8, cursor:'pointer', color:'#ffffff', fontSize:14, textAlign:'left'}}
+                    onMouseOver={function(e){e.currentTarget.style.background='rgba(255,255,255,0.1)';}}
+                    onMouseOut={function(e){e.currentTarget.style.background='transparent';}}
+                    onClick={function() { setOpen(false); onChangePhoto(); }}>
                     📷 {photoSrc ? 'Change Photo' : 'Take Photo'}
                   </button>
-                  <button className="btn btn-sm btn-ghost w-full justify-start gap-2" onClick={function() { setOpen(false); onShowFiberProduction(); }}>
+                  <button style={{display:'flex', alignItems:'center', gap:10, width:'100%', padding:'10px 12px', background:'transparent', border:'none', borderRadius:8, cursor:'pointer', color:'#ffffff', fontSize:14, textAlign:'left'}}
+                    onMouseOver={function(e){e.currentTarget.style.background='rgba(255,255,255,0.1)';}}
+                    onMouseOut={function(e){e.currentTarget.style.background='transparent';}}
+                    onClick={function() { setOpen(false); onShowFiberProduction(); }}>
                     ⚡ Fiber Production
                   </button>
-                  <button className="btn btn-sm btn-ghost w-full justify-start gap-2" onClick={function() { setOpen(false); onDownloadReport(); }}>
+                  <button style={{display:'flex', alignItems:'center', gap:10, width:'100%', padding:'10px 12px', background:'transparent', border:'none', borderRadius:8, cursor:'pointer', color:'#ffffff', fontSize:14, textAlign:'left'}}
+                    onMouseOver={function(e){e.currentTarget.style.background='rgba(255,255,255,0.1)';}}
+                    onMouseOut={function(e){e.currentTarget.style.background='transparent';}}
+                    onClick={function() { setOpen(false); onDownloadReport(); }}>
                     📥 Download Report
                   </button>
-                  <button className="btn btn-sm btn-ghost w-full justify-start gap-2 text-error" onClick={function() { setOpen(false); onLogout(); }}>
-                    <LogOutIcon size={14} /> Sign Out
+                  <button style={{display:'flex', alignItems:'center', gap:10, width:'100%', padding:'10px 12px', background:'transparent', border:'none', borderRadius:8, cursor:'pointer', color:'#ff6b6b', fontSize:14, textAlign:'left'}}
+                    onMouseOver={function(e){e.currentTarget.style.background='rgba(255,255,255,0.1)';}}
+                    onMouseOut={function(e){e.currentTarget.style.background='transparent';}}
+                    onClick={function() { setOpen(false); onLogout(); }}>
+                    ↪ Sign Out
                   </button>
                 </div>
               </div>
