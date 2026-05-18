@@ -1828,6 +1828,50 @@
         });
       }, [sites, correctedPins]);
 
+      // ── Calculate span footage between consecutive poles using GPS ──
+      var spanData = useMemo(function() {
+        function haversineFt(lat1, lon1, lat2, lon2) {
+          var R = 6371000;
+          var dLat = (lat2 - lat1) * Math.PI / 180;
+          var dLon = (lon2 - lon1) * Math.PI / 180;
+          var a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+          return R * 2 * Math.asin(Math.sqrt(a)) * 3.28084;
+        }
+        var distPoles = allFiberSites.filter(function(s) { return s.poleType === 'distribution'; });
+        var spans = {};
+        distPoles.forEach(function(pole) {
+          var neighbors = distPoles
+            .filter(function(p) { return p.id !== pole.id; })
+            .map(function(p) { return { id: p.id, name: p.name, dist: Math.round(haversineFt(pole.lat, pole.lon, p.lat, p.lon)) }; })
+            .sort(function(a, b) { return a.dist - b.dist; });
+          spans[pole.id] = neighbors;
+        });
+        // Also compute ordered route spans (nearest-neighbor chain from Pole 1)
+        var routeSpans = [];
+        if (distPoles.length > 1) {
+          var visited = {};
+          var current = distPoles[0]; // Start at Pole 1
+          visited[current.id] = true;
+          for (var step = 0; step < distPoles.length - 1; step++) {
+            var nearest = null;
+            var nearestDist = Infinity;
+            distPoles.forEach(function(p) {
+              if (visited[p.id]) return;
+              var d = haversineFt(current.lat, current.lon, p.lat, p.lon);
+              if (d < nearestDist) { nearestDist = d; nearest = p; }
+            });
+            if (nearest) {
+              routeSpans.push({ from: current, to: nearest, dist: Math.round(nearestDist) });
+              visited[nearest.id] = true;
+              current = nearest;
+            }
+          }
+        }
+        spans._routeSpans = routeSpans;
+        spans._totalFootage = routeSpans.reduce(function(sum, s) { return sum + s.dist; }, 0);
+        return spans;
+      }, [allFiberSites]);
+
       // Load as-built entries from Firestore (all poles)
       useEffect(function() {
         return db.collection('fiberAsBuilt').onSnapshot(function(snap) {
@@ -2250,6 +2294,27 @@
                       </div>
                     )}
 
+                    {/* ─── SPAN MEASUREMENTS ─── */}
+                    {selectedPole && selectedPole.poleType === 'distribution' && spanData[selectedPole.id] && (
+                      <div style={{marginBottom:14,background:'rgba(30,40,60,0.5)',borderRadius:12,border:'1px solid rgba(59,130,246,0.2)',padding:12}}>
+                        <div style={{fontSize:12,fontWeight:700,color:'#93c5fd',marginBottom:8,display:'flex',alignItems:'center',gap:6}}>📏 SPAN MEASUREMENTS <span style={{fontSize:10,color:'#64748b',fontWeight:400}}>(GPS-calculated)</span></div>
+                        <div style={{display:'flex',flexDirection:'column',gap:4}}>
+                          {spanData[selectedPole.id].slice(0,6).map(function(span) {
+                            return (
+                              <div key={span.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 10px',borderRadius:8,background:'rgba(59,130,246,0.08)',border:'1px solid rgba(59,130,246,0.12)'}}>
+                                <div style={{display:'flex',alignItems:'center',gap:6}}>
+                                  <span style={{fontSize:14}}>↔</span>
+                                  <span style={{fontSize:12,color:'white',fontWeight:600}}>{selectedPole.name} → {span.name}</span>
+                                </div>
+                                <div style={{background:'linear-gradient(135deg,#1e3a5f,#2563eb)',borderRadius:6,padding:'3px 10px',fontSize:12,fontWeight:800,color:'white',minWidth:60,textAlign:'center'}}>{span.dist} ft</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div style={{fontSize:10,color:'#64748b',marginTop:6,textAlign:'center'}}>Distances auto-calculated from GPS coordinates • Tap pole to update with corrected pin</div>
+                      </div>
+                    )}
+
                     {/* ─── PHOTO GALLERY ─── */}
                     {showPolePhotos && (
                       <div style={{marginBottom:16,background:'rgba(30,20,60,0.5)',borderRadius:12,border:'1px solid rgba(236,72,153,0.2)',padding:12}}>
@@ -2380,6 +2445,37 @@
                   </div>
                 </div>
 
+                {/* ─── SPAN TABLE ─── */}
+                {spanData._routeSpans && spanData._routeSpans.length > 0 && (
+                  <div style={{marginBottom:16}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                      <div style={{fontSize:13,fontWeight:700,color:'#93c5fd',display:'flex',alignItems:'center',gap:6}}>📏 ROUTE SPANS</div>
+                      <div style={{background:'linear-gradient(135deg,#1e3a5f,#2563eb)',borderRadius:8,padding:'4px 12px',fontSize:12,fontWeight:800,color:'white'}}>
+                        Total: {spanData._totalFootage.toLocaleString()} ft
+                      </div>
+                    </div>
+                    <div style={{background:'rgba(30,40,60,0.4)',borderRadius:12,border:'1px solid rgba(59,130,246,0.15)',overflow:'hidden'}}>
+                      {spanData._routeSpans.map(function(span, idx) {
+                        var fromStatus = getPoleStatus(span.from.id);
+                        var toStatus = getPoleStatus(span.to.id);
+                        var bothDone = fromStatus.count > 0 && toStatus.count > 0;
+                        return (
+                          <div key={idx} style={{display:'flex',alignItems:'center',padding:'10px 14px',borderBottom:idx < spanData._routeSpans.length - 1 ? '1px solid rgba(59,130,246,0.08)' : 'none',background:bothDone?'rgba(34,197,94,0.05)':'transparent'}}>
+                            <div style={{flex:1,display:'flex',alignItems:'center',gap:6}}>
+                              <span style={{fontSize:10,color:fromStatus.count>0?'#22c55e':'#ef4444'}}>●</span>
+                              <span style={{fontSize:12,color:'white',fontWeight:600}}>{span.from.name}</span>
+                              <span style={{fontSize:11,color:'#64748b'}}>→</span>
+                              <span style={{fontSize:10,color:toStatus.count>0?'#22c55e':'#ef4444'}}>●</span>
+                              <span style={{fontSize:12,color:'white',fontWeight:600}}>{span.to.name}</span>
+                            </div>
+                            <div style={{background:bothDone?'rgba(34,197,94,0.15)':'rgba(59,130,246,0.15)',borderRadius:6,padding:'3px 10px',fontSize:12,fontWeight:800,color:bothDone?'#22c55e':'#60a5fa',minWidth:60,textAlign:'center'}}>{span.dist} ft</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 {/* Pole list */}
                 {allFiberSites.length === 0 && (
                   <div style={{textAlign:'center',padding:40,color:'#64748b'}}>
@@ -2402,6 +2498,9 @@
                           <div>
                             <div style={{fontWeight:700,color:'white',fontSize:14}}>{site.name}</div>
                             <div style={{fontSize:11,color:'#64748b'}}>{site.address || site.description || ''}</div>
+                            {site.poleType === 'distribution' && spanData[site.id] && spanData[site.id][0] && (
+                              <div style={{fontSize:10,color:'#93c5fd',marginTop:2}}>↔ {spanData[site.id][0].name}: {spanData[site.id][0].dist} ft</div>
+                            )}
                           </div>
                         </div>
                         {hasWork && <div style={{background:'rgba(34,197,94,0.15)',borderRadius:8,padding:'4px 10px',fontSize:11,color:'#22c55e',fontWeight:700}}>{status.count} entry{status.count>1?'ies':''}</div>}
