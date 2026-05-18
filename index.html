@@ -130,6 +130,60 @@
       { id: "PU-CHARLOTTE", name: "Material Pickup - Charlotte", address: "7800 Old Plank Rd, Charlotte, NC 28216", lat: 35.3014451, lon: -80.9217820 }
     ];
 
+    // ── GigaBeam DTI Billing Codes (OLT-57) ──
+    const GIGABEAM_CATEGORIES = [
+      { key: 'aerial', label: '🔧 Aerial', color: '#3b82f6' },
+      { key: 'makeReady', label: '🏗️ Make Ready', color: '#f59e0b' },
+      { key: 'splicing', label: '🔌 Splicing', color: '#22c55e' },
+      { key: 'drops', label: '🏠 Drops', color: '#a855f7' },
+      { key: 'additional', label: '➕ Additional', color: '#ef4444' }
+    ];
+    const GIGABEAM_CODES = [
+      { code:'AE01', desc:'Strand', unit:'Foot', rate:0.50, cat:'aerial', daily:true },
+      { code:'AE02', desc:'Lash', unit:'Foot', rate:0.55, cat:'aerial', daily:true },
+      { code:'AE03', desc:'Overlash', unit:'Foot', rate:0.40, cat:'aerial', daily:true },
+      { code:'AE04', desc:'3-bolt clamp', unit:'Each', rate:15, cat:'aerial', daily:true },
+      { code:'AE05', desc:'Snowshoe', unit:'Each', rate:30, cat:'aerial', daily:true },
+      { code:'AE06', desc:'J-hook', unit:'Each', rate:3.50, cat:'aerial', daily:true },
+      { code:'AE07', desc:'Down guy', unit:'Each', rate:135, cat:'aerial', daily:true },
+      { code:'AE08', desc:'Span guy w/insulator', unit:'Each', rate:135, cat:'aerial', daily:true },
+      { code:'AE09', desc:'Pole-to-pole guy', unit:'Each', rate:135, cat:'aerial', daily:true },
+      { code:'AE10', desc:'Anchor & rod', unit:'Each', rate:250, cat:'aerial', daily:true },
+      { code:'AE11', desc:'Pole (set/transfer)', unit:'Each', rate:1750, cat:'aerial', daily:true },
+      { code:'AE12', desc:'Aerial terminal', unit:'Each', rate:185, cat:'aerial', daily:true },
+      { code:'AE13', desc:'Slack loop', unit:'Each', rate:25, cat:'aerial', daily:true },
+      { code:'AE14', desc:'Tree trim (per span)', unit:'Each', rate:75, cat:'aerial', daily:true },
+      { code:'AE15', desc:'Pole tag', unit:'Each', rate:5, cat:'aerial', daily:true },
+      { code:'AE16', desc:'Storage (figure-8) loop', unit:'Each', rate:40, cat:'aerial', daily:true },
+      { code:'AE17', desc:'Extension arm', unit:'Each', rate:125, cat:'aerial', daily:true },
+      { code:'AE18', desc:'Cross arm', unit:'Each', rate:150, cat:'aerial', daily:true },
+      { code:'AE19', desc:'Riser/weather head', unit:'Each', rate:200, cat:'aerial', daily:true },
+      { code:'MR1', desc:'Transfer comm attachment', unit:'Each', rate:250, cat:'makeReady', daily:true },
+      { code:'MR2', desc:'Raise/lower comm cable', unit:'Foot', rate:0.80, cat:'makeReady', daily:true },
+      { code:'MR3', desc:'Guying correction', unit:'Each', rate:175, cat:'makeReady', daily:true },
+      { code:'MR4', desc:'Re-frame power', unit:'Each', rate:400, cat:'makeReady', daily:false },
+      { code:'MR5', desc:'Pole replacement assist', unit:'Each', rate:600, cat:'makeReady', daily:false },
+      { code:'MR6', desc:'Mid-span pole (new set)', unit:'Each', rate:2000, cat:'makeReady', daily:false },
+      { code:'FS1', desc:'Ribbon splice (12-ct)', unit:'Each', rate:60, cat:'splicing', daily:false },
+      { code:'FS2', desc:'Ribbon splice (24-ct)', unit:'Each', rate:110, cat:'splicing', daily:false },
+      { code:'FS3', desc:'Ribbon splice (48-ct)', unit:'Each', rate:200, cat:'splicing', daily:false },
+      { code:'FS4', desc:'Splice enclosure/tray', unit:'Each', rate:150, cat:'splicing', daily:false },
+      { code:'AD1', desc:'Aerial drop (0-300ft)', unit:'Each', rate:175, cat:'drops', daily:false },
+      { code:'AD2', desc:'Aerial drop (301-500ft)', unit:'Each', rate:250, cat:'drops', daily:false },
+      { code:'AD3', desc:'Underground drop (0-150ft)', unit:'Each', rate:200, cat:'drops', daily:false },
+      { code:'AD4', desc:'NID/ONT install', unit:'Each', rate:125, cat:'drops', daily:false },
+      { code:'AU1', desc:'Emergency call-out', unit:'Each', rate:500, cat:'additional', daily:false },
+      { code:'AU2', desc:'Traffic control/flagging', unit:'Hour', rate:75, cat:'additional', daily:false },
+      { code:'AU3', desc:'Permit pulling', unit:'Each', rate:150, cat:'additional', daily:false },
+      { code:'AU4', desc:'As-built documentation', unit:'Each', rate:100, cat:'additional', daily:false },
+      { code:'AU5', desc:'Boring (per foot)', unit:'Foot', rate:8, cat:'additional', daily:false },
+      { code:'AU6', desc:'Trenching (per foot)', unit:'Foot', rate:5, cat:'additional', daily:false },
+      { code:'AU7', desc:'Conduit (per foot)', unit:'Foot', rate:3, cat:'additional', daily:false },
+      { code:'AU8', desc:'Handhole/pedestal', unit:'Each', rate:350, cat:'additional', daily:false },
+      { code:'AU9', desc:'Rock adder', unit:'Foot', rate:12, cat:'additional', daily:false },
+      { code:'AU10', desc:'Concrete/asphalt patch', unit:'SqFt', rate:15, cat:'additional', daily:false }
+    ];
+
     // ── KMZ/KML Parser ──
     async function parseKMZFile(file) {
       const arrayBuffer = await file.arrayBuffer();
@@ -719,7 +773,7 @@
     }
 
     // ── User Menu ──
-    function UserMenu({ user, avatarURL, onLogout, onChangePhoto, onDownloadReport }) {
+    function UserMenu({ user, avatarURL, onLogout, onChangePhoto, onDownloadReport, onShowFiberProduction }) {
       const [open, setOpen] = useState(false);
       const displayName = user.displayName || user.email.split('@')[0];
       const initial = displayName.charAt(0).toUpperCase();
@@ -747,6 +801,9 @@
                 <div className="p-1">
                   <button className="btn btn-sm btn-ghost w-full justify-start gap-2" onClick={function() { setOpen(false); onChangePhoto(); }}>
                     📷 {photoSrc ? 'Change Photo' : 'Take Photo'}
+                  </button>
+                  <button className="btn btn-sm btn-ghost w-full justify-start gap-2" onClick={function() { setOpen(false); onShowFiberProduction(); }}>
+                    ⚡ Fiber Production
                   </button>
                   <button className="btn btn-sm btn-ghost w-full justify-start gap-2" onClick={function() { setOpen(false); onDownloadReport(); }}>
                     📥 Download Report
@@ -1608,6 +1665,439 @@
       );
     }
 
+    // ── Fiber Production Dashboard ──
+    function FiberProductionPanel({ user, avatarURL, onClose }) {
+      const [tab, setTab] = useState('daily');
+      const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+      const [quantities, setQuantities] = useState({});
+      const [street, setStreet] = useState('');
+      const [tomorrowAddr, setTomorrowAddr] = useState('');
+      const [notes, setNotes] = useState('');
+      const [saving, setSaving] = useState(false);
+      const [saved, setSaved] = useState(false);
+      const [expandedCats, setExpandedCats] = useState({ aerial: true });
+      const [showAllCodes, setShowAllCodes] = useState(false);
+      const [history, setHistory] = useState([]);
+      const [scheduleEntries, setScheduleEntries] = useState([]);
+      const [editSchedule, setEditSchedule] = useState(null);
+      const [schedDate, setSchedDate] = useState(new Date().toISOString().split('T')[0]);
+
+      // Load existing report for selected date
+      useEffect(function() {
+        var docId = user.uid + '_' + date;
+        return db.collection('fiberProduction').doc(docId).onSnapshot(function(snap) {
+          if (snap.exists) {
+            var d = snap.data();
+            setQuantities(d.quantities || {});
+            setStreet(d.street || '');
+            setTomorrowAddr(d.tomorrowAddr || '');
+            setNotes(d.notes || '');
+          } else {
+            setQuantities({});
+            setStreet('');
+            setTomorrowAddr('');
+            setNotes('');
+          }
+          setSaved(false);
+        });
+      }, [date, user.uid]);
+
+      // Load history
+      useEffect(function() {
+        return db.collection('fiberProduction')
+          .orderBy('date', 'desc')
+          .limit(30)
+          .onSnapshot(function(snap) {
+            setHistory(snap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); }));
+          });
+      }, []);
+
+      // Load schedule
+      useEffect(function() {
+        return db.collection('fiberSchedule')
+          .where('date', '==', schedDate)
+          .onSnapshot(function(snap) {
+            setScheduleEntries(snap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); }));
+          });
+      }, [schedDate]);
+
+      var displayCodes = showAllCodes ? GIGABEAM_CODES : GIGABEAM_CODES.filter(function(c) { return c.daily; });
+      var codesByCat = {};
+      displayCodes.forEach(function(c) {
+        if (!codesByCat[c.cat]) codesByCat[c.cat] = [];
+        codesByCat[c.cat].push(c);
+      });
+
+      function setQty(code, val) {
+        setQuantities(function(prev) {
+          var next = Object.assign({}, prev);
+          if (val === '' || val === 0) { delete next[code]; } else { next[code] = Number(val); }
+          return next;
+        });
+        setSaved(false);
+      }
+
+      function calcCatTotal(cat) {
+        var codes = GIGABEAM_CODES.filter(function(c) { return c.cat === cat; });
+        return codes.reduce(function(sum, c) { return sum + (quantities[c.code] || 0) * c.rate; }, 0);
+      }
+
+      var grandTotal = GIGABEAM_CODES.reduce(function(sum, c) { return sum + (quantities[c.code] || 0) * c.rate; }, 0);
+      var filledCount = Object.keys(quantities).filter(function(k) { return quantities[k] > 0; }).length;
+
+      async function saveReport() {
+        setSaving(true);
+        try {
+          var docId = user.uid + '_' + date;
+          await db.collection('fiberProduction').doc(docId).set({
+            userId: user.uid,
+            userName: user.displayName || user.email.split('@')[0],
+            userPhoto: avatarURL || user.photoURL || null,
+            date: date,
+            quantities: quantities,
+            street: street,
+            tomorrowAddr: tomorrowAddr,
+            notes: notes,
+            grandTotal: grandTotal,
+            filledCount: filledCount,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+          setSaved(true);
+          if (navigator.vibrate) navigator.vibrate(100);
+        } catch(e) { alert('Save failed: ' + e.message); }
+        setSaving(false);
+      }
+
+      async function saveScheduleEntry(entry) {
+        try {
+          if (entry.id) {
+            await db.collection('fiberSchedule').doc(entry.id).update(entry);
+          } else {
+            await db.collection('fiberSchedule').add(Object.assign({}, entry, {
+              createdBy: user.uid,
+              createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            }));
+          }
+          setEditSchedule(null);
+        } catch(e) { alert('Save failed: ' + e.message); }
+      }
+
+      async function deleteScheduleEntry(id) {
+        if (!window.confirm('Delete this schedule entry?')) return;
+        await db.collection('fiberSchedule').doc(id).delete();
+      }
+
+      function downloadCSV() {
+        var rows = [['Date','Worker','Code','Description','Unit','Qty','Rate','Total']];
+        history.forEach(function(h) {
+          Object.keys(h.quantities || {}).forEach(function(code) {
+            var qty = h.quantities[code];
+            if (qty > 0) {
+              var item = GIGABEAM_CODES.find(function(c) { return c.code === code; });
+              if (item) {
+                rows.push([h.date, h.userName, code, item.desc, item.unit, qty, item.rate, (qty * item.rate).toFixed(2)]);
+              }
+            }
+          });
+        });
+        var csv = rows.map(function(r) { return r.join(','); }).join('\n');
+        var blob = new Blob([csv], { type: 'text/csv' });
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'Fiber_Production_' + new Date().toISOString().split('T')[0] + '.csv';
+        a.click();
+      }
+
+      function toggleCat(cat) {
+        setExpandedCats(function(prev) {
+          var next = Object.assign({}, prev);
+          next[cat] = !next[cat];
+          return next;
+        });
+      }
+
+      return ReactDOM.createPortal(
+        <div style={{position:'fixed',inset:0,zIndex:5000,background:'#0f0a1e',display:'flex',flexDirection:'column',overflow:'hidden'}}>
+          {/* Header */}
+          <div style={{background:'linear-gradient(135deg,#1a0f3c,#2d1b69)',padding:'16px 20px',display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid rgba(139,92,246,0.3)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:12}}>
+              <span style={{fontSize:24}}>⚡</span>
+              <div>
+                <div style={{fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:18,color:'#d4af37',letterSpacing:1}}>FIBER PRODUCTION</div>
+                <div style={{fontSize:11,color:'#a78bfa'}}>GigaBeam DTI • OLT-57</div>
+              </div>
+            </div>
+            <button onClick={onClose} style={{background:'rgba(255,255,255,0.1)',border:'none',color:'white',width:36,height:36,borderRadius:'50%',fontSize:18,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
+          </div>
+
+          {/* Tabs */}
+          <div style={{display:'flex',borderBottom:'1px solid rgba(139,92,246,0.2)',background:'rgba(30,20,60,0.8)'}}>
+            {[{k:'daily',l:'📝 Daily Log'},{k:'schedule',l:'👷 Schedule'},{k:'summary',l:'📊 Summary'},{k:'history',l:'📅 History'}].map(function(t) {
+              return <button key={t.k} onClick={function(){setTab(t.k);}} style={{
+                flex:1,padding:'12px 8px',border:'none',background:tab===t.k?'rgba(139,92,246,0.2)':'transparent',
+                color:tab===t.k?'#a78bfa':'#64748b',fontSize:12,fontWeight:600,cursor:'pointer',
+                borderBottom:tab===t.k?'2px solid #a78bfa':'2px solid transparent'
+              }}>{t.l}</button>;
+            })}
+          </div>
+
+          {/* Content */}
+          <div style={{flex:1,overflow:'auto',padding:16}}>
+
+            {/* ─── DAILY LOG TAB ─── */}
+            {tab === 'daily' && (
+              <div>
+                <div style={{display:'flex',gap:8,marginBottom:16,alignItems:'center'}}>
+                  <input type="date" value={date} onChange={function(e){setDate(e.target.value);}} style={{flex:1,padding:'10px 12px',borderRadius:8,border:'1px solid rgba(139,92,246,0.3)',background:'rgba(30,20,60,0.6)',color:'white',fontSize:14}} />
+                  {saved && <span style={{color:'#22c55e',fontSize:13,fontWeight:600}}>✅ Saved</span>}
+                </div>
+                <input placeholder="Street / Terminal #" value={street} onChange={function(e){setStreet(e.target.value);}} style={{width:'100%',padding:'10px 12px',borderRadius:8,border:'1px solid rgba(139,92,246,0.2)',background:'rgba(30,20,60,0.4)',color:'white',fontSize:14,marginBottom:12,boxSizing:'border-box'}} />
+
+                {/* Grand Total Banner */}
+                <div style={{background:'linear-gradient(135deg,#1e3a5f,#0d2847)',borderRadius:12,padding:16,marginBottom:16,textAlign:'center',border:'1px solid rgba(59,130,246,0.3)'}}>
+                  <div style={{fontSize:12,color:'#93c5fd',fontWeight:600}}>TODAY'S PRODUCTION</div>
+                  <div style={{fontSize:32,fontWeight:900,color:'#60a5fa',fontFamily:'monospace'}}>${grandTotal.toLocaleString('en-US',{minimumFractionDigits:2})}</div>
+                  <div style={{fontSize:11,color:'#64748b'}}>{filledCount} line items</div>
+                </div>
+
+                {/* Categories */}
+                {GIGABEAM_CATEGORIES.map(function(cat) {
+                  var codes = codesByCat[cat.key];
+                  if (!codes || codes.length === 0) return null;
+                  var catTotal = calcCatTotal(cat.key);
+                  var expanded = expandedCats[cat.key];
+                  return (
+                    <div key={cat.key} style={{marginBottom:12,borderRadius:12,overflow:'hidden',border:'1px solid rgba(139,92,246,0.15)',background:'rgba(20,15,40,0.6)'}}>
+                      <button onClick={function(){toggleCat(cat.key);}} style={{width:'100%',display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 16px',border:'none',background:'rgba(139,92,246,0.08)',color:'white',cursor:'pointer',fontSize:14}}>
+                        <span style={{fontWeight:700}}>{cat.label}</span>
+                        <span style={{display:'flex',alignItems:'center',gap:8}}>
+                          {catTotal > 0 && <span style={{color:cat.color,fontWeight:700,fontFamily:'monospace',fontSize:13}}>${catTotal.toLocaleString()}</span>}
+                          <span style={{fontSize:16,transition:'transform 0.2s',transform:expanded?'rotate(180deg)':'rotate(0)'}}>{'\u25BC'}</span>
+                        </span>
+                      </button>
+                      {expanded && (
+                        <div style={{padding:'8px 12px'}}>
+                          {codes.map(function(item) {
+                            var qty = quantities[item.code] || '';
+                            var lineTotal = (qty || 0) * item.rate;
+                            return (
+                              <div key={item.code} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 4px',borderBottom:'1px solid rgba(139,92,246,0.08)'}}>
+                                <div style={{flex:1,minWidth:0}}>
+                                  <div style={{fontSize:13,fontWeight:600,color:'white'}}>{item.code} — {item.desc}</div>
+                                  <div style={{fontSize:11,color:'#64748b'}}>${item.rate}/{item.unit}</div>
+                                </div>
+                                <input type="number" inputMode="decimal" min="0" value={qty} onChange={function(e){setQty(item.code,e.target.value);}}
+                                  placeholder="0" style={{width:70,padding:'6px 8px',borderRadius:6,border:'1px solid rgba(139,92,246,0.3)',background:'rgba(30,20,60,0.8)',color:'white',textAlign:'center',fontSize:14}} />
+                                {lineTotal > 0 && <div style={{width:70,textAlign:'right',fontSize:12,color:cat.color,fontWeight:600,fontFamily:'monospace'}}>${lineTotal.toLocaleString()}</div>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                <button onClick={function(){setShowAllCodes(!showAllCodes);}} style={{width:'100%',padding:10,borderRadius:8,border:'1px solid rgba(139,92,246,0.3)',background:'transparent',color:'#a78bfa',fontSize:13,cursor:'pointer',marginBottom:16}}>
+                  {showAllCodes ? '⬆️ Show Daily Codes Only' : '📋 Show All 44 Billing Codes'}
+                </button>
+
+                <textarea placeholder="Tomorrow's address / meeting location..." value={tomorrowAddr} onChange={function(e){setTomorrowAddr(e.target.value);}} rows={2} style={{width:'100%',padding:'10px 12px',borderRadius:8,border:'1px solid rgba(139,92,246,0.2)',background:'rgba(30,20,60,0.4)',color:'white',fontSize:14,resize:'vertical',marginBottom:8,boxSizing:'border-box'}} />
+                <textarea placeholder="Notes, issues, comments..." value={notes} onChange={function(e){setNotes(e.target.value);}} rows={3} style={{width:'100%',padding:'10px 12px',borderRadius:8,border:'1px solid rgba(139,92,246,0.2)',background:'rgba(30,20,60,0.4)',color:'white',fontSize:14,resize:'vertical',marginBottom:16,boxSizing:'border-box'}} />
+
+                <button onClick={saveReport} disabled={saving} style={{width:'100%',padding:14,borderRadius:12,border:'none',background:saving?'#475569':'linear-gradient(135deg,#7c3aed,#a855f7)',color:'white',fontSize:16,fontWeight:700,cursor:saving?'default':'pointer',letterSpacing:1}}>
+                  {saving ? '⏳ Saving...' : saved ? '✅ Saved!' : '💾 SAVE DAILY REPORT'}
+                </button>
+              </div>
+            )}
+
+            {/* ─── SCHEDULE TAB ─── */}
+            {tab === 'schedule' && (
+              <div>
+                <div style={{background:'rgba(245,158,11,0.1)',borderRadius:10,padding:12,marginBottom:16,border:'1px solid rgba(245,158,11,0.2)'}}>
+                  <div style={{fontSize:12,color:'#fbbf24',fontWeight:700}}>📧 REMINDER</div>
+                  <div style={{fontSize:11,color:'#94a3b8'}}>Email schedule to DTI by 8:30 AM daily</div>
+                  <div style={{fontSize:10,color:'#64748b',marginTop:2}}>DL-Congruex@dtiincorporated.com</div>
+                </div>
+
+                <div style={{display:'flex',gap:8,marginBottom:16,alignItems:'center'}}>
+                  <input type="date" value={schedDate} onChange={function(e){setSchedDate(e.target.value);}} style={{flex:1,padding:'10px 12px',borderRadius:8,border:'1px solid rgba(139,92,246,0.3)',background:'rgba(30,20,60,0.6)',color:'white',fontSize:14}} />
+                  <button onClick={function(){setEditSchedule({date:schedDate,crew:'',startTime:'07:00',endTime:'17:00',workType:'Aerial',olt:'OLT-57',startLoc:'',endLoc:'',estFootage:'',poc:'',pocPhone:''});}}
+                    style={{padding:'10px 16px',borderRadius:8,border:'none',background:'linear-gradient(135deg,#7c3aed,#a855f7)',color:'white',fontWeight:600,fontSize:13,cursor:'pointer',whiteSpace:'nowrap'}}>
+                    + Add Crew
+                  </button>
+                </div>
+
+                {scheduleEntries.length === 0 && !editSchedule && (
+                  <div style={{textAlign:'center',padding:40,color:'#64748b'}}>
+                    <div style={{fontSize:40,marginBottom:8}}>👷</div>
+                    <div style={{fontSize:14}}>No crews scheduled for this date</div>
+                  </div>
+                )}
+
+                {editSchedule && (
+                  <ScheduleEditForm entry={editSchedule} onSave={saveScheduleEntry} onCancel={function(){setEditSchedule(null);}} />
+                )}
+
+                {scheduleEntries.map(function(entry) {
+                  return (
+                    <div key={entry.id} style={{background:'rgba(30,20,60,0.6)',borderRadius:12,padding:16,marginBottom:12,border:'1px solid rgba(139,92,246,0.15)'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                        <span style={{fontWeight:700,color:'#a78bfa',fontSize:15}}>👷 {entry.crew || 'Crew'}</span>
+                        <div style={{display:'flex',gap:4}}>
+                          <button onClick={function(){setEditSchedule(entry);}} style={{padding:'4px 8px',borderRadius:6,border:'1px solid rgba(139,92,246,0.3)',background:'transparent',color:'#a78bfa',fontSize:12,cursor:'pointer'}}>✏️</button>
+                          <button onClick={function(){deleteScheduleEntry(entry.id);}} style={{padding:'4px 8px',borderRadius:6,border:'1px solid rgba(239,68,68,0.3)',background:'transparent',color:'#ef4444',fontSize:12,cursor:'pointer'}}>🗑️</button>
+                        </div>
+                      </div>
+                      <div style={{fontSize:13,color:'#94a3b8',lineHeight:1.8}}>
+                        <div>⏰ {entry.startTime} – {entry.endTime}</div>
+                        <div>🔧 {entry.workType} • {entry.olt}</div>
+                        {entry.startLoc && <div>📍 {entry.startLoc} → {entry.endLoc}</div>}
+                        {entry.estFootage && <div>📏 Est: {entry.estFootage} ft</div>}
+                        {entry.poc && <div>👤 POC: {entry.poc} {entry.pocPhone}</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* ─── SUMMARY TAB ─── */}
+            {tab === 'summary' && (
+              <div>
+                <div style={{background:'linear-gradient(135deg,#1e3a5f,#0d2847)',borderRadius:12,padding:20,marginBottom:20,textAlign:'center',border:'1px solid rgba(59,130,246,0.3)'}}>
+                  <div style={{fontSize:12,color:'#93c5fd',fontWeight:600}}>TOTAL ALL REPORTS</div>
+                  <div style={{fontSize:36,fontWeight:900,color:'#60a5fa',fontFamily:'monospace'}}>
+                    ${history.reduce(function(s,h){return s+(h.grandTotal||0);},0).toLocaleString('en-US',{minimumFractionDigits:2})}
+                  </div>
+                  <div style={{fontSize:12,color:'#64748b'}}>{history.length} reports filed</div>
+                </div>
+
+                {/* Category breakdown */}
+                {GIGABEAM_CATEGORIES.map(function(cat) {
+                  var catTotal = history.reduce(function(sum, h) {
+                    var q = h.quantities || {};
+                    return sum + GIGABEAM_CODES.filter(function(c){return c.cat===cat.key;}).reduce(function(s,c){return s+(q[c.code]||0)*c.rate;},0);
+                  }, 0);
+                  if (catTotal === 0) return null;
+                  var maxTotal = history.reduce(function(s,h){return s+(h.grandTotal||0);},0) || 1;
+                  return (
+                    <div key={cat.key} style={{marginBottom:12}}>
+                      <div style={{display:'flex',justifyContent:'space-between',fontSize:13,marginBottom:4}}>
+                        <span style={{color:'white',fontWeight:600}}>{cat.label}</span>
+                        <span style={{color:cat.color,fontWeight:700,fontFamily:'monospace'}}>${catTotal.toLocaleString()}</span>
+                      </div>
+                      <div style={{height:8,borderRadius:4,background:'rgba(139,92,246,0.1)',overflow:'hidden'}}>
+                        <div style={{height:'100%',borderRadius:4,background:cat.color,width:Math.max(2,catTotal/maxTotal*100)+'%',transition:'width 0.5s'}}></div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Workers */}
+                <div style={{marginTop:24}}>
+                  <div style={{fontSize:14,fontWeight:700,color:'white',marginBottom:12}}>👷 Production by Worker</div>
+                  {(function() {
+                    var workers = {};
+                    history.forEach(function(h) {
+                      if (!workers[h.userId]) workers[h.userId] = { name: h.userName, photo: h.userPhoto, total: 0, reports: 0 };
+                      workers[h.userId].total += h.grandTotal || 0;
+                      workers[h.userId].reports++;
+                    });
+                    return Object.keys(workers).map(function(uid) {
+                      var w = workers[uid];
+                      return (
+                        <div key={uid} style={{display:'flex',alignItems:'center',gap:12,padding:12,borderRadius:10,background:'rgba(30,20,60,0.4)',marginBottom:8,border:'1px solid rgba(139,92,246,0.1)'}}>
+                          {w.photo ? <img src={w.photo} style={{width:40,height:40,borderRadius:'50%',objectFit:'cover'}} /> : <div style={{width:40,height:40,borderRadius:'50%',background:'#7c3aed',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontWeight:700}}>{(w.name||'?')[0]}</div>}
+                          <div style={{flex:1}}>
+                            <div style={{fontWeight:700,color:'white',fontSize:14}}>{w.name}</div>
+                            <div style={{fontSize:11,color:'#64748b'}}>{w.reports} reports</div>
+                          </div>
+                          <div style={{fontWeight:700,color:'#60a5fa',fontFamily:'monospace',fontSize:15}}>${w.total.toLocaleString()}</div>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+
+                <button onClick={downloadCSV} style={{width:'100%',padding:14,borderRadius:12,border:'none',background:'linear-gradient(135deg,#059669,#10b981)',color:'white',fontSize:16,fontWeight:700,cursor:'pointer',marginTop:20}}>
+                  📥 DOWNLOAD CSV REPORT
+                </button>
+              </div>
+            )}
+
+            {/* ─── HISTORY TAB ─── */}
+            {tab === 'history' && (
+              <div>
+                {history.length === 0 && (
+                  <div style={{textAlign:'center',padding:40,color:'#64748b'}}>
+                    <div style={{fontSize:40,marginBottom:8}}>📅</div>
+                    <div>No reports filed yet</div>
+                  </div>
+                )}
+                {history.map(function(h) {
+                  return (
+                    <div key={h.id} style={{background:'rgba(30,20,60,0.6)',borderRadius:12,padding:16,marginBottom:12,border:'1px solid rgba(139,92,246,0.15)'}}>
+                      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                        <div style={{display:'flex',alignItems:'center',gap:8}}>
+                          {h.userPhoto ? <img src={h.userPhoto} style={{width:28,height:28,borderRadius:'50%',objectFit:'cover'}} /> : <div style={{width:28,height:28,borderRadius:'50%',background:'#7c3aed',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontSize:12,fontWeight:700}}>{(h.userName||'?')[0]}</div>}
+                          <div>
+                            <div style={{fontWeight:700,color:'white',fontSize:13}}>{h.userName}</div>
+                            <div style={{fontSize:11,color:'#64748b'}}>{h.date}</div>
+                          </div>
+                        </div>
+                        <div style={{fontWeight:700,color:'#60a5fa',fontFamily:'monospace',fontSize:15}}>${(h.grandTotal||0).toLocaleString()}</div>
+                      </div>
+                      <div style={{fontSize:12,color:'#94a3b8'}}>
+                        {h.filledCount || 0} line items{h.street ? ' • ' + h.street : ''}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>,
+        document.body
+      );
+    }
+
+    // ── Schedule Edit Form ──
+    function ScheduleEditForm({ entry, onSave, onCancel }) {
+      const [form, setForm] = useState(Object.assign({}, entry));
+      function setField(k, v) { setForm(function(p) { var n = Object.assign({}, p); n[k] = v; return n; }); }
+      var workTypes = ['Aerial','Make Ready','Splicing','Drops','Underground','Traffic Control'];
+      return (
+        <div style={{background:'rgba(30,20,60,0.8)',borderRadius:12,padding:16,marginBottom:16,border:'1px solid rgba(139,92,246,0.3)'}}>
+          <div style={{fontWeight:700,color:'#a78bfa',marginBottom:12}}>{entry.id ? '✏️ Edit Entry' : '➕ New Entry'}</div>
+          <div style={{display:'grid',gap:8}}>
+            <input placeholder="Crew name / number" value={form.crew} onChange={function(e){setField('crew',e.target.value);}} style={{padding:'8px 12px',borderRadius:8,border:'1px solid rgba(139,92,246,0.3)',background:'rgba(20,15,40,0.8)',color:'white',fontSize:14}} />
+            <div style={{display:'flex',gap:8}}>
+              <input type="time" value={form.startTime} onChange={function(e){setField('startTime',e.target.value);}} style={{flex:1,padding:'8px 12px',borderRadius:8,border:'1px solid rgba(139,92,246,0.3)',background:'rgba(20,15,40,0.8)',color:'white',fontSize:14}} />
+              <input type="time" value={form.endTime} onChange={function(e){setField('endTime',e.target.value);}} style={{flex:1,padding:'8px 12px',borderRadius:8,border:'1px solid rgba(139,92,246,0.3)',background:'rgba(20,15,40,0.8)',color:'white',fontSize:14}} />
+            </div>
+            <select value={form.workType} onChange={function(e){setField('workType',e.target.value);}} style={{padding:'8px 12px',borderRadius:8,border:'1px solid rgba(139,92,246,0.3)',background:'rgba(20,15,40,0.8)',color:'white',fontSize:14}}>
+              {workTypes.map(function(w){return <option key={w} value={w}>{w}</option>;})}
+            </select>
+            <input placeholder="OLT (e.g. OLT-57)" value={form.olt} onChange={function(e){setField('olt',e.target.value);}} style={{padding:'8px 12px',borderRadius:8,border:'1px solid rgba(139,92,246,0.3)',background:'rgba(20,15,40,0.8)',color:'white',fontSize:14}} />
+            <div style={{display:'flex',gap:8}}>
+              <input placeholder="Start location" value={form.startLoc} onChange={function(e){setField('startLoc',e.target.value);}} style={{flex:1,padding:'8px 12px',borderRadius:8,border:'1px solid rgba(139,92,246,0.3)',background:'rgba(20,15,40,0.8)',color:'white',fontSize:14}} />
+              <input placeholder="End location" value={form.endLoc} onChange={function(e){setField('endLoc',e.target.value);}} style={{flex:1,padding:'8px 12px',borderRadius:8,border:'1px solid rgba(139,92,246,0.3)',background:'rgba(20,15,40,0.8)',color:'white',fontSize:14}} />
+            </div>
+            <input placeholder="Est. footage" type="number" value={form.estFootage} onChange={function(e){setField('estFootage',e.target.value);}} style={{padding:'8px 12px',borderRadius:8,border:'1px solid rgba(139,92,246,0.3)',background:'rgba(20,15,40,0.8)',color:'white',fontSize:14}} />
+            <div style={{display:'flex',gap:8}}>
+              <input placeholder="POC name" value={form.poc} onChange={function(e){setField('poc',e.target.value);}} style={{flex:1,padding:'8px 12px',borderRadius:8,border:'1px solid rgba(139,92,246,0.3)',background:'rgba(20,15,40,0.8)',color:'white',fontSize:14}} />
+              <input placeholder="POC phone" value={form.pocPhone} onChange={function(e){setField('pocPhone',e.target.value);}} style={{flex:1,padding:'8px 12px',borderRadius:8,border:'1px solid rgba(139,92,246,0.3)',background:'rgba(20,15,40,0.8)',color:'white',fontSize:14}} />
+            </div>
+          </div>
+          <div style={{display:'flex',gap:8,marginTop:12}}>
+            <button onClick={onCancel} style={{flex:1,padding:10,borderRadius:8,border:'1px solid #475569',background:'transparent',color:'#94a3b8',fontWeight:600,cursor:'pointer'}}>Cancel</button>
+            <button onClick={function(){onSave(form);}} style={{flex:1,padding:10,borderRadius:8,border:'none',background:'linear-gradient(135deg,#7c3aed,#a855f7)',color:'white',fontWeight:700,cursor:'pointer'}}>💾 Save</button>
+          </div>
+        </div>
+      );
+    }
+
     // ── Install Banner ──
     function InstallBanner({ onInstall, onDismiss, isIOS, hasNativePrompt }) {
       return (
@@ -1947,6 +2437,7 @@
       const [usingDefault, setUsingDefault] = useState(false);
       const [view, setView] = useState('list');
       const [showKMZManager, setShowKMZManager] = useState(false);
+      const [showFiberProduction, setShowFiberProduction] = useState(false);
       const [importedFiles, setImportedFiles] = useState([]);
       const [importedSites, setImportedSites] = useState([]);
       const [sharedKMZFiles, setSharedKMZFiles] = useState([]);
@@ -2840,7 +3331,7 @@
                 <span style={{fontSize: '22px'}}>🧭</span>
                 <span style={{fontFamily: "'Playfair Display', serif", fontWeight: 700, letterSpacing: '0.08em', fontSize: '1.1rem', color: '#d4af37'}}>GLOBAL ROUTE</span>
               </h1>
-              <UserMenu user={user} avatarURL={avatarURL} onLogout={onLogout} onChangePhoto={function() { setShowAvatarSetup(true); }} onDownloadReport={handleDownloadReport} />
+              <UserMenu user={user} avatarURL={avatarURL} onLogout={onLogout} onChangePhoto={function() { setShowAvatarSetup(true); }} onDownloadReport={handleDownloadReport} onShowFiberProduction={function() { setShowFiberProduction(true); }} />
             </div>
             <p className="text-xs opacity-80 text-center">
               {allSites.length} sites total • {teamCompletedCount} completed by team • Nearest-First Routing
@@ -2974,6 +3465,11 @@
               avatarURL={avatarURL || user.photoURL || null}
               onClose={function() { setActivePhotoSite(null); }}
             />
+          )}
+
+          {/* Fiber Production Panel */}
+          {showFiberProduction && (
+            <FiberProductionPanel user={user} avatarURL={avatarURL} onClose={function() { setShowFiberProduction(false); }} />
           )}
 
           {/* Avatar Setup Overlay */}
