@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Global Route™ — Route • Track • Manage | Field Operations Software</title>
+<meta name="description" content="The all-in-one field operations platform. Route your crews, track progress in real-time, and manage documentation — all from one beautiful app.">
+<meta property="og:title" content="Global Route™ — Professional Field Operations Software">
+<meta property="og:description" content="Route your crews. Track progress. Manage documentation. Start your free 30-day trial.">
+<meta property="og:image" content="https://west875.github.io/global-route/global-route-icon-512.png">
+<link rel="icon" type="image/png" href="global-route-icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Playfair+Display:wght@700;800;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg-primary:#0a0618;--bg-card:rgba(25,20,50,0.6);
+  --purple:#8b5cf6;--gold:#fbbf24;--indigo:#6366f1;
+  --green:#22c55e;--orange:#f97316;
+  --text:#ffffff;--text-muted:#94a3b8;--text-dim:#64748b;
+}
+html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg-primary);color:var(--text);overflow-x:hidden;line-height:1.6}
+
+/* ── Scroll animations ── */
+.reveal{opacity:0;transform:translateY(40px);transition:all 0.8s cubic-bezier(0.22,1,0.36,1)}
+.reveal.visible{opacity:1;transform:translateY(0)}
+.reveal-left{opacity:0;transform:translateX(-60px);transition:all 0.8s cubic-bezier(0.22,1,0.36,1)}
+.reveal-left.visible{opacity:1;transform:translateX(0)}
+.reveal-right{opacity:0;transform:translateX(60px);transition:all 0.8s cubic-bezier(0.22,1,0.36,1)}
+.reveal-right.visible{opacity:1;transform:translateX(0)}
+
+/* ── Floating nav ── */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:16px 32px;display:flex;align-items:center;justify-content:space-between;background:rgba(10,6,24,0.85);backdrop-filter:blur(20px);border-bottom:1px solid rgba(139,92,246,0.1);transition:all 0.3s}
+nav.scrolled{padding:10px 32px;background:rgba(10,6,24,0.95)}
+.nav-logo{display:flex;align-items:center;gap:12px;text-decoration:none}
+.nav-logo span{font-family:'Playfair Display',serif;font-weight:800;font-size:20px;color:var(--gold);letter-spacing:2px}
+.nav-links{display:flex;gap:32px;align-items:center}
+.nav-links a{color:var(--text-muted);text-decoration:none;font-size:14px;font-weight:500;transition:color 0.2s}
+.nav-links a:hover{color:var(--text)}
+.nav-cta{background:linear-gradient(135deg,var(--purple),#7c3aed);color:#fff;padding:10px 24px;border-radius:100px;font-weight:600;font-size:14px;text-decoration:none;border:none;cursor:pointer;transition:all 0.3s;box-shadow:0 4px 20px rgba(139,92,246,0.3)}
+.nav-cta:hover{transform:translateY(-1px);box-shadow:0 6px 30px rgba(139,92,246,0.5)}
+
+/* ── Hero ── */
+.hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:120px 24px 60px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-200px;left:50%;transform:translateX(-50%);width:800px;height:800px;background:radial-gradient(circle,rgba(139,92,246,0.12) 0%,transparent 70%);pointer-events:none}
+.hero::after{content:'';position:absolute;top:200px;right:-200px;width:600px;height:600px;background:radial-gradient(circle,rgba(251,191,36,0.06) 0%,transparent 70%);pointer-events:none}
+
+.hero-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.2);padding:8px 20px;border-radius:100px;font-size:13px;color:var(--purple);font-weight:500;margin-bottom:32px;animation:fadeUp 1s ease}
+.hero-badge span{color:var(--gold)}
+
+.compass-svg{width:80px;height:80px;margin-bottom:24px;animation:fadeUp 1s ease 0.1s backwards}
+
+h1.hero-title{font-family:'Playfair Display',serif;font-size:clamp(48px,8vw,96px);font-weight:900;color:var(--gold);letter-spacing:4px;line-height:1.1;animation:fadeUp 1s ease 0.2s backwards}
+.hero-tagline{font-size:clamp(14px,2vw,20px);letter-spacing:8px;color:var(--text-muted);font-weight:400;margin-top:12px;text-transform:uppercase;animation:fadeUp 1s ease 0.3s backwards}
+.hero-desc{font-size:clamp(16px,1.8vw,22px);color:var(--text-muted);max-width:640px;margin:24px auto 40px;font-weight:300;line-height:1.7;animation:fadeUp 1s ease 0.4s backwards}
+
+.hero-buttons{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;animation:fadeUp 1s ease 0.5s backwards}
+.btn-primary{background:linear-gradient(135deg,var(--purple),#7c3aed);color:#fff;padding:16px 40px;border-radius:100px;font-weight:700;font-size:17px;text-decoration:none;border:none;cursor:pointer;transition:all 0.3s;box-shadow:0 4px 30px rgba(139,92,246,0.4);display:inline-flex;align-items:center;gap:8px}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 40px rgba(139,92,246,0.6)}
+.btn-secondary{background:transparent;color:var(--text);padding:16px 40px;border-radius:100px;font-weight:600;font-size:17px;text-decoration:none;border:1px solid rgba(255,255,255,0.15);cursor:pointer;transition:all 0.3s}
+.btn-secondary:hover{border-color:rgba(255,255,255,0.3);background:rgba(255,255,255,0.03)}
+
+.hero-note{font-size:13px;color:var(--text-dim);margin-top:20px;animation:fadeUp 1s ease 0.6s backwards}
+.hero-note span{color:var(--gold)}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── Video section ── */
+.video-section{padding:80px 24px;text-align:center}
+.video-wrapper{max-width:960px;margin:0 auto;border-radius:20px;overflow:hidden;box-shadow:0 20px 80px rgba(0,0,0,0.5),0 0 0 1px rgba(139,92,246,0.15);position:relative;background:#000}
+.video-wrapper video{width:100%;display:block;border-radius:20px}
+.video-label{font-size:14px;color:var(--text-dim);margin-top:16px}
+
+/* ── Stats bar ── */
+.stats-bar{display:flex;justify-content:center;gap:clamp(32px,6vw,80px);padding:60px 24px;flex-wrap:wrap}
+.stat{text-align:center}
+.stat-value{font-size:clamp(32px,5vw,56px);font-weight:800;background:linear-gradient(135deg,var(--gold),#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.stat-label{font-size:14px;color:var(--text-dim);font-weight:500;margin-top:4px;letter-spacing:1px;text-transform:uppercase}
+
+/* ── Section headers ── */
+.section{padding:100px 24px;max-width:1200px;margin:0 auto}
+.section-label{font-size:13px;letter-spacing:4px;text-transform:uppercase;color:var(--purple);font-weight:600;margin-bottom:12px}
+.section-title{font-family:'Playfair Display',serif;font-size:clamp(32px,4vw,52px);font-weight:800;line-height:1.2;margin-bottom:16px}
+.section-title em{color:var(--gold);font-style:normal}
+.section-desc{font-size:18px;color:var(--text-muted);max-width:600px;line-height:1.7;font-weight:300}
+
+/* ── Feature grid ── */
+.features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px;margin-top:60px}
+.feature-card{background:var(--bg-card);border:1px solid rgba(139,92,246,0.08);border-radius:20px;padding:36px;transition:all 0.4s;position:relative;overflow:hidden;backdrop-filter:blur(10px)}
+.feature-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,var(--purple),transparent);opacity:0;transition:opacity 0.4s}
+.feature-card:hover{transform:translateY(-4px);border-color:rgba(139,92,246,0.2);box-shadow:0 20px 60px rgba(0,0,0,0.3)}
+.feature-card:hover::before{opacity:1}
+.feature-icon{font-size:40px;margin-bottom:16px;display:block}
+.feature-name{font-size:20px;font-weight:700;margin-bottom:8px}
+.feature-desc{font-size:15px;color:var(--text-muted);line-height:1.6}
+
+/* ── Highlight rows ── */
+.highlight{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center;padding:80px 24px;max-width:1200px;margin:0 auto}
+.highlight:nth-child(even){direction:rtl}
+.highlight:nth-child(even)>*{direction:ltr}
+.highlight-visual{background:var(--bg-card);border-radius:24px;padding:40px;border:1px solid rgba(139,92,246,0.1);min-height:360px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.highlight-visual::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(139,92,246,0.05),transparent);pointer-events:none}
+.highlight-content .section-label{margin-bottom:12px}
+.highlight-content h3{font-family:'Playfair Display',serif;font-size:clamp(28px,3vw,42px);font-weight:800;margin-bottom:16px;line-height:1.2}
+.highlight-content h3 em{color:var(--gold);font-style:normal}
+.highlight-content p{font-size:17px;color:var(--text-muted);line-height:1.7;margin-bottom:24px}
+.highlight-features{list-style:none;display:flex;flex-direction:column;gap:12px}
+.highlight-features li{display:flex;align-items:center;gap:12px;font-size:15px;color:var(--text-muted)}
+.highlight-features li::before{content:'✓';color:var(--green);font-weight:700;font-size:16px}
+
+/* ── Pricing ── */
+.pricing-section{padding:100px 24px;text-align:center}
+.pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;max-width:1100px;margin:48px auto 0}
+.price-card{background:var(--bg-card);border:1px solid rgba(139,92,246,0.1);border-radius:24px;padding:40px 32px;text-align:left;position:relative;transition:all 0.4s;backdrop-filter:blur(10px)}
+.price-card.featured{border-color:var(--purple);box-shadow:0 0 60px rgba(139,92,246,0.15)}
+.price-card.featured::before{content:'MOST POPULAR';position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--purple),#7c3aed);color:#fff;font-size:11px;font-weight:700;letter-spacing:2px;padding:6px 20px;border-radius:100px}
+.price-name{font-size:20px;font-weight:700;margin-bottom:4px}
+.price-desc{font-size:14px;color:var(--text-dim);margin-bottom:20px}
+.price-amount{font-size:48px;font-weight:800}
+.price-amount span{font-size:16px;font-weight:400;color:var(--text-muted)}
+.price-features{list-style:none;margin:24px 0;display:flex;flex-direction:column;gap:10px}
+.price-features li{font-size:14px;color:var(--text-muted);display:flex;align-items:center;gap:8px}
+.price-features li::before{content:'✓';color:var(--green);font-weight:700}
+.price-btn{display:block;text-align:center;padding:14px;border-radius:12px;font-weight:600;font-size:15px;text-decoration:none;transition:all 0.3s;margin-top:auto}
+.price-btn.primary{background:linear-gradient(135deg,var(--purple),#7c3aed);color:#fff;box-shadow:0 4px 20px rgba(139,92,246,0.3)}
+.price-btn.primary:hover{transform:translateY(-1px);box-shadow:0 6px 30px rgba(139,92,246,0.5)}
+.price-btn.outline{border:1px solid rgba(255,255,255,0.15);color:var(--text)}
+.price-btn.outline:hover{border-color:rgba(255,255,255,0.3);background:rgba(255,255,255,0.03)}
+
+/* ── Testimonials ── */
+.trust-badges{display:flex;justify-content:center;gap:40px;padding:40px 24px;flex-wrap:wrap;opacity:0.6}
+.trust-badge{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text-dim)}
+
+/* ── CTA banner ── */
+.cta-banner{text-align:center;padding:120px 24px;position:relative;overflow:hidden}
+.cta-banner::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:1000px;height:600px;background:radial-gradient(ellipse,rgba(139,92,246,0.1) 0%,transparent 70%);pointer-events:none}
+.cta-banner h2{font-family:'Playfair Display',serif;font-size:clamp(32px,5vw,56px);font-weight:800;margin-bottom:16px}
+.cta-banner h2 em{color:var(--gold);font-style:normal}
+.cta-banner p{font-size:18px;color:var(--text-muted);max-width:500px;margin:0 auto 40px}
+
+/* ── Footer ── */
+footer{border-top:1px solid rgba(255,255,255,0.05);padding:40px 24px;text-align:center;color:var(--text-dim);font-size:13px}
+footer a{color:var(--text-muted);text-decoration:none}
+footer a:hover{color:var(--text)}
+
+/* ── Responsive ── */
+@media(max-width:768px){
+  .highlight{grid-template-columns:1fr;gap:32px}
+  .highlight:nth-child(even){direction:ltr}
+  .nav-links{display:none}
+  .pricing-grid{grid-template-columns:1fr}
+  .features-grid{grid-template-columns:1fr}
+  .stats-bar{gap:24px}
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(139,92,246,0.3);border-radius:3px}
+</style>
+</head>
+<body>
+
+<!-- ── NAV ── -->
+<nav id="nav">
+  <a href="#" class="nav-logo">
+    <svg width="32" height="32" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="#fbbf24" stroke-width="3"/><polygon points="50,12 54,46 50,42 46,46" fill="#ef4444"/><polygon points="50,88 46,54 50,58 54,54" fill="#ffffff"/><polygon points="12,50 46,46 42,50 46,54" fill="#22c55e"/><polygon points="88,50 54,54 58,50 54,46" fill="#3b82f6"/><circle cx="50" cy="50" r="6" fill="#fbbf24"/></svg>
+    <span>GLOBAL ROUTE</span>
+  </a>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#how-it-works">How It Works</a>
+    <a href="#pricing">Pricing</a>
+    <a href="https://west875.github.io/global-route/v2/" class="nav-cta">Start Free Trial</a>
+  </div>
+</nav>
+
+<!-- ── HERO ── -->
+<section class="hero">
+  <div class="hero-badge">✨ <span>30-Day Free Trial</span> — No Credit Card Required</div>
+  
+  <svg class="compass-svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="none" stroke="rgba(251,191,36,0.2)" stroke-width="1"/><circle cx="50" cy="50" r="35" fill="none" stroke="rgba(251,191,36,0.1)" stroke-width="1"/><polygon points="50,8 54,44 50,40 46,44" fill="#ef4444"/><polygon points="50,92 46,56 50,60 54,56" fill="#ffffff"/><polygon points="8,50 44,46 40,50 44,54" fill="#22c55e"/><polygon points="92,50 56,54 60,50 56,46" fill="#3b82f6"/><circle cx="50" cy="50" r="5" fill="#fbbf24"/></svg>
+  
+  <h1 class="hero-title">GLOBAL ROUTE</h1>
+  <p class="hero-tagline">Route &nbsp;•&nbsp; Track &nbsp;•&nbsp; Manage</p>
+  <p class="hero-desc">The all-in-one field operations platform. Route your crews, track progress in real-time, and manage documentation — all from one beautiful app.</p>
+  
+  <div class="hero-buttons">
+    <a href="https://west875.github.io/global-route/v2/" class="btn-primary">🚀 Start Your Free Trial</a>
+    <a href="#demo" class="btn-secondary">▶ Watch Demo</a>
+  </div>
+  <p class="hero-note"><span>✨</span> 30-Day Free Trial on Starter Plan — No credit card required</p>
+</section>
+
+<!-- ── STATS ── -->
+<div class="stats-bar reveal">
+  <div class="stat"><div class="stat-value">Real-time</div><div class="stat-label">Team Sync</div></div>
+  <div class="stat"><div class="stat-value">Any Device</div><div class="stat-label">Install & Use</div></div>
+  <div class="stat"><div class="stat-value">Offline</div><div class="stat-label">Capable</div></div>
+  <div class="stat"><div class="stat-value">0</div><div class="stat-label">Setup Required</div></div>
+</div>
+
+<!-- ── VIDEO ── -->
+<section class="video-section reveal" id="demo">
+  <div class="video-wrapper">
+    <video controls preload="metadata" poster="" playsinline>
+      <source src="global-route-promo.mp4" type="video/mp4">
+    </video>
+  </div>
+  <p class="video-label">▶ Watch the 60-second overview</p>
+</section>
+
+<!-- ── FEATURES ── -->
+<section class="section reveal" id="features">
+  <div class="section-label">Capabilities</div>
+  <div class="section-title"><em>Everything</em> Your Field Team Needs</div>
+  <p class="section-desc">From route planning to client reports — Global Route replaces a dozen apps with one.</p>
+  
+  <div class="features-grid">
+    <div class="feature-card reveal">
+      <span class="feature-icon">🗺️</span>
+      <div class="feature-name">Smart Route Optimization</div>
+      <div class="feature-desc">Automatically find the shortest route between all your job sites. Navigate nearest-first to save time and fuel.</div>
+    </div>
+    <div class="feature-card reveal">
+      <span class="feature-icon">👥</span>
+      <div class="feature-name">Real-time Team Tracking</div>
+      <div class="feature-desc">See who's heading where, who completed what, and who flagged issues — all synced live across your entire team.</div>
+    </div>
+    <div class="feature-card reveal">
+      <span class="feature-icon">📸</span>
+      <div class="feature-name">Photo Documentation</div>
+      <div class="feature-desc">GPS-tagged before &amp; after photos at every site. Proof of work with timestamps and team attribution.</div>
+    </div>
+    <div class="feature-card reveal">
+      <span class="feature-icon">💬</span>
+      <div class="feature-name">Site Notes &amp; Voice Memos</div>
+      <div class="feature-desc">Leave notes, record voice memos, and collaborate at each site. Real-time chat-style interface.</div>
+    </div>
+    <div class="feature-card reveal">
+      <span class="feature-icon">🚩</span>
+      <div class="feature-name">Issue Flagging</div>
+      <div class="feature-desc">Flag sites that need attention before or after visits. Animated markers and status tracking keep everyone informed.</div>
+    </div>
+    <div class="feature-card reveal">
+      <span class="feature-icon">📡</span>
+      <div class="feature-name">Works Offline</div>
+      <div class="feature-desc">No signal? Keep working. Every action is queued locally and syncs automatically when connectivity returns.</div>
+    </div>
+    <div class="feature-card reveal">
+      <span class="feature-icon">⚡</span>
+      <div class="feature-name">Fiber Production</div>
+      <div class="feature-desc">Purpose-built for fiber optic crews. Pole logging, span tracking, equipment management, and auto-billing.</div>
+    </div>
+    <div class="feature-card reveal">
+      <span class="feature-icon">📊</span>
+      <div class="feature-name">Analytics Dashboard</div>
+      <div class="feature-desc">Leaderboards, completion trends, average times — understand your team's performance at a glance.</div>
+    </div>
+    <div class="feature-card reveal">
+      <span class="feature-icon">📧</span>
+      <div class="feature-name">Automated Reports</div>
+      <div class="feature-desc">Personalized daily email summaries sent to each team member. CSV exports and client-facing PDF reports.</div>
+    </div>
+    <div class="feature-card reveal">
+      <span class="feature-icon">📅</span>
+      <div class="feature-name">Crew Scheduling</div>
+      <div class="feature-desc">Assign sites to teammates with start/end times. 7-day calendar view with real-time sync.</div>
+    </div>
+    <div class="feature-card reveal">
+      <span class="feature-icon">💳</span>
+      <div class="feature-name">Rate Card Manager</div>
+      <div class="feature-desc">Track billing codes, manage rates, and tally production. Built-in payroll export for seamless invoicing.</div>
+    </div>
+    <div class="feature-card reveal">
+      <span class="feature-icon">🔐</span>
+      <div class="feature-name">Secure &amp; Installable</div>
+      <div class="feature-desc">Biometric login, push notifications, and installable as a native app on any device. No app store required.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── HIGHLIGHT: ROUTING ── -->
+<div class="highlight reveal-left" id="how-it-works">
+  <div class="highlight-visual">
+    <div style="text-align:center">
+      <div style="font-size:80px;margin-bottom:16px">🗺️</div>
+      <div style="font-size:24px;font-weight:700;margin-bottom:8px">Interactive Map View</div>
+      <div style="color:var(--text-muted);font-size:15px">Red pin markers • Route lines • Color-coded status</div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:16px">
+        <span style="background:var(--indigo);padding:4px 12px;border-radius:20px;font-size:12px">Active</span>
+        <span style="background:var(--green);padding:4px 12px;border-radius:20px;font-size:12px">Done</span>
+        <span style="background:var(--orange);padding:4px 12px;border-radius:20px;font-size:12px">En Route</span>
+        <span style="background:#6b7280;padding:4px 12px;border-radius:20px;font-size:12px">Flagged</span>
+      </div>
+    </div>
+  </div>
+  <div class="highlight-content">
+    <div class="section-label">Navigation</div>
+    <h3>Intelligent <em>Route Planning</em></h3>
+    <p>Import your job sites from KMZ, KML, CSV, or Excel files. Global Route automatically calculates the optimal route and guides your team stop by stop.</p>
+    <ul class="highlight-features">
+      <li>Nearest-first navigation algorithm</li>
+      <li>En-route claiming prevents duplicates</li>
+      <li>Material pickup locations on map</li>
+      <li>Works with any file format</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ── HIGHLIGHT: COLLABORATION ── -->
+<div class="highlight reveal-right">
+  <div class="highlight-visual">
+    <div style="text-align:center">
+      <div style="font-size:80px;margin-bottom:16px">👥</div>
+      <div style="font-size:24px;font-weight:700;margin-bottom:8px">Team Activity Feed</div>
+      <div style="color:var(--text-muted);font-size:15px">Avatar • Name • Timestamp • Duration</div>
+      <div style="margin-top:16px;text-align:left;max-width:280px;margin-left:auto;margin-right:auto">
+        <div style="background:rgba(34,197,94,0.1);border-left:3px solid var(--green);padding:8px 12px;border-radius:0 8px 8px 0;margin-bottom:8px;font-size:13px">✅ Solomon completed Site #14 — ⏱ 22min</div>
+        <div style="background:rgba(249,115,22,0.1);border-left:3px solid var(--orange);padding:8px 12px;border-radius:0 8px 8px 0;margin-bottom:8px;font-size:13px">🚗 Kashawn en-route to Site #7</div>
+        <div style="background:rgba(99,102,241,0.1);border-left:3px solid var(--indigo);padding:8px 12px;border-radius:0 8px 8px 0;font-size:13px">🚩 Leshawn flagged Site #3</div>
+      </div>
+    </div>
+  </div>
+  <div class="highlight-content">
+    <div class="section-label">Collaboration</div>
+    <h3>Real-time <em>Team Sync</em></h3>
+    <p>Every completion, note, flag, and en-route claim syncs instantly to every team member. No refreshing. No phone calls.</p>
+    <ul class="highlight-features">
+      <li>Live completion tracking with avatars</li>
+      <li>En-route claiming with "heads up" alerts</li>
+      <li>Undo completions with team visibility</li>
+      <li>Auto time tracking per site</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ── HIGHLIGHT: FIBER ── -->
+<div class="highlight reveal-left">
+  <div class="highlight-visual">
+    <div style="text-align:center">
+      <div style="font-size:80px;margin-bottom:16px">⚡</div>
+      <div style="font-size:24px;font-weight:700;margin-bottom:8px">Fiber Production</div>
+      <div style="color:var(--text-muted);font-size:15px">Poles • Spans • Equipment • Auto-Billing</div>
+      <div style="display:flex;gap:12px;justify-content:center;margin-top:16px;flex-wrap:wrap">
+        <span style="background:rgba(250,204,21,0.15);color:#facc15;padding:4px 12px;border-radius:20px;font-size:12px">🟡 Strand</span>
+        <span style="background:rgba(249,115,22,0.15);color:var(--orange);padding:4px 12px;border-radius:20px;font-size:12px">🟠 Cable</span>
+        <span style="background:rgba(34,197,94,0.15);color:var(--green);padding:4px 12px;border-radius:20px;font-size:12px">🟢 Lashed</span>
+        <span style="background:rgba(139,92,246,0.15);color:var(--purple);padding:4px 12px;border-radius:20px;font-size:12px">⚓ Anchor</span>
+      </div>
+    </div>
+  </div>
+  <div class="highlight-content">
+    <div class="section-label">Specialized</div>
+    <h3>Purpose-Built <em>Fiber Tools</em></h3>
+    <p>The only field ops platform with dedicated fiber production management. From pole logging to auto-calculated billing.</p>
+    <ul class="highlight-features">
+      <li>Color-coded span stage tracking</li>
+      <li>GPS-verified equipment placement</li>
+      <li>Auto-billing from field actions</li>
+      <li>As-built documentation with reports</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ── PRICING ── -->
+<section class="pricing-section" id="pricing">
+  <div class="section-label" style="text-align:center">Pricing</div>
+  <div class="section-title" style="text-align:center;margin:0 auto"><em>Simple,</em> Transparent Pricing</div>
+  <p style="text-align:center;color:var(--text-muted);margin:12px auto 0;max-width:500px">Start with a free 30-day trial. Scale as your team grows.</p>
+  
+  <div class="pricing-grid">
+    <div class="price-card reveal">
+      <div class="price-name">Starter</div>
+      <div class="price-desc">Perfect for small teams</div>
+      <div class="price-amount">$29<span>/month</span></div>
+      <ul class="price-features">
+        <li>Up to 5 team members</li>
+        <li>1 workspace</li>
+        <li>Route navigation</li>
+        <li>Real-time sync</li>
+        <li>Photo documentation</li>
+        <li>Basic analytics</li>
+      </ul>
+      <a href="https://west875.github.io/global-route/v2/" class="price-btn outline">Start 30-Day Free Trial</a>
+    </div>
+    
+    <div class="price-card featured reveal">
+      <div class="price-name">Pro</div>
+      <div class="price-desc">For growing operations</div>
+      <div class="price-amount">$79<span>/month</span></div>
+      <ul class="price-features">
+        <li>Up to 20 team members</li>
+        <li>3 workspaces</li>
+        <li>Everything in Starter</li>
+        <li>Fiber production tools</li>
+        <li>Advanced analytics</li>
+        <li>Daily email reports</li>
+        <li>Priority support</li>
+      </ul>
+      <a href="https://west875.github.io/global-route/v2/" class="price-btn primary">Get Started</a>
+    </div>
+    
+    <div class="price-card reveal">
+      <div class="price-name">Business</div>
+      <div class="price-desc">For enterprise operations</div>
+      <div class="price-amount">$149<span>/month</span></div>
+      <ul class="price-features">
+        <li>Unlimited team members</li>
+        <li>Unlimited workspaces</li>
+        <li>Everything in Pro</li>
+        <li>Admin dashboard</li>
+        <li>Rate card manager</li>
+        <li>Client PDF reports</li>
+        <li>Crew scheduling</li>
+        <li>Dedicated support</li>
+      </ul>
+      <a href="https://west875.github.io/global-route/v2/" class="price-btn outline">Get Started</a>
+    </div>
+  </div>
+</section>
+
+<!-- ── TRUST ── -->
+<div class="trust-badges">
+  <div class="trust-badge">🔒 256-bit encryption</div>
+  <div class="trust-badge">📱 Works on any device</div>
+  <div class="trust-badge">⚡ Real-time sync</div>
+  <div class="trust-badge">📡 Offline capable</div>
+  <div class="trust-badge">🚀 No setup required</div>
+</div>
+
+<!-- ── CTA BANNER ── -->
+<section class="cta-banner reveal">
+  <h2>Ready to <em>simplify</em> your field ops?</h2>
+  <p>Join teams already using Global Route to manage their field operations.</p>
+  <a href="https://west875.github.io/global-route/v2/" class="btn-primary" style="font-size:19px;padding:18px 48px">🚀 Start Your Free 30-Day Trial</a>
+  <p class="hero-note" style="margin-top:16px"><span>✨</span> No credit card required</p>
+</section>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <p style="margin-bottom:12px"><a href="#" class="nav-logo" style="justify-content:center;display:inline-flex"><span style="font-family:'Playfair Display',serif;font-weight:800;font-size:16px;color:var(--gold)">GLOBAL ROUTE</span></a></p>
+  <p>© 2026 Global West Group LLC. All rights reserved.</p>
+  <p style="margin-top:8px"><a href="privacy.html">Privacy Policy</a> · <a href="v2-deploy/terms.html">Terms of Service</a></p>
+</footer>
+
+<script>
+// ── Scroll reveal ──
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if(e.isIntersecting) e.target.classList.add('visible') });
+}, { threshold: 0.15, rootMargin: '0px 0px -60px 0px' });
+
+document.querySelectorAll('.reveal,.reveal-left,.reveal-right').forEach(el => observer.observe(el));
+
+// ── Nav scroll effect ──
+window.addEventListener('scroll', () => {
+  document.getElementById('nav').classList.toggle('scrolled', window.scrollY > 50);
+});
+
+// ── Smooth scroll for anchor links ──
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    const target = document.querySelector(a.getAttribute('href'));
+    if(target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+</script>
+</body>
+</html>
