@@ -3566,6 +3566,7 @@
               await db.collection('fiberRoutes').doc(existingDoc.id).update({
                 poles: existingPoles,
                 poleCount: existingPoles.length,
+                importedAt: existingData.importedAt || firebase.firestore.FieldValue.serverTimestamp(),
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
               });
               targetRouteId = existingDoc.id;
@@ -3576,6 +3577,7 @@
                 poleCount: 1,
                 createdBy: user.uid,
                 createdByName: user.displayName || user.email,
+                importedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
               });
@@ -3592,6 +3594,7 @@
               await db.collection('fiberRoutes').doc(targetRouteId).update({
                 poles: poles,
                 poleCount: poles.length,
+                importedAt: rd.importedAt || firebase.firestore.FieldValue.serverTimestamp(),
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
               });
               targetRouteName = rd.name;
