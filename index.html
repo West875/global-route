@@ -195,7 +195,7 @@
     @keyframes confettiFall { 0% { transform: translateY(0) translateX(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(var(--vy, 100vh)) translateX(var(--vx, 0px)) rotate(720deg); opacity: 0; } }
     @keyframes confettiBannerIn { 0% { opacity: 0; transform: translate(-50%,-50%) scale(0.3); } 50% { transform: translate(-50%,-50%) scale(1.1); } 100% { opacity: 1; transform: translate(-50%,-50%) scale(1); } }
     @keyframes waveFlag { 0% { transform: rotate(-15deg); } 15% { transform: rotate(20deg); } 30% { transform: rotate(-12deg); } 45% { transform: rotate(15deg); } 60% { transform: rotate(-8deg); } 75% { transform: rotate(10deg); } 100% { transform: rotate(-15deg); } }
-    @keyframes flagGlow { 0%,100% { text-shadow: 0 0 4px #ef444480; } 50% { text-shadow: 0 0 14px #ef4444, 0 0 28px #ef444488; } }
+    @keyframes flagGlow { 0%,100% { text-shadow: 0 0 4px #f9731680; } 50% { text-shadow: 0 0 14px #f97316, 0 0 28px #f9731688; } }
     @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
     @keyframes subtleFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
 
@@ -1307,8 +1307,8 @@
                     📥 Download Report
                   </button>
                   <div style={{margin:'4px 14px',borderTop:'1px solid rgba(139,92,246,0.1)'}}></div>
-                  <button style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 14px',background:'transparent',border:'none',borderRadius:10,cursor:'pointer',color:'#f87171',fontSize:13,fontWeight:500,textAlign:'left'}}
-                    onMouseOver={function(e){e.currentTarget.style.background='rgba(239,68,68,0.08)';}}
+                  <button style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 14px',background:'transparent',border:'none',borderRadius:10,cursor:'pointer',color:'#94a3b8',fontSize:13,fontWeight:500,textAlign:'left'}}
+                    onMouseOver={function(e){e.currentTarget.style.background='rgba(148,163,184,0.08)';}}
                     onMouseOut={function(e){e.currentTarget.style.background='transparent';}}
                     onClick={function() { setOpen(false); onLogout(); }}>
                     ↪ Sign Out
@@ -1341,7 +1341,7 @@
         if (!document.getElementById('pulse-css')) {
           const style = document.createElement('style');
           style.id = 'pulse-css';
-          style.textContent = '@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.3); } } @keyframes pulseRed { 0%,100% { box-shadow: 0 0 6px 3px #ef444480; transform: scale(1); } 50% { box-shadow: 0 0 20px 8px #ef4444cc, 0 0 40px 12px #ef444466; transform: scale(1.4); } } @keyframes pulseOrange { 0%,100% { box-shadow: 0 0 6px 3px #f59e0b80; transform: scale(1); } 50% { box-shadow: 0 0 18px 6px #f59e0bcc, 0 0 35px 10px #f59e0b66; transform: scale(1.3); } } @keyframes waveFlag { 0% { transform: rotate(-15deg); } 15% { transform: rotate(20deg); } 30% { transform: rotate(-12deg); } 45% { transform: rotate(15deg); } 60% { transform: rotate(-8deg); } 75% { transform: rotate(10deg); } 100% { transform: rotate(-15deg); } } @keyframes flagGlow { 0%,100% { text-shadow: 0 0 4px #ef444480; } 50% { text-shadow: 0 0 14px #ef4444, 0 0 28px #ef444488; } }';
+          style.textContent = '@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.3); } } @keyframes pulseRed { 0%,100% { box-shadow: 0 0 6px 3px #f9731680; transform: scale(1); } 50% { box-shadow: 0 0 20px 8px #f97316cc, 0 0 40px 12px #f9731666; transform: scale(1.4); } } @keyframes pulseOrange { 0%,100% { box-shadow: 0 0 6px 3px #f59e0b80; transform: scale(1); } 50% { box-shadow: 0 0 18px 6px #f59e0bcc, 0 0 35px 10px #f59e0b66; transform: scale(1.3); } } @keyframes waveFlag { 0% { transform: rotate(-15deg); } 15% { transform: rotate(20deg); } 30% { transform: rotate(-12deg); } 45% { transform: rotate(15deg); } 60% { transform: rotate(-8deg); } 75% { transform: rotate(10deg); } 100% { transform: rotate(-15deg); } } @keyframes flagGlow { 0%,100% { text-shadow: 0 0 4px #f9731680; } 50% { text-shadow: 0 0 14px #f97316, 0 0 28px #f9731688; } }';
           document.head.appendChild(style);
         }
         return function() { if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; } };
@@ -1373,13 +1373,13 @@
 
           var isEnroute = enroutes && enroutes[site.id];
           var isFlagged = revisits && revisits[site.id];
-          let color = isImported ? '#f59e0b' : (isExisting ? '#22c55e' : '#ef4444');
+          let color = isImported ? '#f59e0b' : (isExisting ? '#22c55e' : '#6366f1');
           let borderColor = 'white';
           let size = 14;
           if (isCurrent) { color = '#a855f7'; borderColor = '#fbbf24'; size = 20; }
           if (isEnroute && !isVisited && !isSharedComplete) { color = '#f59e0b'; borderColor = '#fff'; size = 18; }
           if (isVisited || isSharedComplete) { color = '#6b7280'; }
-          if (isFlagged) { color = '#ef4444'; borderColor = '#fbbf24'; size = 18; }
+          if (isFlagged) { color = '#f97316'; borderColor = '#fbbf24'; size = 18; }
 
           var animStyle = '';
           if (isCurrent) { animStyle = 'animation:pulse 1.5s infinite;'; }
@@ -1395,7 +1395,7 @@
             iconHtml = '<div style="position:relative;width:40px;height:50px;">' +
               '<div style="position:absolute;bottom:0;left:10px;width:3px;height:32px;background:#444;border-radius:2px;"></div>' +
               '<div style="position:absolute;top:0;left:13px;font-size:28px;transform-origin:bottom left;animation:waveFlag 0.8s ease-in-out infinite;animation:waveFlag 0.8s ease-in-out infinite, flagGlow 1.5s ease-in-out infinite;">&#9873;</div>' +
-              '<div style="position:absolute;bottom:-2px;left:5px;width:14px;height:6px;background:#ef444480;border-radius:50%;filter:blur(2px);"></div>' +
+              '<div style="position:absolute;bottom:-2px;left:5px;width:14px;height:6px;background:#f9731680;border-radius:50%;filter:blur(2px);"></div>' +
               '</div>';
           } else if (isEnroute && !isVisited && !isSharedComplete && isEnroute.userPhoto) {
             // En-route with avatar photo on marker
@@ -1424,7 +1424,7 @@
           const distText = site.distance !== undefined ? `<br>📍 ${site.distance.toFixed(2)} mi away` : '';
           const sourceBadge = isImported
             ? `<span style="background:#f59e0b;color:black;padding:1px 6px;border-radius:8px;font-size:11px;">${site.source}</span>`
-            : (isExisting ? '<span style="background:#22c55e;color:white;padding:1px 6px;border-radius:8px;font-size:11px;">Existing Cabinet</span>' : '<span style="background:#ef4444;color:white;padding:1px 6px;border-radius:8px;font-size:11px;">Out of Scope</span>');
+            : (isExisting ? '<span style="background:#22c55e;color:white;padding:1px 6px;border-radius:8px;font-size:11px;">Existing Cabinet</span>' : '<span style="background:#6366f1;color:white;padding:1px 6px;border-radius:8px;font-size:11px;">Out of Scope</span>');
           const currentBadge = isCurrent ? '<div style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:white;padding:4px 10px;border-radius:8px;font-size:10px;font-weight:700;text-align:center;margin-bottom:6px;letter-spacing:0.08em;box-shadow:0 2px 8px rgba(139,92,246,0.3);">⭐ NEXT STOP</div>' : '';
 
           let closedByHtml = '';
@@ -1556,7 +1556,7 @@
                   {enrouteInfo.userId===currentUserId?'🚗 You are en-route!':'🚗 '+enrouteInfo.userName+' is en-route'}
                 </span>
                 {enrouteInfo.userId===currentUserId && (
-                  <button onClick={function(e){e.stopPropagation();onCancelEnroute();}} style={{background:'rgba(255,255,255,0.15)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,padding:'4px 12px',color:'#fff',cursor:'pointer',fontSize:11,fontWeight:600}}>Cancel</button>
+                  <button onClick={function(e){e.preventDefault();e.stopPropagation();onCancelEnroute();}} style={{background:'rgba(255,255,255,0.2)',border:'1px solid rgba(255,255,255,0.3)',borderRadius:10,padding:'8px 18px',color:'#fff',cursor:'pointer',fontSize:13,fontWeight:700,minWidth:80,minHeight:40,letterSpacing:'0.02em',WebkitTapHighlightColor:'transparent'}}>✕ Cancel</button>
                 )}
               </div>
             )}
@@ -1566,7 +1566,7 @@
                 {isImported ? (
                   <span className="badge badge-sm badge-warning">{site.source}</span>
                 ) : (
-                  <span className={`badge badge-sm ${isExisting ? 'badge-success' : 'badge-error'}`}>
+                  <span className={`badge badge-sm ${isExisting ? 'badge-success' : 'badge-info'}`} style={!isExisting ? {background:'#6366f1',border:'none',color:'#fff'} : {}}>
                     {isExisting ? 'Existing Cabinet' : 'Out of Scope'}
                   </span>
                 )}
@@ -5852,7 +5852,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v49</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v50</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
