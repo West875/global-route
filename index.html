@@ -488,11 +488,7 @@
     // ── Built-in Site Data (empty — import your own routes) ──
     const BUILTIN_SITES = [];
 
-    const PICKUP_LOCATIONS = [
-      { id: "PU-CONWAY", name: "Material Pickup - Conway", address: "490 University Forest Dr, Conway, SC 29526", lat: 33.8084032, lon: -79.0110781 },
-      { id: "PU-FAYETTEVILLE", name: "Material Pickup - Fayetteville", address: "6801 Ramsey St, Fayetteville, NC 28311", lat: 35.1730702, lon: -78.8600873 },
-      { id: "PU-CHARLOTTE", name: "Material Pickup - Charlotte", address: "7800 Old Plank Rd, Charlotte, NC 28216", lat: 35.3014451, lon: -80.9217820 }
-    ];
+    const PICKUP_LOCATIONS = []; // Removed — add via import if needed
 
     // ── GigaBeam DTI Billing Codes (OLT-57) ──
     const GIGABEAM_CATEGORIES = [
@@ -1619,21 +1615,7 @@
           L.marker([site.lat, site.lon], { icon }).addTo(sitesLayerRef.current).bindPopup(popup);
         });
 
-        // Add Material Pickup Location markers (purple diamond)
-        PICKUP_LOCATIONS.forEach(function(pu) {
-          var puIcon = L.divIcon({
-            html: '<div style="width:20px;height:20px;background:#8b5cf6;border:3px solid #fbbf24;border-radius:4px;transform:rotate(45deg);box-shadow:0 0 8px #8b5cf680;display:flex;align-items:center;justify-content:center;"><span style="transform:rotate(-45deg);font-size:10px;">📦</span></div>',
-            iconSize: [20, 20], iconAnchor: [10, 10], className: ''
-          });
-          var puDirectionsUrl = 'https://www.google.com/maps/dir/?api=1&destination=' + pu.lat + ',' + pu.lon;
-          var puPopup = '<div style="min-width:220px;font-family:Inter,system-ui,sans-serif;color:#f1f0f5;">' +
-            '<div style="background:linear-gradient(135deg,#6d28d9,#8b5cf6);color:white;padding:6px 10px;border-radius:8px;margin-bottom:8px;font-size:11px;font-weight:700;letter-spacing:0.05em;">📦 MATERIAL PICKUP</div>' +
-            '<div style="font-size:14px;font-weight:700;margin-bottom:2px;">' + pu.name + '</div>' +
-            '<div style="color:#a8a3b8;font-size:12px;margin-bottom:10px;">' + pu.address + '</div>' +
-            '<a href="' + puDirectionsUrl + '" target="_blank" style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,#6d28d9,#8b5cf6);color:white;padding:8px 14px;border-radius:10px;text-decoration:none;font-size:12px;font-weight:600;box-shadow:0 2px 8px rgba(139,92,246,0.3);">🗺️ Get Directions</a>' +
-            '</div>';
-          L.marker([pu.lat, pu.lon], { icon: puIcon }).addTo(sitesLayerRef.current).bindPopup(puPopup);
-        });
+        // Material Pickup markers removed
 
         // Fit bounds only on first load
         if (!hasInitFit.current && sites.length > 0 && mapInstanceRef.current) {
@@ -6293,7 +6275,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v53</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v54</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
