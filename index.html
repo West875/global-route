@@ -2362,8 +2362,8 @@
           var billCode = null; var billNote = '';
           if (stage === 'strand') { billCode = 'AE1'; billNote = '⚡ Auto: Strand placed ' + footage + 'ft (' + fromPole.name + ' → ' + toPole.name + ')'; }
           else if (stage === 'cable') { billCode = 'AE1'; billNote = '⚡ Auto: Cable placed ' + footage + 'ft (' + fromPole.name + ' → ' + toPole.name + ')'; }
-          else if (stage === 'lashed') { billCode = 'AE2'; billNote = '⚡ Auto: Strand & Lash ' + footage + 'ft (' + fromPole.name + ' → ' + toPole.name + ')'; }
-          else if (stage === 'complete') { billCode = 'AE2'; billNote = '⚡ Auto: Completed ' + footage + 'ft (' + fromPole.name + ' → ' + toPole.name + ')'; }
+          else if (stage === 'lashed') { billCode = 'AE3'; billNote = '⚡ Auto: Overlash ' + footage + 'ft (' + fromPole.name + ' → ' + toPole.name + ')'; }
+          else if (stage === 'complete') { billCode = 'AE3'; billNote = '⚡ Auto: Overlash (Complete) ' + footage + 'ft (' + fromPole.name + ' → ' + toPole.name + ')'; }
           
           if (billCode) {
             // Write to the "from" pole's production sheet
