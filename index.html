@@ -3538,6 +3538,78 @@
         setPlacingSnowshoe(null);
       }
 
+      // ── Add Pole at GPS Location ──
+      async function addPoleAtGPS() {
+        if (!navigator.geolocation) { alert('Geolocation not available'); return; }
+        try {
+          var pos = await new Promise(function(resolve, reject) {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15000 });
+          });
+          var lat = pos.coords.latitude;
+          var lon = pos.coords.longitude;
+          var poleName = prompt('Enter pole ID/name (e.g. 257/3 or "New Pole A"):');
+          if (!poleName || !poleName.trim()) return;
+          poleName = poleName.trim();
+
+          // Determine which route to add to
+          var targetRouteId = activeRouteId;
+          var targetRouteName = 'OLT-57';
+
+          if (targetRouteId === 'olt57') {
+            // For built-in route, save to a "Field Additions" imported route
+            var fieldRouteSnap = await db.collection('fiberRoutes').where('name', '==', 'Field Additions').get();
+            if (!fieldRouteSnap.empty) {
+              var existingDoc = fieldRouteSnap.docs[0];
+              var existingData = existingDoc.data();
+              var existingPoles = existingData.poles || [];
+              existingPoles.push({ id: poleName, name: poleName, lat: lat, lon: lon, type: 'pole' });
+              await db.collection('fiberRoutes').doc(existingDoc.id).update({
+                poles: existingPoles,
+                poleCount: existingPoles.length,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+              });
+              targetRouteId = existingDoc.id;
+            } else {
+              var newDoc = await db.collection('fiberRoutes').add({
+                name: 'Field Additions',
+                poles: [{ id: poleName, name: poleName, lat: lat, lon: lon, type: 'pole' }],
+                poleCount: 1,
+                createdBy: user.uid,
+                createdByName: user.displayName || user.email,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+              });
+              targetRouteId = newDoc.id;
+            }
+            targetRouteName = 'Field Additions';
+          } else {
+            // Add to the currently selected imported route
+            var routeDoc = await db.collection('fiberRoutes').doc(targetRouteId).get();
+            if (routeDoc.exists) {
+              var rd = routeDoc.data();
+              var poles = rd.poles || [];
+              poles.push({ id: poleName, name: poleName, lat: lat, lon: lon, type: 'pole' });
+              await db.collection('fiberRoutes').doc(targetRouteId).update({
+                poles: poles,
+                poleCount: poles.length,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+              });
+              targetRouteName = rd.name;
+            }
+          }
+
+          // Haptic feedback
+          if (navigator.vibrate) navigator.vibrate([50, 50, 100]);
+          alert('📍 Pole "' + poleName + '" added to ' + targetRouteName + ' at GPS (' + lat.toFixed(6) + ', ' + lon.toFixed(6) + ')');
+
+          // Switch to that route
+          setActiveRouteId(targetRouteId);
+        } catch (err) {
+          if (err.code === 1) alert('📍 Location permission denied. Please enable GPS.');
+          else alert('Error adding pole: ' + (err.message || err));
+        }
+      }
+
       // ── Import a fiber route from KML/KMZ file ──
       async function importFiberRoute(file) {
         setImportingRoute(true);
@@ -3913,6 +3985,10 @@
             <button onClick={function(){setShowRouteImporter(true);}}
               style={{padding:'6px 12px',borderRadius:8,border:'1px solid rgba(34,197,94,0.4)',background:'linear-gradient(135deg,#166534,#15803d)',color:'white',fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>
               📂 Import
+            </button>
+            <button onClick={addPoleAtGPS}
+              style={{padding:'6px 12px',borderRadius:8,border:'1px solid rgba(250,204,21,0.4)',background:'linear-gradient(135deg,#854d0e,#a16207)',color:'white',fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>
+              📍 Add Pole
             </button>
           </div>
 
