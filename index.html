@@ -1948,6 +1948,11 @@
       const [fiberEnroutes, setFiberEnroutes] = useState({});
       const fiberEnrouteLayerRef = useRef(null);
       const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+      const [importedRoutes, setImportedRoutes] = useState([]);
+      const [activeRouteId, setActiveRouteId] = useState('olt57');
+      const [showRouteImporter, setShowRouteImporter] = useState(false);
+      const [importingRoute, setImportingRoute] = useState(false);
+      const routeFileRef = useRef(null);
 
       // Work stages for cable runs between poles
       var SPAN_STAGES = [
@@ -1958,27 +1963,39 @@
         { key: 'complete', label: 'Complete', icon: '✅', color: '#10b981' }
       ];
 
-      // Merge OLT-57 built-in poles with any imported sites
+      // Merge active route poles (OLT-57 builtin or imported)
       var allFiberSites = useMemo(function() {
         var merged = [];
         var seen = {};
-        // Add OLT-57 poles first
-        if (typeof OLT57_DATA !== 'undefined') {
-          OLT57_DATA.poles.forEach(function(p, i) {
-            var id = 'olt57-pole-' + (i + 1);
-            merged.push({ id: id, name: p.name, lat: p.lat, lon: p.lon, osmId: p.osmId, poleType: 'distribution', attachment: p.attachment });
-            seen[id] = true;
-          });
-          OLT57_DATA.towers.forEach(function(t, i) {
-            var id = 'olt57-tower-' + (i + 1);
-            merged.push({ id: id, name: t.name, lat: t.lat, lon: t.lon, osmId: t.osmId, poleType: 'transmission', material: t.material });
-            seen[id] = true;
-          });
-          OLT57_DATA.keyLocations.forEach(function(k, i) {
-            var id = 'olt57-key-' + (i + 1);
-            merged.push({ id: id, name: k.name, lat: k.lat, lon: k.lon, poleType: 'key', locationType: k.locationType });
-            seen[id] = true;
-          });
+        if (activeRouteId === 'olt57') {
+          // Use built-in OLT-57 data
+          if (typeof OLT57_DATA !== 'undefined') {
+            OLT57_DATA.poles.forEach(function(p, i) {
+              var id = 'olt57-pole-' + (i + 1);
+              merged.push({ id: id, name: p.name, lat: p.lat, lon: p.lon, osmId: p.osmId, poleType: 'distribution', attachment: p.attachment });
+              seen[id] = true;
+            });
+            OLT57_DATA.towers.forEach(function(t, i) {
+              var id = 'olt57-tower-' + (i + 1);
+              merged.push({ id: id, name: t.name, lat: t.lat, lon: t.lon, osmId: t.osmId, poleType: 'transmission', material: t.material });
+              seen[id] = true;
+            });
+            OLT57_DATA.keyLocations.forEach(function(k, i) {
+              var id = 'olt57-key-' + (i + 1);
+              merged.push({ id: id, name: k.name, lat: k.lat, lon: k.lon, poleType: 'key', locationType: k.locationType });
+              seen[id] = true;
+            });
+          }
+        } else {
+          // Use imported route from Firestore
+          var route = importedRoutes.find(function(r) { return r.id === activeRouteId; });
+          if (route && route.poles) {
+            route.poles.forEach(function(p) {
+              var id = route.id + '-' + p.id;
+              merged.push({ id: id, name: p.name, lat: p.lat, lon: p.lon, poleType: p.poleType || 'distribution', routeId: route.id });
+              seen[id] = true;
+            });
+          }
         }
         // Add any imported sites that aren't already in
         (sites || []).forEach(function(s) {
@@ -1995,7 +2012,7 @@
           }
           return s;
         });
-      }, [sites, correctedPins]);
+      }, [sites, correctedPins, activeRouteId, importedRoutes]);
 
       // ── Calculate span footage between consecutive poles using GPS ──
       var spanData = useMemo(function() {
@@ -2776,15 +2793,102 @@
           snowshoeRows.push('<tr><td style="padding:5px 8px;border-bottom:1px solid #333;">❄️ ' + shoe.ticType.toUpperCase() + '</td><td style="padding:5px 8px;border-bottom:1px solid #333;color:#ccc;">📍 ' + shoe.lat.toFixed(5) + ', ' + shoe.lon.toFixed(5) + '</td><td style="padding:5px 8px;border-bottom:1px solid #333;color:#94a3b8;">' + (shoe.placedBy||'') + '</td><td style="padding:5px 8px;border-bottom:1px solid #333;color:#94a3b8;">' + new Date(shoe.placedAt).toLocaleString() + '</td></tr>');
         });
 
-        // Static map image URL (using OpenStreetMap static tiles)
-        var centerLat = 37.276; var centerLon = -80.419;
-        if (allFiberSites.length > 0) {
-          var sumLat = 0; var sumLon = 0;
-          allFiberSites.forEach(function(s) { sumLat += s.lat; sumLon += s.lon; });
-          centerLat = sumLat / allFiberSites.length;
-          centerLon = sumLon / allFiberSites.length;
+        // Generate canvas-based route map image with span lines
+        var mapCanvas = document.createElement('canvas');
+        mapCanvas.width = 800; mapCanvas.height = 500;
+        var ctx = mapCanvas.getContext('2d');
+        // Dark background
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, 800, 500);
+        // Calculate bounds
+        var minLat = 999, maxLat = -999, minLon = 999, maxLon = -999;
+        allFiberSites.forEach(function(s) {
+          if (s.lat < minLat) minLat = s.lat;
+          if (s.lat > maxLat) maxLat = s.lat;
+          if (s.lon < minLon) minLon = s.lon;
+          if (s.lon > maxLon) maxLon = s.lon;
+        });
+        var padLat = (maxLat - minLat) * 0.15 || 0.001;
+        var padLon = (maxLon - minLon) * 0.15 || 0.001;
+        minLat -= padLat; maxLat += padLat; minLon -= padLon; maxLon += padLon;
+        var toX = function(lon) { return 40 + ((lon - minLon) / (maxLon - minLon)) * 720; };
+        var toY = function(lat) { return 460 - ((lat - minLat) / (maxLat - minLat)) * 420; };
+        // Draw route path if OLT-57
+        if (typeof OLT57_DATA !== 'undefined' && activeRouteId === 'olt57' && OLT57_DATA.routePath) {
+          ctx.beginPath();
+          ctx.strokeStyle = 'rgba(139,92,246,0.3)';
+          ctx.lineWidth = 2;
+          ctx.setLineDash([4, 4]);
+          OLT57_DATA.routePath.forEach(function(pt, i) {
+            if (i === 0) ctx.moveTo(toX(pt.lon), toY(pt.lat));
+            else ctx.lineTo(toX(pt.lon), toY(pt.lat));
+          });
+          ctx.stroke();
+          ctx.setLineDash([]);
         }
-        var staticMapUrl = 'https://static-maps.yandex.ru/v1?ll=' + centerLon + ',' + centerLat + '&z=14&size=650,400&l=map';
+        // Draw span lines with colors
+        if (spanData._routeSpans) {
+          spanData._routeSpans.forEach(function(span) {
+            var sId = span.from.id + '__' + span.to.id;
+            var rId = span.to.id + '__' + span.from.id;
+            var stageData = spanStages[sId] || spanStages[rId] || { stage: 'none' };
+            var stage = stageData.stage || 'none';
+            var x1 = toX(span.from.lon), y1 = toY(span.from.lat);
+            var x2 = toX(span.to.lon), y2 = toY(span.to.lat);
+            if (stage === 'none') {
+              ctx.strokeStyle = '#475569'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+            } else if (stage === 'strand') {
+              ctx.strokeStyle = '#eab308'; ctx.lineWidth = 3; ctx.setLineDash([]);
+            } else if (stage === 'cable') {
+              ctx.strokeStyle = '#f97316'; ctx.lineWidth = 3; ctx.setLineDash([]);
+            } else {
+              ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 3; ctx.setLineDash([]);
+            }
+            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+            ctx.setLineDash([]);
+          });
+        }
+        // Draw pole markers
+        allFiberSites.forEach(function(s) {
+          var x = toX(s.lon), y = toY(s.lat);
+          var hasWork = !!asBuiltData[s.id];
+          ctx.beginPath();
+          ctx.arc(x, y, s.poleType === 'transmission' ? 6 : 5, 0, Math.PI * 2);
+          ctx.fillStyle = hasWork ? '#22c55e' : s.poleType === 'transmission' ? '#3b82f6' : '#ef4444';
+          ctx.fill();
+          ctx.strokeStyle = 'white';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          // Label
+          ctx.fillStyle = '#e2e8f0';
+          ctx.font = '9px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(s.name || s.id, x, y - 9);
+        });
+        // Draw equipment markers
+        Object.keys(fiberEquipment).forEach(function(poleId) {
+          var eq = fiberEquipment[poleId];
+          var site = allFiberSites.find(function(s){return s.id===poleId;});
+          if (!site) return;
+          var x = toX(site.lon), y = toY(site.lat);
+          if (eq.screwAnchor) { ctx.fillStyle = '#fbbf24'; ctx.font = '12px sans-serif'; ctx.fillText('⚓', x + 10, y); }
+          if (eq.downGuy) { ctx.fillStyle = '#60a5fa'; ctx.font = '12px sans-serif'; ctx.fillText('📎', x + 10, y + 12); }
+        });
+        // Title
+        ctx.fillStyle = '#a78bfa';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText('⚡ Route Map — ' + today, 15, 20);
+        // Legend
+        ctx.font = '10px sans-serif';
+        var legendY = 40;
+        [{c:'#ef4444',l:'No work'},{c:'#22c55e',l:'Work done'},{c:'#3b82f6',l:'Tower'},{c:'#eab308',l:'Strand'},{c:'#f97316',l:'Cable'},{c:'#22c55e',l:'Lashed'}].forEach(function(item,i) {
+          ctx.fillStyle = item.c;
+          ctx.fillRect(15, legendY + i * 14, 8, 8);
+          ctx.fillStyle = '#94a3b8';
+          ctx.fillText(item.l, 28, legendY + i * 14 + 8);
+        });
+        var mapDataUrl = mapCanvas.toDataURL('image/png');
 
         var html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Daily As-Built Report - ' + today + '</title></head><body style="background:#0f0a1e;color:white;font-family:system-ui,sans-serif;margin:0;padding:20px;">';
         html += '<div style="max-width:800px;margin:0 auto;">';
@@ -2797,6 +2901,12 @@
         html += '<div style="font-size:14px;color:#94a3b8;margin-top:4px;">' + today + '</div>';
         html += '</div>';
         
+        // Route Map Image
+        html += '<div style="background:rgba(30,20,60,0.5);border-radius:12px;padding:12px;margin-bottom:24px;border:1px solid rgba(139,92,246,0.2);text-align:center;">';
+        html += '<div style="font-size:14px;font-weight:700;color:#a78bfa;margin-bottom:8px;">🗺️ ROUTE MAP WITH SPAN LINES</div>';
+        html += '<img src="' + mapDataUrl + '" style="width:100%;max-width:800px;border-radius:8px;border:1px solid rgba(139,92,246,0.3);" />';
+        html += '</div>';
+
         // Progress Overview
         html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:24px;">';
         html += '<div style="background:linear-gradient(135deg,#1e3a5f,#0d2847);border-radius:12px;padding:20px;text-align:center;"><div style="font-size:11px;color:#93c5fd;">POLES LOGGED</div><div style="font-size:32px;font-weight:900;color:#60a5fa;">' + Object.keys(asBuiltData).length + '/' + allFiberSites.length + '</div></div>';
@@ -2929,6 +3039,110 @@
           alert('Could not get GPS location: ' + e.message);
         }
         setPlacingSnowshoe(null);
+      }
+
+      // ── Import a fiber route from KML/KMZ file ──
+      async function importFiberRoute(file) {
+        setImportingRoute(true);
+        try {
+          var text = '';
+          var fileName = file.name.toLowerCase();
+          if (fileName.endsWith('.kmz')) {
+            // KMZ is a zip containing doc.kml
+            var JSZip = window.JSZip;
+            if (!JSZip) {
+              // Load JSZip dynamically
+              await new Promise(function(resolve) {
+                var s = document.createElement('script');
+                s.src = 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';
+                s.onload = resolve;
+                document.head.appendChild(s);
+              });
+              JSZip = window.JSZip;
+            }
+            var zip = await JSZip.loadAsync(file);
+            var kmlFile = Object.keys(zip.files).find(function(n) { return n.toLowerCase().endsWith('.kml'); });
+            if (!kmlFile) throw new Error('No KML found inside KMZ');
+            text = await zip.files[kmlFile].async('text');
+          } else {
+            text = await file.text();
+          }
+          // Parse KML
+          var parser = new DOMParser();
+          var kml = parser.parseFromString(text, 'text/xml');
+          var placemarks = kml.querySelectorAll('Placemark');
+          var poles = [];
+          var routePath = [];
+          var idx = 0;
+          placemarks.forEach(function(pm) {
+            var name = (pm.querySelector('name') || {}).textContent || '';
+            var coords = pm.querySelector('coordinates');
+            if (!coords) return;
+            var coordText = coords.textContent.trim();
+            var points = coordText.split(/\s+/).filter(function(c) { return c.includes(','); });
+            if (points.length > 2) {
+              // This is a route path (LineString)
+              points.forEach(function(pt) {
+                var parts = pt.split(',');
+                if (parts.length >= 2) {
+                  routePath.push({ lat: parseFloat(parts[1]), lon: parseFloat(parts[0]) });
+                }
+              });
+            } else if (points.length <= 2) {
+              // Single point = pole/tower/location
+              var parts = points[0].split(',');
+              if (parts.length >= 2) {
+                idx++;
+                var pType = 'distribution';
+                var nameLower = name.toLowerCase();
+                if (nameLower.includes('tower') || nameLower.includes('transmission')) pType = 'transmission';
+                else if (nameLower.includes('splice') || nameLower.includes('key') || nameLower.includes('ped') || nameLower.includes('hub')) pType = 'key';
+                poles.push({
+                  id: 'pole-' + idx,
+                  name: name || ('Pole ' + idx),
+                  lat: parseFloat(parts[1]),
+                  lon: parseFloat(parts[0]),
+                  poleType: pType
+                });
+              }
+            }
+          });
+          if (poles.length === 0) {
+            alert('No poles found in file. Make sure the KML has Placemark elements with coordinates.');
+            setImportingRoute(false);
+            return;
+          }
+          // Prompt for route name
+          var routeName = prompt('Name this route (e.g., OLT-58, Project Alpha):', file.name.replace(/\.(kml|kmz)$/i, ''));
+          if (!routeName) { setImportingRoute(false); return; }
+          // Save to Firestore
+          var docRef = await db.collection('fiberRoutes').add({
+            name: routeName,
+            fileName: file.name,
+            poles: poles,
+            routePath: routePath,
+            poleCount: poles.length,
+            importedBy: user.displayName || user.email.split('@')[0],
+            importedByUid: user.uid,
+            importedByPhoto: avatarURL || user.photoURL || null,
+            importedAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          // Switch to the new route
+          setActiveRouteId(docRef.id);
+          setShowRouteImporter(false);
+          if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
+          alert('✅ Imported ' + poles.length + ' poles from "' + routeName + '"');
+        } catch(e) {
+          if (navigator.onLine) alert('Import failed: ' + e.message);
+        }
+        setImportingRoute(false);
+      }
+
+      // ── Delete an imported route ──
+      async function deleteRoute(routeId) {
+        if (!confirm('Delete this route? All pole data will remain in Firestore.')) return;
+        await db.collection('fiberRoutes').doc(routeId).delete();
+        if (activeRouteId === routeId) setActiveRouteId('olt57');
       }
 
       // ── Remove snowshoe by doc ID ──
@@ -3072,6 +3286,57 @@
             </div>
             <button onClick={onClose} style={{background:'rgba(255,255,255,0.1)',border:'none',color:'white',width:36,height:36,borderRadius:'50%',fontSize:18,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>✕</button>
           </div>
+
+          {/* Route Selector + Import */}
+          <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 16px',background:'rgba(30,20,60,0.6)',borderBottom:'1px solid rgba(139,92,246,0.15)'}}>
+            <span style={{fontSize:10,color:'#a78bfa',fontWeight:700}}>ROUTE:</span>
+            <select value={activeRouteId} onChange={function(e){setActiveRouteId(e.target.value);}}
+              style={{flex:1,background:'rgba(139,92,246,0.15)',border:'1px solid rgba(139,92,246,0.3)',borderRadius:8,color:'white',padding:'6px 10px',fontSize:12,fontWeight:600}}>
+              <option value="olt57">OLT-57 (Built-in)</option>
+              {importedRoutes.map(function(r) {
+                return <option key={r.id} value={r.id}>📂 {r.name} ({r.poleCount} poles)</option>;
+              })}
+            </select>
+            <button onClick={function(){setShowRouteImporter(true);}}
+              style={{padding:'6px 12px',borderRadius:8,border:'1px solid rgba(34,197,94,0.4)',background:'linear-gradient(135deg,#166534,#15803d)',color:'white',fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>
+              📂 Import
+            </button>
+          </div>
+
+          {/* Route Import Modal */}
+          {showRouteImporter && ReactDOM.createPortal(
+            <div style={{position:'fixed',inset:0,zIndex:7000,background:'rgba(0,0,0,0.8)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}
+              onClick={function(e){if(e.target===e.currentTarget)setShowRouteImporter(false);}}>
+              <div style={{background:'linear-gradient(135deg,#1a0f3c,#0f0a1e)',borderRadius:16,padding:24,maxWidth:400,width:'100%',border:'1px solid rgba(139,92,246,0.3)'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+                  <div style={{fontSize:18,fontWeight:700,color:'white'}}>📂 Import Fiber Route</div>
+                  <button onClick={function(){setShowRouteImporter(false);}} style={{background:'none',border:'none',color:'#94a3b8',fontSize:20,cursor:'pointer'}}>✕</button>
+                </div>
+                <div style={{color:'#94a3b8',fontSize:13,marginBottom:16}}>Upload a KML or KMZ file with pole/tower locations. The app will parse all placemarks as poles and any LineString as the route path.</div>
+                <input ref={routeFileRef} type="file" accept=".kml,.kmz" style={{display:'none'}}
+                  onChange={function(e){if(e.target.files[0])importFiberRoute(e.target.files[0]);}} />
+                <button onClick={function(){routeFileRef.current && routeFileRef.current.click();}} disabled={importingRoute}
+                  style={{width:'100%',padding:'14px',borderRadius:12,border:'2px solid rgba(139,92,246,0.4)',background:'linear-gradient(135deg,#4c1d95,#7c3aed)',color:'white',fontSize:15,fontWeight:700,cursor:'pointer',marginBottom:16}}>
+                  {importingRoute ? '⏳ Importing...' : '📂 Choose KML / KMZ File'}
+                </button>
+                {importedRoutes.length > 0 && (
+                  <div>
+                    <div style={{fontSize:12,fontWeight:700,color:'#a78bfa',marginBottom:8}}>IMPORTED ROUTES</div>
+                    {importedRoutes.map(function(r) {
+                      return <div key={r.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 12px',background:'rgba(139,92,246,0.1)',borderRadius:8,marginBottom:6,border:'1px solid rgba(139,92,246,0.15)'}}>
+                        <div>
+                          <div style={{color:'white',fontSize:13,fontWeight:600}}>{r.name}</div>
+                          <div style={{color:'#64748b',fontSize:10}}>{r.poleCount} poles • by {r.importedBy} • {r.fileName}</div>
+                        </div>
+                        {isAdmin && <button onClick={function(){deleteRoute(r.id);}} style={{background:'rgba(239,68,68,0.2)',border:'1px solid rgba(239,68,68,0.3)',color:'#ef4444',padding:'4px 8px',borderRadius:6,fontSize:10,cursor:'pointer'}}>🗑️</button>}
+                      </div>;
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>,
+            document.body
+          )}
 
           {/* Tabs */}
           <div style={{display:'flex',borderBottom:'1px solid rgba(139,92,246,0.2)',background:'rgba(30,20,60,0.8)'}}>
