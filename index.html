@@ -5363,7 +5363,7 @@
             <p className="text-xs opacity-80 text-center">
               {allSites.length} sites total • {teamCompletedCount} completed by team • Nearest-First Routing
             </p>
-            {!isOnline && (
+            {(typeof isOnline !== 'undefined' ? !isOnline : !navigator.onLine) && (
               <div className="bg-amber-600 text-white text-center py-1 px-3 text-xs font-bold flex items-center justify-center gap-2 rounded-b-lg animate-pulse">
                 <span>📡 OFFLINE</span>
                 {offlineQueueCount > 0 && <span className="bg-white/20 px-2 py-0.5 rounded-full">{offlineQueueCount} action{offlineQueueCount !== 1 ? 's' : ''} queued</span>}
@@ -5381,7 +5381,7 @@
           <div className="sticky top-0 z-[1000] bg-base-100 border-b border-base-300 px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <NavIcon size={18} className="text-primary shrink-0" />
-              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v46</span></span>
+              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v47</span></span>
 
               <span className="text-xs opacity-50">({visited.size} you • {teamCompletedCount} team)</span>
             </div>
