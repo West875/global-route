@@ -2363,11 +2363,20 @@
       const routeFileRef = useRef(null);
 
       // ── Firestore listener for imported fiber routes ──
+      // NOTE: No orderBy — docs without the sort field would be silently excluded
       useEffect(function() {
-        return db.collection('fiberRoutes').orderBy('importedAt','desc').onSnapshot(function(snap) {
+        return db.collection('fiberRoutes').onSnapshot(function(snap) {
           var routes = [];
           snap.forEach(function(doc) { routes.push(Object.assign({ id: doc.id }, doc.data())); });
+          // Sort newest first using whatever timestamp exists
+          routes.sort(function(a, b) {
+            var ta = a.importedAt?.toMillis?.() || a.createdAt?.toMillis?.() || 0;
+            var tb = b.importedAt?.toMillis?.() || b.createdAt?.toMillis?.() || 0;
+            return tb - ta;
+          });
           setImportedRoutes(routes);
+        }, function(err) {
+          console.error('fiberRoutes listener error:', err);
         });
       }, []);
 
@@ -3540,20 +3549,40 @@
 
       // ── Add Pole at GPS Location ──
       async function addPoleAtGPS() {
-        if (!navigator.geolocation) { alert('Geolocation not available'); return; }
+        if (!navigator.geolocation) { alert('❌ Geolocation not available on this device.'); return; }
+        
+        // Step 1: Get GPS
+        var pos;
         try {
-          var pos = await new Promise(function(resolve, reject) {
-            navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15000 });
+          pos = await new Promise(function(resolve, reject) {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
           });
-          var lat = pos.coords.latitude;
-          var lon = pos.coords.longitude;
-          var poleName = prompt('Enter pole ID/name (e.g. 257/3 or "New Pole A"):');
-          if (!poleName || !poleName.trim()) return;
-          poleName = poleName.trim();
+        } catch (gpsErr) {
+          if (gpsErr.code === 1) alert('📍 Location permission denied. Please enable GPS in your phone settings.');
+          else if (gpsErr.code === 3) alert('⏱️ GPS timed out. Make sure you have a clear sky view and try again.');
+          else alert('❌ Could not get GPS: ' + (gpsErr.message || 'Unknown error'));
+          return;
+        }
+        
+        var lat = pos.coords.latitude;
+        var lon = pos.coords.longitude;
+        var accuracy = pos.coords.accuracy;
+        
+        // Warn if accuracy is poor (>50m)
+        if (accuracy > 50) {
+          if (!confirm('⚠️ GPS accuracy is ' + Math.round(accuracy) + 'm (poor). Pin may be inaccurate.\n\nAdd pole anyway?')) return;
+        }
+        
+        // Step 2: Get pole name
+        var poleName = prompt('Enter pole ID/name (e.g. 257/3 or "New Pole A"):');
+        if (!poleName || !poleName.trim()) return;
+        poleName = poleName.trim();
 
-          // Determine which route to add to
+        // Step 3: Save to Firestore
+        try {
           var targetRouteId = activeRouteId;
           var targetRouteName = 'OLT-57';
+          var newPole = { id: poleName, name: poleName, lat: lat, lon: lon, type: 'pole' };
 
           if (targetRouteId === 'olt57') {
             // For built-in route, save to a "Field Additions" imported route
@@ -3562,7 +3591,12 @@
               var existingDoc = fieldRouteSnap.docs[0];
               var existingData = existingDoc.data();
               var existingPoles = existingData.poles || [];
-              existingPoles.push({ id: poleName, name: poleName, lat: lat, lon: lon, type: 'pole' });
+              // Check for duplicate pole name
+              var dupe = existingPoles.find(function(p) { return p.id === poleName || p.name === poleName; });
+              if (dupe) {
+                if (!confirm('⚠️ Pole "' + poleName + '" already exists in Field Additions. Add a duplicate?')) return;
+              }
+              existingPoles.push(newPole);
               await db.collection('fiberRoutes').doc(existingDoc.id).update({
                 poles: existingPoles,
                 poleCount: existingPoles.length,
@@ -3573,7 +3607,7 @@
             } else {
               var newDoc = await db.collection('fiberRoutes').add({
                 name: 'Field Additions',
-                poles: [{ id: poleName, name: poleName, lat: lat, lon: lon, type: 'pole' }],
+                poles: [newPole],
                 poleCount: 1,
                 createdBy: user.uid,
                 createdByName: user.displayName || user.email,
@@ -3590,7 +3624,12 @@
             if (routeDoc.exists) {
               var rd = routeDoc.data();
               var poles = rd.poles || [];
-              poles.push({ id: poleName, name: poleName, lat: lat, lon: lon, type: 'pole' });
+              // Check for duplicate
+              var dupe2 = poles.find(function(p) { return p.id === poleName || p.name === poleName; });
+              if (dupe2) {
+                if (!confirm('⚠️ Pole "' + poleName + '" already exists in ' + rd.name + '. Add a duplicate?')) return;
+              }
+              poles.push(newPole);
               await db.collection('fiberRoutes').doc(targetRouteId).update({
                 poles: poles,
                 poleCount: poles.length,
@@ -3598,18 +3637,19 @@
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
               });
               targetRouteName = rd.name;
+            } else {
+              alert('❌ Route not found in database. Try switching to OLT-57 first.');
+              return;
             }
           }
 
-          // Haptic feedback
+          // Success!
           if (navigator.vibrate) navigator.vibrate([50, 50, 100]);
-          alert('📍 Pole "' + poleName + '" added to ' + targetRouteName + ' at GPS (' + lat.toFixed(6) + ', ' + lon.toFixed(6) + ')');
-
-          // Switch to that route
+          alert('✅ Pole "' + poleName + '" added to ' + targetRouteName + '\n📍 GPS: ' + lat.toFixed(6) + ', ' + lon.toFixed(6) + '\n📏 Accuracy: ' + Math.round(accuracy) + 'm');
           setActiveRouteId(targetRouteId);
-        } catch (err) {
-          if (err.code === 1) alert('📍 Location permission denied. Please enable GPS.');
-          else alert('Error adding pole: ' + (err.message || err));
+        } catch (saveErr) {
+          console.error('Add pole Firestore error:', saveErr);
+          alert('❌ Failed to save pole: ' + (saveErr.message || saveErr) + '\n\nMake sure you have internet connection.');
         }
       }
 
