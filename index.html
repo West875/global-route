@@ -228,6 +228,10 @@
             break;
           case 'fiber_snowshoe_delete':
             await db.collection('fiberSnowshoes').doc(action.docId).delete();
+          } else if (action.type === 'addTreeTrim') {
+            await db.collection('fiberTreeTrims').add(action.data);
+          } else if (action.type === 'removeTreeTrim') {
+            await db.collection('fiberTreeTrims').doc(action.docId).delete();
             break;
           case 'fiber_schedule_add':
             await db.collection('fiberSchedule').add(action.data);
@@ -2315,7 +2319,46 @@
             L.marker([site.lat, site.lon], { icon: dgOnlyIcon, interactive: false }).addTo(fiberEquipLayer.current);
           }
         });
-      }, [spanData, spanStages, fiberEquipment, allFiberSites, tab]);
+        // ── Tree Trimming markers + blue lines ──
+        allTreeTrims.forEach(function(trim) {
+          // Blue line connecting start to stop
+          L.polyline([[trim.startLat, trim.startLon], [trim.endLat, trim.endLon]], {
+            color: '#3b82f6', weight: 4, opacity: 0.9, dashArray: null
+          }).addTo(fiberEquipLayer.current);
+          // Start marker (🌳)
+          var startIcon = L.divIcon({
+            className: '',
+            html: '<div style="position:relative;"><div style="background:linear-gradient(135deg,#1d4ed8,#3b82f6);border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:2px solid #93c5fd;box-shadow:0 2px 10px rgba(59,130,246,0.6);font-size:14px;position:absolute;top:-34px;left:2px;">🌳</div><div style="position:absolute;top:-8px;left:12px;font-size:7px;color:#93c5fd;font-weight:800;white-space:nowrap;">START</div></div>',
+            iconSize: [32, 0], iconAnchor: [16, 0]
+          });
+          L.marker([trim.startLat, trim.startLon], { icon: startIcon, interactive: false }).addTo(fiberEquipLayer.current);
+          // End marker (🌳)
+          var endIcon = L.divIcon({
+            className: '',
+            html: '<div style="position:relative;"><div style="background:linear-gradient(135deg,#1e40af,#2563eb);border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:2px solid #60a5fa;box-shadow:0 2px 10px rgba(37,99,235,0.6);font-size:14px;position:absolute;top:-34px;left:2px;">🌳</div><div style="position:absolute;top:-8px;left:14px;font-size:7px;color:#60a5fa;font-weight:800;white-space:nowrap;">STOP</div></div>',
+            iconSize: [32, 0], iconAnchor: [16, 0]
+          });
+          L.marker([trim.endLat, trim.endLon], { icon: endIcon, interactive: false }).addTo(fiberEquipLayer.current);
+          // Footage label at midpoint
+          var midLat = (trim.startLat + trim.endLat) / 2;
+          var midLon = (trim.startLon + trim.endLon) / 2;
+          var ftLabel = L.divIcon({
+            className: '',
+            html: '<div style="background:rgba(29,78,216,0.9);color:white;padding:2px 6px;border-radius:6px;font-size:10px;font-weight:800;white-space:nowrap;border:1px solid #60a5fa;box-shadow:0 2px 8px rgba(0,0,0,0.5);">🌳 ' + trim.footage + ' ft</div>',
+            iconSize: [0, 0]
+          });
+          L.marker([midLat, midLon], { icon: ftLabel, interactive: false }).addTo(fiberEquipLayer.current);
+        });
+        // Active trim start point (pulsing marker)
+        if (trimStartPoint) {
+          var pulseIcon = L.divIcon({
+            className: '',
+            html: '<div style="position:relative;"><div style="background:rgba(59,130,246,0.3);border-radius:50%;width:40px;height:40px;animation:pulse 1.5s infinite;position:absolute;top:-40px;left:-4px;"></div><div style="background:linear-gradient(135deg,#1d4ed8,#3b82f6);border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:2px solid #93c5fd;box-shadow:0 2px 10px rgba(59,130,246,0.8);font-size:14px;position:absolute;top:-34px;left:2px;">🌳</div><div style="position:absolute;top:-8px;left:6px;font-size:7px;color:#fbbf24;font-weight:800;white-space:nowrap;">TAP STOP ➤</div></div>',
+            iconSize: [32, 0], iconAnchor: [16, 0]
+          });
+          L.marker([trimStartPoint.lat, trimStartPoint.lon], { icon: pulseIcon, interactive: false }).addTo(fiberEquipLayer.current);
+        }
+      }, [spanData, spanStages, fiberEquipment, allFiberSites, tab, allTreeTrims, trimStartPoint]);
 
       function toggleCat(cat) {
         setExpandedCats(function(prev) {
@@ -2480,6 +2523,9 @@
 
       // ── Firestore listener for standalone snowshoes ──
       var [allSnowshoes, setAllSnowshoes] = useState([]);
+      var [allTreeTrims, setAllTreeTrims] = useState([]);
+      var [placingTrim, setPlacingTrim] = useState(null); // 'start' | 'stop' | null
+      var [trimStartPoint, setTrimStartPoint] = useState(null); // {lat, lon, acc}
       var [placingSnowshoe, setPlacingSnowshoe] = useState(null); // null | 'in' | 'out'
       useEffect(function() {
         return db.collection('fiberSnowshoes').orderBy('placedAt','desc').onSnapshot(function(snap) {
@@ -2824,6 +2870,13 @@
         allSnowshoes.forEach(function(shoe) {
           snowshoeRows.push('<tr><td style="padding:5px 8px;border-bottom:1px solid #333;">❄️ ' + shoe.ticType.toUpperCase() + '</td><td style="padding:5px 8px;border-bottom:1px solid #333;color:#ccc;">📍 ' + shoe.lat.toFixed(5) + ', ' + shoe.lon.toFixed(5) + '</td><td style="padding:5px 8px;border-bottom:1px solid #333;color:#94a3b8;">' + (shoe.placedBy||'') + '</td><td style="padding:5px 8px;border-bottom:1px solid #333;color:#94a3b8;">' + new Date(shoe.placedAt).toLocaleString() + '</td></tr>');
         });
+        // Tree trim rows for report
+        var treeTrimRows = [];
+        var totalTrimFeet = 0;
+        allTreeTrims.forEach(function(trim) {
+          totalTrimFeet += trim.footage;
+          treeTrimRows.push('<tr><td style="padding:5px 8px;border-bottom:1px solid #333;">🌳 ' + trim.footage + ' ft</td><td style="padding:5px 8px;border-bottom:1px solid #333;color:#93c5fd;">📍 ' + trim.startLat.toFixed(5) + ',' + trim.startLon.toFixed(5) + ' → ' + trim.endLat.toFixed(5) + ',' + trim.endLon.toFixed(5) + '</td><td style="padding:5px 8px;border-bottom:1px solid #333;color:#94a3b8;">' + (trim.placedBy||'') + '</td><td style="padding:5px 8px;border-bottom:1px solid #333;color:#94a3b8;">' + new Date(trim.completedAt).toLocaleString() + '</td></tr>');
+        });
 
         // Generate canvas-based route map image with span lines
         var mapCanvas = document.createElement('canvas');
@@ -2977,6 +3030,19 @@
           html += '</table>';
           if (isAdmin) {
             html += '<div style="text-align:right;margin-top:10px;padding-top:10px;border-top:1px solid rgba(251,146,60,0.2);"><span style="color:#94a3b8;font-size:12px;">Equipment Total: </span><span style="color:#fbbf24;font-size:16px;font-weight:800;">$' + (anchorCount * 60.35 + downGuyCount * 15.30 + snowshoeCount * 28.90).toLocaleString() + '</span></div>';
+          }
+          html += '</div>';
+        }
+        // Tree Trimming section
+        if (treeTrimRows.length > 0) {
+          html += '<div style="background:rgba(30,20,60,0.5);border-radius:12px;padding:20px;margin-bottom:24px;border:1px solid rgba(59,130,246,0.2);">';
+          html += '<div style="font-size:14px;font-weight:700;color:#3b82f6;margin-bottom:12px;">🌳 TREE TRIMMING — ' + allTreeTrims.length + ' trim' + (allTreeTrims.length !== 1 ? 's' : '') + ' • ' + totalTrimFeet + ' ft total</div>';
+          html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
+          html += '<tr><th style="text-align:left;padding:5px 8px;color:#64748b;border-bottom:1px solid #555;">Footage</th><th style="text-align:left;padding:5px 8px;color:#64748b;border-bottom:1px solid #555;">GPS (Start → End)</th><th style="text-align:left;padding:5px 8px;color:#64748b;border-bottom:1px solid #555;">By</th><th style="text-align:left;padding:5px 8px;color:#64748b;border-bottom:1px solid #555;">When</th></tr>';
+          html += treeTrimRows.join('');
+          html += '</table>';
+          if (isAdmin) {
+            html += '<div style="text-align:right;margin-top:10px;padding-top:10px;border-top:1px solid rgba(59,130,246,0.2);"><span style="color:#94a3b8;font-size:12px;">Trim Total (AE19): </span><span style="color:#3b82f6;font-size:16px;font-weight:800;">$' + (totalTrimFeet * 1.232).toFixed(2) + '</span></div>';
           }
           html += '</div>';
         }
@@ -3199,6 +3265,112 @@
         }
       }
 
+      // ── TREE TRIMMING — GPS START/STOP with footage ──
+      async function startTreeTrimGPS() {
+        setPlacingTrim('start');
+        try {
+          var pos = await new Promise(function(resolve, reject) {
+            navigator.geolocation.getCurrentPosition(
+              function(p) { resolve({ lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy }); },
+              function(e) { reject(e); },
+              { enableHighAccuracy: true, timeout: 15000 }
+            );
+          });
+          setTrimStartPoint(pos);
+          if (navigator.vibrate) navigator.vibrate([50, 50]);
+        } catch(e) {
+          alert('GPS error: ' + e.message);
+        }
+        setPlacingTrim(null);
+      }
+
+      async function stopTreeTrimGPS() {
+        if (!trimStartPoint) { alert('Tap 🌳 TRIM START first'); return; }
+        setPlacingTrim('stop');
+        try {
+          var pos = await new Promise(function(resolve, reject) {
+            navigator.geolocation.getCurrentPosition(
+              function(p) { resolve({ lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy }); },
+              function(e) { reject(e); },
+              { enableHighAccuracy: true, timeout: 15000 }
+            );
+          });
+          // Calculate footage using haversine
+          var R = 20902231; // earth radius in feet
+          var dLat = (pos.lat - trimStartPoint.lat) * Math.PI / 180;
+          var dLon = (pos.lon - trimStartPoint.lon) * Math.PI / 180;
+          var a2 = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(trimStartPoint.lat*Math.PI/180)*Math.cos(pos.lat*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
+          var c = 2 * Math.atan2(Math.sqrt(a2), Math.sqrt(1 - a2));
+          var feet = Math.round(R * c);
+          // Save to Firestore
+          var docRef = await db.collection('fiberTreeTrims').add({
+            startLat: trimStartPoint.lat, startLon: trimStartPoint.lon, startAcc: trimStartPoint.acc,
+            endLat: pos.lat, endLon: pos.lon, endAcc: pos.acc,
+            footage: feet,
+            placedBy: user.displayName || user.email.split('@')[0],
+            placedByPhoto: avatarURL || user.photoURL || null,
+            placedByUid: user.uid,
+            completedAt: new Date().toISOString()
+          });
+          // Auto-bill AE19 at nearest pole
+          var nearestPole = findNearestPoleId(trimStartPoint.lat, trimStartPoint.lon);
+          if (nearestPole) {
+            var today = new Date().toISOString().split('T')[0];
+            var autoKey = 'auto_AE19_' + docRef.id;
+            var existing = asBuiltData[nearestPole.id] || {};
+            var entries = Object.assign({}, existing.entries || {});
+            entries[autoKey] = {
+              userId: user.uid,
+              userName: user.displayName || user.email.split('@')[0],
+              userPhoto: avatarURL || user.photoURL || null,
+              date: today,
+              codes: { 'AE19': feet },
+              notes: '⚡ Auto: Tree Trimming ' + feet + 'ft',
+              auto: true,
+              trimDocId: docRef.id,
+              updatedAt: new Date().toISOString()
+            };
+            await db.collection('fiberAsBuilt').doc(nearestPole.id).set({
+              siteId: nearestPole.id, siteName: nearestPole.name,
+              lat: nearestPole.lat, lon: nearestPole.lon,
+              entries: entries,
+              lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+          }
+          setTrimStartPoint(null);
+          if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
+        } catch(e) {
+          if (!navigator.onLine) {
+            setTrimStartPoint(null);
+            if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
+          } else {
+            alert('GPS/save error: ' + e.message);
+          }
+        }
+        setPlacingTrim(null);
+      }
+
+      async function removeTreeTrim(docId) {
+        if (confirm('Remove this tree trimming record?')) {
+          await db.collection('fiberTreeTrims').doc(docId).delete();
+          // Remove auto-billed AE19 entry
+          var autoKey = 'auto_AE19_' + docId;
+          var allPoleIds = Object.keys(asBuiltData);
+          for (var pi = 0; pi < allPoleIds.length; pi++) {
+            var poleEntries = asBuiltData[allPoleIds[pi]].entries || {};
+            if (poleEntries[autoKey]) {
+              var updatedEntries = Object.assign({}, poleEntries);
+              delete updatedEntries[autoKey];
+              await db.collection('fiberAsBuilt').doc(allPoleIds[pi]).update({
+                entries: updatedEntries,
+                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+              });
+              break;
+            }
+          }
+        }
+      }
+
       // ── Save pole note ──
       async function savePoleNote(poleId, text) {
         if (!text.trim()) return;
@@ -3284,6 +3456,12 @@
         allSnowshoes.forEach(function(shoe) {
           var row = ['Snowshoe (' + shoe.ticType.toUpperCase() + ')', shoe.lat.toFixed(6) + ' / ' + shoe.lon.toFixed(6), shoe.placedBy || '', shoe.placedAt || '', shoe.lat, shoe.lon, 'AE6', 'Snow Shoe', 'Each', 1];
           if (isAdmin) row.push(30, 30);
+          rows.push(row);
+        });
+        // Tree Trims
+        allTreeTrims.forEach(function(trim) {
+          var row = ['Tree Trim (' + trim.footage + 'ft)', trim.startLat.toFixed(6) + ',' + trim.startLon.toFixed(6) + ' → ' + trim.endLat.toFixed(6) + ',' + trim.endLon.toFixed(6), trim.placedBy || '', trim.completedAt || '', trim.startLat, trim.startLon, 'AE19', 'Tree Trimming', 'Foot', trim.footage];
+          if (isAdmin) row.push((trim.footage * 1.232).toFixed(2), (trim.footage * 1.232).toFixed(2));
           rows.push(row);
         });
         var csv = rows.map(function(r) { return r.join(','); }).join('\n');
@@ -3407,6 +3585,9 @@
                     <div style={{display:'flex',alignItems:'center',gap:6,fontSize:9,color:'#94a3b8'}}>
                       <div style={{width:12,height:12,borderRadius:'50%',background:'linear-gradient(135deg,#06b6d4,#0ea5e9)',border:'1px solid white',display:'flex',alignItems:'center',justifyContent:'center',fontSize:7}}>❄️</div> Snowshoe
                     </div>
+                    <div style={{display:'flex',alignItems:'center',gap:6,fontSize:9,color:'#94a3b8'}}>
+                      <div style={{width:12,height:12,borderRadius:'50%',background:'linear-gradient(135deg,#1d4ed8,#3b82f6)',border:'1px solid #93c5fd',display:'flex',alignItems:'center',justifyContent:'center',fontSize:7}}>🌳</div> Tree Trim <span style={{color:'#60a5fa'}}>── blue line</span>
+                    </div>
                   </div>
                 </div>
                 {/* ── Floating Snowshoe Buttons ── */}
@@ -3421,6 +3602,25 @@
                   </button>
                   <div style={{background:'rgba(15,10,30,0.85)',borderRadius:8,padding:'4px 8px',fontSize:9,color:'#67e8f9',textAlign:'center'}}>
                     {allSnowshoes.length} snowshoe{allSnowshoes.length !== 1 ? 's' : ''} placed
+                  </div>
+                  <div style={{fontSize:10,color:'#93c5fd',display:'flex',alignItems:'center',gap:4}}>
+                    🌳 {allTreeTrims.length} tree trim{allTreeTrims.length !== 1 ? 's' : ''} • {allTreeTrims.reduce(function(s,t){return s+t.footage;},0)} ft
+                  </div>
+                  {/* ── Tree Trimming Buttons ── */}
+                  <div style={{height:8}}></div>
+                  <button onClick={function(){startTreeTrimGPS();}} disabled={placingTrim !== null || trimStartPoint !== null}
+                    style={{padding:'10px 14px',borderRadius:12,border:'2px solid rgba(59,130,246,0.5)',background: trimStartPoint ? 'rgba(59,130,246,0.3)' : 'linear-gradient(135deg,#1d4ed8,#3b82f6)',color:'white',fontSize:12,fontWeight:800,cursor:'pointer',boxShadow:'0 4px 15px rgba(59,130,246,0.4)',display:'flex',alignItems:'center',gap:6,opacity: trimStartPoint ? 0.5 : 1}}>
+                    {placingTrim === 'start' ? '⏳ GPS...' : '🌳 TRIM START'}
+                  </button>
+                  <button onClick={function(){stopTreeTrimGPS();}} disabled={placingTrim !== null || !trimStartPoint}
+                    style={{padding:'10px 14px',borderRadius:12,border:'2px solid rgba(59,130,246,0.5)',background: trimStartPoint ? 'linear-gradient(135deg,#dc2626,#ef4444)' : 'rgba(59,130,246,0.2)',color:'white',fontSize:12,fontWeight:800,cursor:'pointer',boxShadow: trimStartPoint ? '0 4px 15px rgba(239,68,68,0.4)' : 'none',display:'flex',alignItems:'center',gap:6,opacity: trimStartPoint ? 1 : 0.4,animation: trimStartPoint ? 'pulse 1.5s infinite' : 'none'}}>
+                    {placingTrim === 'stop' ? '⏳ GPS...' : '🌳 TRIM STOP'}
+                  </button>
+                  {trimStartPoint && <div style={{background:'rgba(59,130,246,0.9)',borderRadius:8,padding:'4px 8px',fontSize:9,color:'white',textAlign:'center',fontWeight:700}}>
+                    📍 Start marked — walk to end & tap STOP
+                  </div>}
+                  <div style={{background:'rgba(15,10,30,0.85)',borderRadius:8,padding:'4px 8px',fontSize:9,color:'#93c5fd',textAlign:'center'}}>
+                    {allTreeTrims.length} trim{allTreeTrims.length !== 1 ? 's' : ''} • {allTreeTrims.reduce(function(sum,t){return sum+t.footage;},0)} ft
                   </div>
                 </div>
                 {/* Legend */}
@@ -4000,7 +4200,7 @@
                     <div style={{textAlign:'center',marginTop:12,paddingTop:10,borderTop:'1px solid rgba(251,146,60,0.2)'}}>
                       <span style={{fontSize:10,color:'#94a3b8'}}>Equipment Total: </span>
                       <span style={{fontSize:14,fontWeight:800,color:'#fb923c',fontFamily:'monospace'}}>
-                        ${((function(){ var a=0,d=0; Object.values(fiberEquipment).forEach(function(eq){if(eq.screwAnchor)a++;if(eq.downGuy)d++;}); return a*60.35 + d*15.30 + allSnowshoes.length*28.90; })()).toLocaleString()}
+                        ${((function(){ var a=0,d=0; Object.values(fiberEquipment).forEach(function(eq){if(eq.screwAnchor)a++;if(eq.downGuy)d++;}); return a*60.35 + d*15.30 + allSnowshoes.length*28.90 + allTreeTrims.reduce(function(s,t){return s+t.footage;},0)*1.232; })()).toLocaleString()}
                       </span>
                     </div>
                   )}
@@ -5386,7 +5586,7 @@
           <div className="sticky top-0 z-[1000] bg-base-100 border-b border-base-300 px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <NavIcon size={18} className="text-primary shrink-0" />
-              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v47</span></span>
+              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v48</span></span>
 
               <span className="text-xs opacity-50">({visited.size} you • {teamCompletedCount} team)</span>
             </div>
