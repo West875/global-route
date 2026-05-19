@@ -228,9 +228,11 @@
             break;
           case 'fiber_snowshoe_delete':
             await db.collection('fiberSnowshoes').doc(action.docId).delete();
-          } else if (action.type === 'addTreeTrim') {
+            break;
+          case 'addTreeTrim':
             await db.collection('fiberTreeTrims').add(action.data);
-          } else if (action.type === 'removeTreeTrim') {
+            break;
+          case 'removeTreeTrim':
             await db.collection('fiberTreeTrims').doc(action.docId).delete();
             break;
           case 'fiber_schedule_add':
@@ -1990,6 +1992,15 @@
       const [importingRoute, setImportingRoute] = useState(false);
       const routeFileRef = useRef(null);
 
+      // ── Firestore listener for imported fiber routes ──
+      useEffect(function() {
+        return db.collection('fiberRoutes').orderBy('importedAt','desc').onSnapshot(function(snap) {
+          var routes = [];
+          snap.forEach(function(doc) { routes.push(Object.assign({ id: doc.id }, doc.data())); });
+          setImportedRoutes(routes);
+        });
+      }, []);
+
       // Work stages for cable runs between poles
       var SPAN_STAGES = [
         { key: 'none', label: 'Not Started', icon: '⬜', color: '#475569' },
@@ -2535,6 +2546,15 @@
         });
       }, []);
 
+      // ── Firestore listener for tree trims ──
+      useEffect(function() {
+        return db.collection('fiberTreeTrims').orderBy('completedAt','desc').onSnapshot(function(snap) {
+          var trims = [];
+          snap.forEach(function(doc) { trims.push(Object.assign({ id: doc.id }, doc.data())); });
+          setAllTreeTrims(trims);
+        });
+      }, []);
+
       // ── Firestore listener for fiber en-route claims — auto-expire after 2 hours ──
       useEffect(function() {
         return db.collection('fiberEnroute').onSnapshot(function(snap) {
@@ -2959,6 +2979,15 @@
           if (eq.screwAnchor) { ctx.fillStyle = '#fbbf24'; ctx.font = '12px sans-serif'; ctx.fillText('⚓', x + 10, y); }
           if (eq.downGuy) { ctx.fillStyle = '#60a5fa'; ctx.font = '12px sans-serif'; ctx.fillText('📎', x + 10, y + 12); }
         });
+        // Tree trim blue lines on canvas
+        allTreeTrims.forEach(function(trim) {
+          var x1 = toX(trim.startLon), y1 = toY(trim.startLat);
+          var x2 = toX(trim.endLon), y2 = toY(trim.endLat);
+          ctx.strokeStyle = '#3b82f6'; ctx.lineWidth = 3; ctx.setLineDash([]);
+          ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+          ctx.fillStyle = '#3b82f6'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+          ctx.fillText('🌳 ' + trim.footage + 'ft', (x1+x2)/2, (y1+y2)/2 - 5);
+        });
         // Title
         ctx.fillStyle = '#a78bfa';
         ctx.font = 'bold 14px sans-serif';
@@ -2967,7 +2996,7 @@
         // Legend
         ctx.font = '10px sans-serif';
         var legendY = 40;
-        [{c:'#ef4444',l:'No work'},{c:'#22c55e',l:'Work done'},{c:'#3b82f6',l:'Tower'},{c:'#eab308',l:'Strand'},{c:'#f97316',l:'Cable'},{c:'#22c55e',l:'Lashed'}].forEach(function(item,i) {
+        [{c:'#ef4444',l:'No work'},{c:'#22c55e',l:'Work done'},{c:'#3b82f6',l:'Tower'},{c:'#eab308',l:'Strand'},{c:'#f97316',l:'Cable'},{c:'#22c55e',l:'Lashed'},{c:'#3b82f6',l:'🌳 Tree Trim'}].forEach(function(item,i) {
           ctx.fillStyle = item.c;
           ctx.fillRect(15, legendY + i * 14, 8, 8);
           ctx.fillStyle = '#94a3b8';
@@ -3296,12 +3325,7 @@
             );
           });
           // Calculate footage using haversine
-          var R = 20902231; // earth radius in feet
-          var dLat = (pos.lat - trimStartPoint.lat) * Math.PI / 180;
-          var dLon = (pos.lon - trimStartPoint.lon) * Math.PI / 180;
-          var a2 = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(trimStartPoint.lat*Math.PI/180)*Math.cos(pos.lat*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
-          var c = 2 * Math.atan2(Math.sqrt(a2), Math.sqrt(1 - a2));
-          var feet = Math.round(R * c);
+          var feet = Math.round(haversineFt(trimStartPoint.lat, trimStartPoint.lon, pos.lat, pos.lon));
           // Save to Firestore
           var docRef = await db.collection('fiberTreeTrims').add({
             startLat: trimStartPoint.lat, startLon: trimStartPoint.lon, startAcc: trimStartPoint.acc,
@@ -3351,7 +3375,8 @@
       }
 
       async function removeTreeTrim(docId) {
-        if (confirm('Remove this tree trimming record?')) {
+        if (!confirm('Remove this tree trimming record?')) return;
+        try {
           await db.collection('fiberTreeTrims').doc(docId).delete();
           // Remove auto-billed AE19 entry
           var autoKey = 'auto_AE19_' + docId;
@@ -3367,6 +3392,14 @@
               });
               break;
             }
+          }
+          if (navigator.vibrate) navigator.vibrate(50);
+        } catch(e) {
+          if (!navigator.onLine) {
+            offlineQueue.add({ type: 'removeTreeTrim', docId: docId });
+          } else {
+            console.error('Remove tree trim error:', e);
+            alert('Error removing tree trim: ' + e.message);
           }
         }
       }
@@ -4194,6 +4227,14 @@
                       <div style={{fontSize:9,color:'#94a3b8'}}>Snowshoes</div>
                       <div style={{fontSize:8,color:'#64748b'}}>AE6 • $28.90/ea</div>
                       {isAdmin && <div style={{fontSize:11,color:'#06b6d4',fontWeight:700,marginTop:3}}>${(allSnowshoes.length * 28.90).toLocaleString()}</div>}
+                    </div>
+                    <div style={{textAlign:'center',background:'rgba(0,0,0,0.2)',borderRadius:10,padding:10}}>
+                      <div style={{fontSize:22}}>🌳</div>
+                      <div style={{fontSize:20,fontWeight:900,color:'#3b82f6'}}>{allTreeTrims.length}</div>
+                      <div style={{fontSize:9,color:'#94a3b8'}}>Tree Trims</div>
+                      <div style={{fontSize:8,color:'#64748b'}}>AE19 • $1.232/ft</div>
+                      <div style={{fontSize:8,color:'#60a5fa',marginTop:2}}>{allTreeTrims.reduce(function(s,t){return s+t.footage;},0).toLocaleString()} ft total</div>
+                      {isAdmin && <div style={{fontSize:11,color:'#3b82f6',fontWeight:700,marginTop:3}}>${(allTreeTrims.reduce(function(s,t){return s+t.footage;},0) * 1.232).toFixed(2)}</div>}
                     </div>
                   </div>
                   {isAdmin && (
