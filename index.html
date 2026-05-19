@@ -2314,6 +2314,100 @@
       const [importingRoute, setImportingRoute] = useState(false);
       const routeFileRef = useRef(null);
       const [fiberPresence, setFiberPresence] = useState({});
+      const [fiberUserLoc, setFiberUserLoc] = useState(null);
+      const fiberUserLocLayer = useRef(null);
+
+      // ── GPS tracking for fiber map ──
+      useEffect(function() {
+        if (!navigator.geolocation) return;
+        var watchId = navigator.geolocation.watchPosition(
+          function(pos) {
+            setFiberUserLoc({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+            // Also update presence with location
+            if (user) {
+              db.collection('fiberPresence').doc(user.uid).update({
+                lat: pos.coords.latitude,
+                lon: pos.coords.longitude,
+                lastSeen: firebase.firestore.FieldValue.serverTimestamp()
+              }).catch(function(){});
+            }
+          },
+          function(err) { console.warn('Fiber GPS error:', err.message); },
+          { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+        );
+        return function() { navigator.geolocation.clearWatch(watchId); };
+      }, [user]);
+
+      // ── Draw user location avatar on fiber map ──
+      useEffect(function() {
+        if (!fiberMapInstance.current || !fiberUserLoc) return;
+        if (!fiberUserLocLayer.current) {
+          fiberUserLocLayer.current = L.layerGroup().addTo(fiberMapInstance.current);
+        }
+        fiberUserLocLayer.current.clearLayers();
+        var photoUrl = avatarURL || (user && user.photoURL) || '';
+        var initials = (user && user.displayName) ? user.displayName.charAt(0).toUpperCase() : '?';
+        var avatarHtml = photoUrl
+          ? '<img src="' + photoUrl + '" style="width:40px;height:40px;border-radius:50%;border:3px solid #22c55e;box-shadow:0 0 12px rgba(34,197,94,0.6);object-fit:cover;" />'
+          : '<div style="width:40px;height:40px;border-radius:50%;border:3px solid #22c55e;box-shadow:0 0 12px rgba(34,197,94,0.6);background:linear-gradient(135deg,#6d28d9,#8b5cf6);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:16px;">' + initials + '</div>';
+        var icon = L.divIcon({
+          html: '<div style="position:relative;display:flex;flex-direction:column;align-items:center;">' +
+            avatarHtml +
+            '<div style="background:#22c55e;color:white;font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;margin-top:2px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.3);">📍 YOU</div>' +
+            '<div style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;background:#22c55e;border-radius:50%;border:2px solid white;animation:pulse 2s infinite;"></div>' +
+            '</div>',
+          iconSize: [46, 56],
+          iconAnchor: [23, 28],
+          className: ''
+        });
+        L.marker([fiberUserLoc.lat, fiberUserLoc.lon], { icon: icon, zIndexOffset: 9999 })
+          .addTo(fiberUserLocLayer.current)
+          .bindPopup('<div style="text-align:center;font-family:Inter,sans-serif;">' +
+            (photoUrl ? '<img src="' + photoUrl + '" style="width:48px;height:48px;border-radius:50%;border:2px solid #22c55e;margin-bottom:4px;" /><br/>' : '') +
+            '<b>📍 ' + (user.displayName || user.email.split('@')[0]) + '</b><br/>' +
+            '<span style="font-size:11px;color:#888;">Your live location</span></div>');
+      }, [fiberUserLoc, avatarURL, user]);
+
+      // ── Draw TEAMMATE locations on fiber map from presence data ──
+      const fiberTeamLocLayer = useRef(null);
+      useEffect(function() {
+        if (!fiberMapInstance.current || !fiberPresence) return;
+        if (!fiberTeamLocLayer.current) {
+          fiberTeamLocLayer.current = L.layerGroup().addTo(fiberMapInstance.current);
+        }
+        fiberTeamLocLayer.current.clearLayers();
+        var now = Date.now();
+        Object.keys(fiberPresence).forEach(function(uid) {
+          if (uid === (user && user.uid)) return; // skip self
+          var mate = fiberPresence[uid];
+          if (!mate.lat || !mate.lon) return; // no location shared
+          // Only show if seen in last 30 minutes
+          var lastSeen = mate.lastSeen && mate.lastSeen.toDate ? mate.lastSeen.toDate().getTime() : 0;
+          if (now - lastSeen > 30 * 60 * 1000) return;
+          var matePhoto = mate.userPhoto || '';
+          var mateName = mate.userName || mate.userEmail || 'Teammate';
+          var mateInitial = mateName.charAt(0).toUpperCase();
+          var mateAvatarHtml = matePhoto
+            ? '<img src="' + matePhoto + '" style="width:36px;height:36px;border-radius:50%;border:3px solid #3b82f6;box-shadow:0 0 10px rgba(59,130,246,0.5);object-fit:cover;" />'
+            : '<div style="width:36px;height:36px;border-radius:50%;border:3px solid #3b82f6;box-shadow:0 0 10px rgba(59,130,246,0.5);background:linear-gradient(135deg,#1e40af,#3b82f6);display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:14px;">' + mateInitial + '</div>';
+          var mateIcon = L.divIcon({
+            html: '<div style="position:relative;display:flex;flex-direction:column;align-items:center;">' +
+              mateAvatarHtml +
+              '<div style="background:#3b82f6;color:white;font-size:8px;font-weight:700;padding:1px 5px;border-radius:6px;margin-top:1px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.3);max-width:80px;overflow:hidden;text-overflow:ellipsis;">' + mateName.split(' ')[0] + '</div>' +
+              '<div style="position:absolute;top:-3px;right:-3px;width:12px;height:12px;background:#3b82f6;border-radius:50%;border:2px solid white;animation:pulse 2s infinite;"></div>' +
+              '</div>',
+            iconSize: [42, 50],
+            iconAnchor: [21, 25],
+            className: ''
+          });
+          L.marker([mate.lat, mate.lon], { icon: mateIcon, zIndexOffset: 9000 })
+            .addTo(fiberTeamLocLayer.current)
+            .bindPopup('<div style="text-align:center;font-family:Inter,sans-serif;">' +
+              (matePhoto ? '<img src="' + matePhoto + '" style="width:44px;height:44px;border-radius:50%;border:2px solid #3b82f6;margin-bottom:4px;" /><br/>' : '') +
+              '<b>👤 ' + mateName + '</b><br/>' +
+              '<span style="font-size:11px;color:#888;">Live location</span></div>');
+        });
+      }, [fiberPresence, user]);
 
       // ── Crew Presence: write presence on mount, listen for all crew ──
       useEffect(function() {
@@ -6275,7 +6369,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v54</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v55</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
