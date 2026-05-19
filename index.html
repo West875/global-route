@@ -26,7 +26,7 @@
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
 
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -46,23 +46,242 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 
   <style>
-    body { margin: 0; font-family: system-ui, -apple-system, sans-serif; }
-    .fade-in { animation: fadeIn 0.3s ease-in; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    /* ── DESIGN TOKENS ── */
+    :root {
+      --bg-deep: #0a0814;
+      --bg-surface: rgba(18, 14, 35, 0.85);
+      --bg-elevated: rgba(28, 22, 52, 0.9);
+      --bg-card: rgba(22, 18, 42, 0.75);
+      --border-subtle: rgba(139, 92, 246, 0.12);
+      --border-medium: rgba(139, 92, 246, 0.22);
+      --accent: #8b5cf6;
+      --accent-light: #a78bfa;
+      --gold: #d4af37;
+      --gold-light: #f0d060;
+      --text-primary: #f1f0f5;
+      --text-secondary: #a8a3b8;
+      --text-muted: #6b6580;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 20px;
+      --shadow-card: 0 2px 12px rgba(0,0,0,0.25), 0 0 0 1px var(--border-subtle);
+      --shadow-elevated: 0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px var(--border-medium);
+      --shadow-glow: 0 0 40px rgba(139,92,246,0.12), 0 0 80px rgba(139,92,246,0.06);
+      --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-smooth: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* ── GLOBAL RESET ── */
+    * { -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      letter-spacing: -0.01em;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+    }
+
+    /* ── PREMIUM SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(139,92,246,0.25); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(139,92,246,0.4); }
+
+    /* ── DaisyUI DARK THEME OVERRIDES ── */
+    [data-theme="dark"] {
+      --b1: 10 8 20;
+      --b2: 16 13 32;
+      --b3: 22 18 42;
+      --bc: 241 240 245;
+      --p: 139 92 246;
+      --pc: 255 255 255;
+      --s: 168 85 247;
+      --sc: 255 255 255;
+      --a: 212 175 55;
+      --ac: 10 8 20;
+      --n: 30 24 55;
+      --nc: 200 195 215;
+    }
+
+    /* ── PREMIUM CARDS ── */
+    .card {
+      background: var(--bg-card) !important;
+      backdrop-filter: blur(20px) saturate(1.2);
+      -webkit-backdrop-filter: blur(20px) saturate(1.2);
+      border: 1px solid var(--border-subtle) !important;
+      border-radius: var(--radius-lg) !important;
+      box-shadow: var(--shadow-card);
+      transition: transform var(--transition-smooth), box-shadow var(--transition-smooth);
+    }
+    .card:hover { box-shadow: var(--shadow-elevated); }
+    .card-body { gap: 12px; }
+
+    /* ── PREMIUM BUTTONS ── */
+    .btn {
+      font-family: 'Inter', system-ui, sans-serif;
+      font-weight: 600;
+      letter-spacing: 0;
+      border-radius: var(--radius-md) !important;
+      transition: all var(--transition-fast);
+      border: none;
+      text-transform: none;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary {
+      background: linear-gradient(135deg, #7c3aed, #8b5cf6) !important;
+      border: none !important;
+      box-shadow: 0 2px 12px rgba(139,92,246,0.3);
+    }
+    .btn-primary:hover { box-shadow: 0 4px 20px rgba(139,92,246,0.45); }
+    .btn-ghost {
+      background: transparent !important;
+      color: var(--text-secondary);
+    }
+    .btn-ghost:hover { background: rgba(139,92,246,0.1) !important; color: var(--text-primary); }
+    .btn-outline {
+      border: 1px solid var(--border-medium) !important;
+      background: transparent !important;
+    }
+    .btn-outline:hover { background: rgba(139,92,246,0.08) !important; }
+
+    /* ── PREMIUM INPUTS ── */
+    .input, .select, .textarea {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: rgba(14,11,30,0.6) !important;
+      border: 1px solid var(--border-subtle) !important;
+      border-radius: var(--radius-md) !important;
+      transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    }
+    .input:focus, .select:focus, .textarea:focus {
+      border-color: var(--accent) !important;
+      box-shadow: 0 0 0 3px rgba(139,92,246,0.15) !important;
+      outline: none;
+    }
+
+    /* ── PREMIUM BADGES ── */
+    .badge {
+      border-radius: 6px;
+      font-weight: 600;
+      font-family: 'Inter', system-ui, sans-serif;
+      letter-spacing: 0;
+    }
+
+    /* ── PREMIUM JOIN BUTTONS (View toggle) ── */
+    .join {
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      border: 1px solid var(--border-subtle);
+      background: rgba(14,11,30,0.5);
+    }
+    .join-item.btn {
+      border-radius: 0 !important;
+      border: none !important;
+    }
+    .join-item.btn-primary {
+      background: linear-gradient(135deg, #7c3aed, #8b5cf6) !important;
+      box-shadow: none;
+    }
+
+    /* ── ANIMATIONS ── */
+    .fade-in { animation: fadeIn 0.35s cubic-bezier(0.4, 0, 0.2, 1); }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
     .pulse-ring { animation: pulseRing 2s ease-out infinite; }
     @keyframes pulseRing { 0% { transform: scale(0.8); opacity: 1; } 100% { transform: scale(2.2); opacity: 0; } }
-    .install-banner { animation: slideUp 0.4s ease-out; }
+    .install-banner { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
     @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     @keyframes confettiFall { 0% { transform: translateY(0) translateX(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(var(--vy, 100vh)) translateX(var(--vx, 0px)) rotate(720deg); opacity: 0; } }
     @keyframes confettiBannerIn { 0% { opacity: 0; transform: translate(-50%,-50%) scale(0.3); } 50% { transform: translate(-50%,-50%) scale(1.1); } 100% { opacity: 1; transform: translate(-50%,-50%) scale(1); } }
     @keyframes waveFlag { 0% { transform: rotate(-15deg); } 15% { transform: rotate(20deg); } 30% { transform: rotate(-12deg); } 45% { transform: rotate(15deg); } 60% { transform: rotate(-8deg); } 75% { transform: rotate(10deg); } 100% { transform: rotate(-15deg); } }
     @keyframes flagGlow { 0%,100% { text-shadow: 0 0 4px #ef444480; } 50% { text-shadow: 0 0 14px #ef4444, 0 0 28px #ef444488; } }
+    @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+    @keyframes subtleFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+
+    /* ── MAP ── */
     #map-container { height: calc(100vh - 110px); width: 100%; }
     .leaflet-div-icon { overflow: visible !important; background: none !important; border: none !important; }
-    .leaflet-popup-content { margin: 8px 12px; }
-    .leaflet-popup-content-wrapper { border-radius: 12px; }
-    .auth-bg { background: linear-gradient(135deg, #1a1035 0%, #0f0a1e 50%, #1a0a2e 100%); }
-    .glow-card { box-shadow: 0 0 40px rgba(87, 13, 248, 0.15); }
+    .leaflet-popup-content { margin: 10px 14px; font-family: 'Inter', system-ui, sans-serif; }
+    .leaflet-popup-content-wrapper {
+      border-radius: var(--radius-lg) !important;
+      background: var(--bg-elevated) !important;
+      color: var(--text-primary) !important;
+      border: 1px solid var(--border-medium) !important;
+      box-shadow: var(--shadow-elevated) !important;
+      backdrop-filter: blur(20px);
+    }
+    .leaflet-popup-tip { background: var(--bg-elevated) !important; border: 1px solid var(--border-subtle) !important; }
+    .leaflet-popup-close-button { color: var(--text-muted) !important; font-size: 20px !important; }
+
+    /* ── AUTH SCREENS ── */
+    .auth-bg {
+      background: linear-gradient(160deg, #12082a 0%, #0a0814 40%, #0f0820 100%);
+      position: relative;
+    }
+    .auth-bg::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse at 30% 20%, rgba(139,92,246,0.08) 0%, transparent 60%),
+                  radial-gradient(ellipse at 70% 80%, rgba(212,175,55,0.04) 0%, transparent 50%);
+      pointer-events: none;
+    }
+    .glow-card {
+      box-shadow: var(--shadow-glow), var(--shadow-card);
+      border: 1px solid rgba(139,92,246,0.18) !important;
+    }
+
+    /* ── ALERTS ── */
+    .alert {
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-subtle);
+      font-family: 'Inter', system-ui, sans-serif;
+    }
+
+    /* ── PREMIUM HEADER ── */
+    .bg-primary.text-primary-content {
+      background: linear-gradient(135deg, #1a0f3c 0%, #120a2e 100%) !important;
+      border-bottom: 1px solid var(--border-subtle);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+    }
+
+    /* ── TOOLBAR ── */
+    .sticky.bg-base-100 {
+      background: var(--bg-surface) !important;
+      backdrop-filter: blur(16px) saturate(1.2);
+      -webkit-backdrop-filter: blur(16px) saturate(1.2);
+      border-bottom: 1px solid var(--border-subtle) !important;
+    }
+
+    /* ── SOURCE FILTER BAR ── */
+    .bg-base-200.border-b { background: var(--bg-surface) !important; }
+
+    /* ── MAP LEGEND ── */
+    .fixed.bottom-4.left-4 {
+      background: var(--bg-elevated) !important;
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border-subtle);
+      box-shadow: var(--shadow-card);
+    }
+
+    /* ── MODAL OVERLAYS ── */
+    .fixed.inset-0.bg-black\/60 {
+      background: rgba(4,2,12,0.75) !important;
+      backdrop-filter: blur(4px);
+    }
+    .bg-base-200.rounded-t-2xl, .bg-base-200.sm\:rounded-2xl {
+      background: var(--bg-elevated) !important;
+      border: 1px solid var(--border-medium);
+      box-shadow: var(--shadow-elevated);
+    }
+
+    /* ── SMOOTH TRANSITIONS EVERYWHERE ── */
+    div, button, input, select, span, a, img {
+      transition-property: background-color, border-color, box-shadow, opacity, transform;
+      transition-duration: 150ms;
+      transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    }
   </style>
 </head>
 <body>
@@ -1063,32 +1282,33 @@
           {open && (
             <>
               <div className="fixed inset-0 z-[3000]" onClick={function() { setOpen(false); }}></div>
-              <div style={{position:'fixed', right:12, top:56, zIndex:9999, background:'linear-gradient(135deg, #3b2980 0%, #4c35a0 100%)', borderRadius:12, boxShadow:'0 8px 32px rgba(0,0,0,0.5)', border:'1px solid rgba(168,139,250,0.3)', minWidth:240}} className="fade-in">
-                <div style={{padding:'14px 16px', borderBottom:'1px solid rgba(168,139,250,0.2)'}}>
-                  <p style={{fontWeight:600, fontSize:14, color:'#ffffff'}}>{displayName}</p>
-                  <p style={{fontSize:12, color:'rgba(255,255,255,0.6)'}}>{user.email}</p>
+              <div style={{position:'fixed',right:12,top:56,zIndex:9999,background:'rgba(28,22,52,0.95)',backdropFilter:'blur(20px) saturate(1.3)',WebkitBackdropFilter:'blur(20px) saturate(1.3)',borderRadius:14,boxShadow:'0 12px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(139,92,246,0.15)',minWidth:240}} className="fade-in">
+                <div style={{padding:'16px 18px',borderBottom:'1px solid rgba(139,92,246,0.12)'}}>
+                  <p style={{fontWeight:700,fontSize:14,color:'#f1f0f5',letterSpacing:'-0.01em'}}>{displayName}</p>
+                  <p style={{fontSize:11,color:'#6b6580',marginTop:2}}>{user.email}</p>
                 </div>
-                <div style={{padding:6}}>
-                  <button style={{display:'flex', alignItems:'center', gap:10, width:'100%', padding:'10px 12px', background:'transparent', border:'none', borderRadius:8, cursor:'pointer', color:'#ffffff', fontSize:14, textAlign:'left'}}
-                    onMouseOver={function(e){e.currentTarget.style.background='rgba(255,255,255,0.1)';}}
+                <div style={{padding:'4px 6px'}}>
+                  <button style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 14px',background:'transparent',border:'none',borderRadius:10,cursor:'pointer',color:'#e4e0f0',fontSize:13,fontWeight:500,textAlign:'left'}}
+                    onMouseOver={function(e){e.currentTarget.style.background='rgba(139,92,246,0.1)';}}
                     onMouseOut={function(e){e.currentTarget.style.background='transparent';}}
                     onClick={function() { setOpen(false); onChangePhoto(); }}>
                     📷 {photoSrc ? 'Change Photo' : 'Take Photo'}
                   </button>
-                  <button style={{display:'flex', alignItems:'center', gap:10, width:'100%', padding:'10px 12px', background:'transparent', border:'none', borderRadius:8, cursor:'pointer', color:'#ffffff', fontSize:14, textAlign:'left'}}
-                    onMouseOver={function(e){e.currentTarget.style.background='rgba(255,255,255,0.1)';}}
+                  <button style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 14px',background:'transparent',border:'none',borderRadius:10,cursor:'pointer',color:'#e4e0f0',fontSize:13,fontWeight:500,textAlign:'left'}}
+                    onMouseOver={function(e){e.currentTarget.style.background='rgba(139,92,246,0.1)';}}
                     onMouseOut={function(e){e.currentTarget.style.background='transparent';}}
                     onClick={function() { setOpen(false); onShowFiberProduction(); }}>
                     ⚡ Fiber Production
                   </button>
-                  <button style={{display:'flex', alignItems:'center', gap:10, width:'100%', padding:'10px 12px', background:'transparent', border:'none', borderRadius:8, cursor:'pointer', color:'#ffffff', fontSize:14, textAlign:'left'}}
-                    onMouseOver={function(e){e.currentTarget.style.background='rgba(255,255,255,0.1)';}}
+                  <button style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 14px',background:'transparent',border:'none',borderRadius:10,cursor:'pointer',color:'#e4e0f0',fontSize:13,fontWeight:500,textAlign:'left'}}
+                    onMouseOver={function(e){e.currentTarget.style.background='rgba(139,92,246,0.1)';}}
                     onMouseOut={function(e){e.currentTarget.style.background='transparent';}}
                     onClick={function() { setOpen(false); onDownloadReport(); }}>
                     📥 Download Report
                   </button>
-                  <button style={{display:'flex', alignItems:'center', gap:10, width:'100%', padding:'10px 12px', background:'transparent', border:'none', borderRadius:8, cursor:'pointer', color:'#ff6b6b', fontSize:14, textAlign:'left'}}
-                    onMouseOver={function(e){e.currentTarget.style.background='rgba(255,255,255,0.1)';}}
+                  <div style={{margin:'4px 14px',borderTop:'1px solid rgba(139,92,246,0.1)'}}></div>
+                  <button style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 14px',background:'transparent',border:'none',borderRadius:10,cursor:'pointer',color:'#f87171',fontSize:13,fontWeight:500,textAlign:'left'}}
+                    onMouseOver={function(e){e.currentTarget.style.background='rgba(239,68,68,0.08)';}}
                     onMouseOut={function(e){e.currentTarget.style.background='transparent';}}
                     onClick={function() { setOpen(false); onLogout(); }}>
                     ↪ Sign Out
@@ -1205,7 +1425,7 @@
           const sourceBadge = isImported
             ? `<span style="background:#f59e0b;color:black;padding:1px 6px;border-radius:8px;font-size:11px;">${site.source}</span>`
             : (isExisting ? '<span style="background:#22c55e;color:white;padding:1px 6px;border-radius:8px;font-size:11px;">Existing Cabinet</span>' : '<span style="background:#ef4444;color:white;padding:1px 6px;border-radius:8px;font-size:11px;">Out of Scope</span>');
-          const currentBadge = isCurrent ? '<div style="background:#a855f7;color:white;padding:2px 8px;border-radius:8px;font-size:11px;text-align:center;margin-bottom:4px;">⭐ NEXT STOP</div>' : '';
+          const currentBadge = isCurrent ? '<div style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:white;padding:4px 10px;border-radius:8px;font-size:10px;font-weight:700;text-align:center;margin-bottom:6px;letter-spacing:0.08em;box-shadow:0 2px 8px rgba(139,92,246,0.3);">⭐ NEXT STOP</div>' : '';
 
           let closedByHtml = '';
           if (isVisited || isSharedComplete) {
@@ -1252,25 +1472,28 @@
           }
 
           var flagBtnHtml = revisitData
-            ? '<button onclick="(function(){ try { var sid=&quot;' + site.id + '&quot;; var s=(window.__allSites||[]).find(function(x){return x.id===sid;}); if(s) window.__clearRevisit(sid,s); } catch(e){} })()" style="display:inline-block;background:#ef4444;color:white;padding:6px 10px;border-radius:8px;border:none;font-size:12px;font-weight:700;cursor:pointer;margin-left:4px;">🚩 Unflag</button>'
-            : '<button onclick="(function(){ try { var sid=&quot;' + site.id + '&quot;; var s=(window.__allSites||[]).find(function(x){return x.id===sid;}); if(s) window.__flagRevisit(sid,s); } catch(e){} })()" style="display:inline-block;background:#f59e0b;color:white;padding:6px 10px;border-radius:8px;border:none;font-size:12px;font-weight:600;cursor:pointer;margin-left:4px;">🔄 Flag Issue</button>';
+            ? '<button onclick="(function(){ try { var sid=&quot;' + site.id + '&quot;; var s=(window.__allSites||[]).find(function(x){return x.id===sid;}); if(s) window.__clearRevisit(sid,s); } catch(e){} })()" style="display:inline-flex;align-items:center;gap:4px;background:rgba(239,68,68,0.15);color:#fca5a5;padding:8px 12px;border-radius:10px;border:1px solid rgba(239,68,68,0.3);font-size:12px;font-weight:700;cursor:pointer;">🚩 Unflag</button>'
+            : '<button onclick="(function(){ try { var sid=&quot;' + site.id + '&quot;; var s=(window.__allSites||[]).find(function(x){return x.id===sid;}); if(s) window.__flagRevisit(sid,s); } catch(e){} })()" style="display:inline-flex;align-items:center;gap:4px;background:rgba(251,191,36,0.12);color:#fbbf24;padding:8px 12px;border-radius:10px;border:1px solid rgba(251,191,36,0.25);font-size:12px;font-weight:600;cursor:pointer;">🔄 Flag</button>';
 
           const popup = `
-            <div style="min-width:200px;font-family:system-ui;">
+            <div style="min-width:220px;font-family:'Inter',system-ui,sans-serif;color:#f1f0f5;">
               ${currentBadge}
               ${enrouteHtml}
               ${revisitHtml}
-              <b style="font-size:14px;">${site.id}</b> ${sourceBadge}<br>
-              <span style="color:#888;font-size:12px;">${site.address}</span>${distText}
+              <div style="font-size:15px;font-weight:700;margin-bottom:2px;">${site.id}</div>
+              <div style="margin-bottom:2px;">${sourceBadge}</div>
+              <div style="color:#a8a3b8;font-size:12px;line-height:1.4;">${site.address}</div>
+              ${distText}
               ${closedByHtml}
-              <br>
-              <a href="${directionsUrl(site)}" target="_blank" rel="noopener"
-                onclick="try{var s=(window.__allSites||[]).find(function(x){return x.id==='${site.id}';});if(s){window.__claimEnroute('${site.id}',s,event);}}catch(e){}"
-                style="display:inline-block;background:#570df8;color:white;padding:6px 14px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;text-decoration:none;">
-                🗺️ Get Directions
-              </a>
-              ${flagBtnHtml}
-              <button onclick="(function(){ try { var sid='${site.id}'; if(window.__openSitePhotos) window.__openSitePhotos(sid); } catch(e){} })()" style="display:inline-block;background:#a855f7;color:white;padding:6px 10px;border-radius:8px;border:none;font-size:12px;font-weight:600;cursor:pointer;margin-left:4px;">📷 Photos</button>
+              <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;">
+                <a href="${directionsUrl(site)}" target="_blank" rel="noopener"
+                  onclick="try{var s=(window.__allSites||[]).find(function(x){return x.id==='${site.id}';});if(s){window.__claimEnroute('${site.id}',s,event);}}catch(e){}"
+                  style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,#6d28d9,#8b5cf6);color:white;padding:8px 14px;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;text-decoration:none;box-shadow:0 2px 8px rgba(139,92,246,0.3);">
+                  🗺️ Directions
+                </a>
+                ${flagBtnHtml}
+                <button onclick="(function(){ try { var sid='${site.id}'; if(window.__openSitePhotos) window.__openSitePhotos(sid); } catch(e){} })()" style="display:inline-flex;align-items:center;gap:4px;background:rgba(168,85,247,0.15);color:#c4b5fd;padding:8px 12px;border-radius:10px;border:1px solid rgba(168,85,247,0.25);font-size:12px;font-weight:600;cursor:pointer;">📷</button>
+              </div>
             </div>
           `;
           L.marker([site.lat, site.lon], { icon }).addTo(sitesLayerRef.current).bindPopup(popup);
@@ -1283,11 +1506,11 @@
             iconSize: [20, 20], iconAnchor: [10, 10], className: ''
           });
           var puDirectionsUrl = 'https://www.google.com/maps/dir/?api=1&destination=' + pu.lat + ',' + pu.lon;
-          var puPopup = '<div style="min-width:200px;font-family:system-ui;">' +
-            '<div style="background:#8b5cf6;color:white;padding:4px 8px;border-radius:6px;margin-bottom:6px;font-size:12px;font-weight:700;">📦 MATERIAL PICKUP</div>' +
-            '<b style="font-size:14px;">' + pu.name + '</b><br>' +
-            '<span style="color:#888;font-size:12px;">' + pu.address + '</span><br><br>' +
-            '<a href="' + puDirectionsUrl + '" target="_blank" style="display:inline-block;background:#8b5cf6;color:white;padding:6px 14px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">🗺️ Get Directions</a>' +
+          var puPopup = '<div style="min-width:220px;font-family:Inter,system-ui,sans-serif;color:#f1f0f5;">' +
+            '<div style="background:linear-gradient(135deg,#6d28d9,#8b5cf6);color:white;padding:6px 10px;border-radius:8px;margin-bottom:8px;font-size:11px;font-weight:700;letter-spacing:0.05em;">📦 MATERIAL PICKUP</div>' +
+            '<div style="font-size:14px;font-weight:700;margin-bottom:2px;">' + pu.name + '</div>' +
+            '<div style="color:#a8a3b8;font-size:12px;margin-bottom:10px;">' + pu.address + '</div>' +
+            '<a href="' + puDirectionsUrl + '" target="_blank" style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,#6d28d9,#8b5cf6);color:white;padding:8px 14px;border-radius:10px;text-decoration:none;font-size:12px;font-weight:600;box-shadow:0 2px 8px rgba(139,92,246,0.3);">🗺️ Get Directions</a>' +
             '</div>';
           L.marker([pu.lat, pu.lon], { icon: puIcon }).addTo(sitesLayerRef.current).bindPopup(puPopup);
         });
@@ -1323,17 +1546,17 @@
         <div className={`card bg-base-200 shadow-md fade-in ${isCurrent ? 'ring-2 ring-primary' : ''} ${isCompleted ? 'opacity-60' : ''}`}>
           <div className="card-body p-4 gap-2">
             {enrouteInfo && (
-              <div style={{background: enrouteInfo.userId === currentUserId ? '#f59e0b' : '#3b82f6', color: '#fff', padding: '8px 12px', borderRadius: '8px', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '14px'}}>
+              <div style={{background:enrouteInfo.userId===currentUserId?'linear-gradient(135deg,rgba(245,158,11,0.2),rgba(217,119,6,0.15))':'linear-gradient(135deg,rgba(59,130,246,0.2),rgba(37,99,235,0.15))',color:'#fff',padding:'10px 14px',borderRadius:12,marginBottom:6,display:'flex',alignItems:'center',gap:10,fontSize:13,border:enrouteInfo.userId===currentUserId?'1px solid rgba(245,158,11,0.3)':'1px solid rgba(59,130,246,0.3)',backdropFilter:'blur(8px)'}}>
                 {enrouteInfo.userPhoto ? (
-                  <img src={enrouteInfo.userPhoto} style={{width: '36px', height: '36px', borderRadius: '50%', border: '3px solid #fff', objectFit: 'cover', boxShadow: '0 2px 8px rgba(0,0,0,0.3)'}} referrerPolicy="no-referrer" />
+                  <img src={enrouteInfo.userPhoto} style={{width:36,height:36,borderRadius:'50%',border:'2px solid rgba(255,255,255,0.6)',objectFit:'cover',boxShadow:'0 2px 12px rgba(0,0,0,0.3)'}} referrerPolicy="no-referrer" />
                 ) : (
-                  <div style={{width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '16px', border: '3px solid #fff'}}>{(enrouteInfo.userName || '?').charAt(0).toUpperCase()}</div>
+                  <div style={{width:36,height:36,borderRadius:'50%',background:'rgba(255,255,255,0.15)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:15,border:'2px solid rgba(255,255,255,0.3)'}}>{(enrouteInfo.userName||'?').charAt(0).toUpperCase()}</div>
                 )}
-                <span style={{fontWeight: 600}}>
-                  {enrouteInfo.userId === currentUserId ? '🚗 You are en-route!' : '🚗 ' + enrouteInfo.userName + ' is en-route'}
+                <span style={{fontWeight:600,flex:1}}>
+                  {enrouteInfo.userId===currentUserId?'🚗 You are en-route!':'🚗 '+enrouteInfo.userName+' is en-route'}
                 </span>
-                {enrouteInfo.userId === currentUserId && (
-                  <button onClick={function(e) { e.stopPropagation(); onCancelEnroute(); }} style={{marginLeft: 'auto', background: 'rgba(255,255,255,0.3)', border: 'none', borderRadius: '4px', padding: '2px 8px', color: '#fff', cursor: 'pointer', fontSize: '12px'}}>Cancel</button>
+                {enrouteInfo.userId===currentUserId && (
+                  <button onClick={function(e){e.stopPropagation();onCancelEnroute();}} style={{background:'rgba(255,255,255,0.15)',border:'1px solid rgba(255,255,255,0.2)',borderRadius:8,padding:'4px 12px',color:'#fff',cursor:'pointer',fontSize:11,fontWeight:600}}>Cancel</button>
                 )}
               </div>
             )}
@@ -1408,41 +1631,38 @@
               </div>
             )}
 
-            <div className="flex gap-2 mt-2 flex-wrap">
-              <a href={directionsUrl(site)} target="_blank" rel="noopener noreferrer"
-                className="btn btn-primary btn-sm flex-1"
-                onClick={function(e) { onClaimEnroute(e); }}>
-                <NavIcon size={14} /> Get Directions <ExternalIcon />
-              </a>
-              <button className="btn btn-outline btn-info btn-sm relative" onClick={onOpenNotes} title="Notes">
+            {/* Row 1: Full-width Get Directions */}
+            <a href={directionsUrl(site)} target="_blank" rel="noopener noreferrer"
+              style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,width:'100%',padding:'12px 16px',borderRadius:12,background:'linear-gradient(135deg,#6d28d9,#8b5cf6)',color:'#fff',fontWeight:700,fontSize:14,textDecoration:'none',boxShadow:'0 4px 16px rgba(139,92,246,0.35)',letterSpacing:'0.02em',marginTop:8}}
+              onClick={function(e) { onClaimEnroute(e); }}>
+              <NavIcon size={16} /> Get Directions <ExternalIcon />
+            </a>
+            {/* Row 2: Action buttons grid */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:6,marginTop:4}}>
+              <button onClick={onOpenNotes} style={{position:'relative',padding:'10px 4px',borderRadius:10,border:'1px solid rgba(56,189,248,0.25)',background:'rgba(56,189,248,0.08)',color:'#38bdf8',fontSize:11,fontWeight:600,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
                 <NoteIcon size={14} /> Notes
-                {noteCount > 0 && (
-                  <span className="badge badge-xs badge-info absolute -top-2 -right-2">{noteCount}</span>
-                )}
+                {noteCount > 0 && <span style={{position:'absolute',top:-4,right:-4,background:'#0ea5e9',color:'#fff',borderRadius:'50%',width:16,height:16,fontSize:9,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700}}>{noteCount}</span>}
               </button>
-              <button className="btn btn-outline btn-secondary btn-sm relative" onClick={onOpenPhotos} title="Photos">
+              <button onClick={onOpenPhotos} style={{position:'relative',padding:'10px 4px',borderRadius:10,border:'1px solid rgba(168,85,247,0.25)',background:'rgba(168,85,247,0.08)',color:'#a855f7',fontSize:11,fontWeight:600,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
                 📷 Photos
-                {photoCount > 0 && (
-                  <span className="badge badge-xs badge-secondary absolute -top-2 -right-2">{photoCount}</span>
-                )}
+                {photoCount > 0 && <span style={{position:'absolute',top:-4,right:-4,background:'#a855f7',color:'#fff',borderRadius:'50%',width:16,height:16,fontSize:9,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700}}>{photoCount}</span>}
               </button>
-              {!isCompleted && (
-                <button className="btn btn-outline btn-success btn-sm" onClick={onMarkVisited}>
+              {!isCompleted ? (
+                <button onClick={onMarkVisited} style={{padding:'10px 4px',borderRadius:10,border:'1px solid rgba(34,197,94,0.25)',background:'rgba(34,197,94,0.08)',color:'#22c55e',fontSize:11,fontWeight:600,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
                   <CheckIcon size={14} /> Done
+                </button>
+              ) : (
+                <button onClick={onUndoVisit} style={{padding:'10px 4px',borderRadius:10,border:'1px solid rgba(245,158,11,0.25)',background:'rgba(245,158,11,0.08)',color:'#f59e0b',fontSize:11,fontWeight:600,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
+                  ↩ Undo
                 </button>
               )}
               {revisitInfo ? (
-                <button className="btn btn-error btn-sm" onClick={onClearRevisit} style={{fontWeight: 700}}>
+                <button onClick={onClearRevisit} style={{padding:'10px 4px',borderRadius:10,background:'rgba(239,68,68,0.15)',border:'1px solid rgba(239,68,68,0.3)',color:'#ef4444',fontSize:11,fontWeight:700,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
                   🚩 Unflag
                 </button>
               ) : (
-                <button className="btn btn-outline btn-accent btn-sm" onClick={onFlagRevisit}>
-                  🔄 Flag Issue
-                </button>
-              )}
-              {isCompleted && (
-                <button className="btn btn-outline btn-warning btn-sm" onClick={onUndoVisit}>
-                  ↩ Undo
+                <button onClick={onFlagRevisit} style={{padding:'10px 4px',borderRadius:10,border:'1px solid rgba(251,191,36,0.25)',background:'rgba(251,191,36,0.08)',color:'#fbbf24',fontSize:11,fontWeight:600,cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:2}}>
+                  🔄 Flag
                 </button>
               )}
             </div>
@@ -3517,11 +3737,11 @@
       });
 
       return ReactDOM.createPortal(
-        <div style={{position:'fixed',inset:0,zIndex:5000,background:'#0f0a1e',display:'flex',flexDirection:'column',overflow:'hidden'}}>
+        <div style={{position:'fixed',inset:0,zIndex:5000,background:'#0a0814',display:'flex',flexDirection:'column',overflow:'hidden'}}>
           {/* Header */}
-          <div style={{background:'linear-gradient(135deg,#1a0f3c,#2d1b69)',padding:'14px 20px',display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid rgba(139,92,246,0.3)'}}>
+          <div style={{background:'linear-gradient(135deg,#140d2e 0%,#1a1040 100%)',padding:'14px 20px',display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid rgba(139,92,246,0.12)',boxShadow:'0 4px 24px rgba(0,0,0,0.35)'}}>
             <div style={{display:'flex',alignItems:'center',gap:12}}>
-              <span style={{fontSize:24}}>⚡</span>
+              <span style={{fontSize:24,filter:'drop-shadow(0 0 8px rgba(250,204,21,0.4))'}}>⚡</span>
               <div>
                 <div style={{fontFamily:"'Playfair Display',serif",fontWeight:700,fontSize:18,color:'#d4af37',letterSpacing:1}}>FIBER PRODUCTION</div>
                 <div style={{fontSize:11,color:'#a78bfa'}}>GigaBeam DTI • {polesWithWork}/{totalPoles} poles logged</div>
@@ -3582,12 +3802,13 @@
           )}
 
           {/* Tabs */}
-          <div style={{display:'flex',borderBottom:'1px solid rgba(139,92,246,0.2)',background:'rgba(30,20,60,0.8)'}}>
+          <div style={{display:'flex',borderBottom:'1px solid rgba(139,92,246,0.1)',background:'rgba(14,11,28,0.9)',backdropFilter:'blur(12px)',padding:'4px 8px 0'}}>
             {[{k:'map',l:'🗺️ Map'},{k:'asbuilt',l:'📋 As-Built'},{k:'schedule',l:'👷 Schedule'},{k:'summary',l:'📊 Summary'}].map(function(t) {
               return <button key={t.k} onClick={function(){setTab(t.k);}} style={{
-                flex:1,padding:'12px 8px',border:'none',background:tab===t.k?'rgba(139,92,246,0.2)':'transparent',
-                color:tab===t.k?'#a78bfa':'#64748b',fontSize:12,fontWeight:600,cursor:'pointer',
-                borderBottom:tab===t.k?'2px solid #a78bfa':'2px solid transparent'
+                flex:1,padding:'10px 6px 8px',border:'none',background:tab===t.k?'rgba(139,92,246,0.12)':'transparent',
+                color:tab===t.k?'#c4b5fd':'#6b6580',fontSize:11,fontWeight:tab===t.k?700:500,cursor:'pointer',
+                borderBottom:tab===t.k?'2px solid #a78bfa':'2px solid transparent',borderRadius:'8px 8px 0 0',
+                letterSpacing:'0.02em'
               }}>{t.l}</button>;
             })}
           </div>
@@ -5609,27 +5830,29 @@
       return (
         <div className="flex flex-col min-h-screen">
           {/* Header */}
-          <div className="bg-primary text-primary-content px-4 py-3">
+          <div style={{background:'linear-gradient(135deg,#140d2e 0%,#0e0920 100%)',borderBottom:'1px solid rgba(139,92,246,0.12)',padding:'14px 20px 10px',boxShadow:'0 4px 24px rgba(0,0,0,0.35)'}}>
             <div className="flex items-center justify-between">
-              <h1 className="flex items-center gap-2">
-                <span style={{fontSize: '22px'}}>🧭</span>
-                <span style={{fontFamily: "'Playfair Display', serif", fontWeight: 700, letterSpacing: '0.08em', fontSize: '1.1rem', color: '#d4af37'}}>GLOBAL ROUTE</span>
+              <h1 className="flex items-center gap-2" style={{margin:0}}>
+                <span style={{fontSize:'22px',filter:'drop-shadow(0 0 8px rgba(212,175,55,0.3))'}}>🧭</span>
+                <div>
+                  <span style={{fontFamily:"'Playfair Display',serif",fontWeight:700,letterSpacing:'0.1em',fontSize:'1.15rem',color:'#d4af37',textShadow:'0 0 20px rgba(212,175,55,0.2)'}}>GLOBAL ROUTE</span>
+                  <div style={{fontSize:'0.5rem',letterSpacing:'0.3em',color:'rgba(212,175,55,0.5)',marginTop:'-1px',fontWeight:600}}>ROUTE • TRACK • MANAGE</div>
+                </div>
               </h1>
               <UserMenu user={user} avatarURL={avatarURL} onLogout={onLogout} onChangePhoto={function() { setShowAvatarSetup(true); }} onDownloadReport={handleDownloadReport} onShowFiberProduction={function() { setShowFiberProduction(true); }} />
             </div>
-            <p className="text-xs opacity-80 text-center">
-              {allSites.length} sites total • {teamCompletedCount} completed by team • Nearest-First Routing
-            </p>
-            {/* Offline banner handled by plain DOM */}
+            <div style={{textAlign:'center',fontSize:'0.7rem',color:'rgba(168,163,184,0.7)',marginTop:6,fontWeight:500,letterSpacing:'0.02em'}}>
+              {allSites.length} sites • {teamCompletedCount} completed • Nearest-First Routing
+            </div>
           </div>
 
           {/* Toolbar */}
-          <div className="sticky top-0 z-[1000] bg-base-100 border-b border-base-300 px-4 py-3 flex flex-wrap items-center gap-3">
+          <div style={{position:'sticky',top:0,zIndex:1000,background:'rgba(14,11,28,0.88)',backdropFilter:'blur(16px) saturate(1.2)',WebkitBackdropFilter:'blur(16px) saturate(1.2)',borderBottom:'1px solid rgba(139,92,246,0.1)',padding:'12px 20px',display:'flex',flexWrap:'wrap',alignItems:'center',gap:12}}>
             <div className="flex items-center gap-2 flex-1 min-w-0">
-              <NavIcon size={18} className="text-primary shrink-0" />
-              <span className="font-semibold text-sm truncate">{remainingCount} remaining <span className="opacity-40 text-xs">v48</span></span>
-
-              <span className="text-xs opacity-50">({visited.size} you • {teamCompletedCount} team)</span>
+              <NavIcon size={16} className="text-primary shrink-0" />
+              <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
+              <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v49</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
