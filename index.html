@@ -485,38 +485,8 @@
   <script type="text/babel">
     const { useState, useEffect, useCallback, useRef, useMemo } = React;
 
-    // ── Built-in Site Data (Myrtle Beach) ──
-    const BUILTIN_SITES = [
-      { id: "6M141", address: "6549 Pozzallo Pl, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.750530, lon: -78.840449, source: "builtin" },
-      { id: "6M144", address: "6099 Tramonto St, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.745662, lon: -78.844500, source: "builtin" },
-      { id: "6M149", address: "7701 N Ocean Blvd, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.745449, lon: -78.815466, source: "builtin" },
-      { id: "6M151", address: "US 17, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.659747, lon: -78.973617, source: "builtin" },
-      { id: "6M152", address: "2304 N Ocean Blvd, Myrtle Beach, SC", status: "A - Existing Cabinet", lat: 33.702635, lon: -78.867421, source: "builtin" },
-      { id: "6M154", address: "6965 Skiff Ln, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.748245, lon: -78.833054, source: "builtin" },
-      { id: "6M158", address: "2101 S Ocean Blvd, Myrtle Beach, SC", status: "A - Existing Cabinet", lat: 33.668229, lon: -78.905800, source: "builtin" },
-      { id: "6M159", address: "6103 Tides Way, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.742797, lon: -78.845791, source: "builtin" },
-      { id: "6M160", address: "6085 Tides Way, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.743483, lon: -78.843621, source: "builtin" },
-      { id: "6M161", address: "6035 Tides Way, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.741138, lon: -78.846391, source: "builtin" },
-      { id: "6M162", address: "1406 Yaupon Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.675015, lon: -78.901795, source: "builtin" },
-      { id: "6M201", address: "3999 Lark Hill Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.725786, lon: -78.887515, source: "builtin" },
-      { id: "6M202", address: "1002 29th Ave N, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.718061, lon: -78.876865, source: "builtin" },
-      { id: "6M208", address: "US 17, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.792668, lon: -78.758078, source: "builtin" },
-      { id: "6M211", address: "1301 Pridgen Rd, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.682650, lon: -78.907350, source: "builtin" },
-      { id: "6M214", address: "1114 3rd Ave S, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.693616, lon: -78.897323, source: "builtin" },
-      { id: "6M232", address: "815 44th Ave N, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.724270, lon: -78.857160, source: "builtin" },
-      { id: "6M238", address: "6928 N Kings Hwy, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.741638, lon: -78.824970, source: "builtin" },
-      { id: "6M266", address: "3865 Spruce Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.655865, lon: -78.949911, source: "builtin" },
-      { id: "6M267", address: "307 Flagg St, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.687116, lon: -78.885784, source: "builtin" },
-      { id: "6M280", address: "2010 S Ocean Blvd, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.669508, lon: -78.906683, source: "builtin" },
-      { id: "6M308", address: "890 Briarwood Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.793963, lon: -78.762701, source: "builtin" },
-      { id: "6M366", address: "3861 Spruce Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.655766, lon: -78.949796, source: "builtin" },
-      { id: "6M402", address: "1898 Plantation Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.727818, lon: -78.875115, source: "builtin" },
-      { id: "6M408", address: "5308 N Ocean Blvd, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.724970, lon: -78.839376, source: "builtin" },
-      { id: "6M906", address: "1031 Anrea St, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.743347, lon: -78.847293, source: "builtin" },
-      { id: "6M907", address: "520 Lake Arrowhead Rd, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.770005, lon: -78.789908, source: "builtin" },
-      { id: "6M908", address: "501 Lake Arrowhead Rd, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.768643, lon: -78.789720, source: "builtin" },
-      { id: "6M911", address: "Goldfinch Dr, Myrtle Beach, SC", status: "E - Out of Scope (RTM)", lat: 33.664454, lon: -78.967462, source: "builtin" },
-    ];
+    // ── Built-in Site Data (empty — import your own routes) ──
+    const BUILTIN_SITES = [];
 
     const PICKUP_LOCATIONS = [
       { id: "PU-CONWAY", name: "Material Pickup - Conway", address: "490 University Forest Dr, Conway, SC 29526", lat: 33.8084032, lon: -79.0110781 },
@@ -1863,7 +1833,7 @@
                   <div className="card-body p-3 flex-row items-center gap-3">
                     <div className="bg-success/20 rounded-lg p-2"><MapPinIcon size={18} className="text-success" /></div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm truncate">Myrtle Beach (Built-in)</p>
+                      <p className="font-semibold text-sm truncate">Imported Routes</p>
                       <p className="text-xs opacity-50">{BUILTIN_SITES.length} sites</p>
                     </div>
                     <span className="badge badge-sm badge-ghost">Default</span>
@@ -5113,7 +5083,7 @@
     }
 
     // ── Default fallback location ──
-    const MYRTLE_BEACH_CENTER = { lat: 33.6891, lon: -78.8867 };
+    // No default location — GPS is mandatory
 
     // ── Main App ──
     function TeamActivity({ sharedCompletions, allSites, currentUserId }) {
@@ -5855,7 +5825,7 @@
         setUserLoc(loc); setUsingDefault(isDefault || false); setPermissionGranted(true); setLoading(false);
       }, []);
 
-      const useDefaultLocation = useCallback(function() { applyLocation(MYRTLE_BEACH_CENTER, true); }, [applyLocation]);
+      const useDefaultLocation = useCallback(function() { /* GPS mandatory — no default */ }, []);
 
       const requestLocation = useCallback(function() {
         if (!navigator.geolocation) { setGeoError('Geolocation is not supported.'); return; }
@@ -5863,7 +5833,7 @@
         navigator.geolocation.getCurrentPosition(
           function(pos) { applyLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }, false); },
           function(err) {
-            const msg = err.code === 1 ? 'Location denied — tap below to use Myrtle Beach center instead.' : 'Could not get location: ' + err.message;
+            const msg = err.code === 1 ? 'Location denied — please enable GPS in your device settings.' : 'Could not get location: ' + err.message;
             setGeoError(msg); setLoading(false);
           },
           { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 }
@@ -5879,7 +5849,7 @@
             applyLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }, false);
           },
           function(err) {
-            const msg = err.code === 1 ? 'Location denied — tap below to use Myrtle Beach center instead.' : `Could not get location: ${err.message}`;
+            const msg = err.code === 1 ? 'Location denied — please enable GPS in your device settings.' : `Could not get location: ${err.message}`;
             setGeoError(msg); setLoading(false);
           },
           { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 }
@@ -6323,7 +6293,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v52</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v53</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
@@ -6353,7 +6323,7 @@
           {(importedFiles.length > 0 || sharedKMZFiles.length > 0) && (
             <div className="px-4 py-2 bg-base-200 border-b border-base-300 flex gap-2 overflow-x-auto">
               <button className={`btn btn-xs ${sourceFilter === 'all' ? 'btn-primary' : 'btn-ghost'}`} onClick={function() { setSourceFilter('all'); }}>All Sources ({allSites.length})</button>
-              <button className={`btn btn-xs ${sourceFilter === 'builtin' ? 'btn-success' : 'btn-ghost'}`} onClick={function() { setSourceFilter('builtin'); }}>Myrtle Beach ({BUILTIN_SITES.length})</button>
+              <button className={`btn btn-xs ${sourceFilter === 'builtin' ? 'btn-success' : 'btn-ghost'}`} onClick={function() { setSourceFilter('builtin'); }}>Built-in ({BUILTIN_SITES.length})</button>
               {importedFiles.map(function(f) { return (
                 <button key={f.name} className={`btn btn-xs ${sourceFilter === f.name ? 'btn-warning' : 'btn-ghost'}`} onClick={function() { setSourceFilter(f.name); }}>{f.name} ({f.siteCount})</button>
               ); })}
@@ -6366,7 +6336,7 @@
           {/* Default location banner */}
           {usingDefault && (
             <div className="px-4 py-2 bg-warning/20 text-warning-content text-xs flex items-center justify-between gap-2">
-              <span>📍 Using Myrtle Beach center — distances are approximate</span>
+              <span>📍 Using approximate location — enable GPS for accurate distances</span>
               <button className="btn btn-xs btn-warning" onClick={requestLocation}>Use My GPS</button>
             </div>
           )}
