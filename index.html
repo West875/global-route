@@ -39,6 +39,8 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <!-- JSZip for KMZ parsing -->
   <script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+  <!-- SheetJS for Excel parsing -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -726,6 +728,154 @@
         }
       });
       return sites;
+    }
+
+    // ── Universal Smart File Parser ──
+    async function parseUniversalFile(file) {
+      var name = file.name.toLowerCase();
+      var ext = name.split('.').pop();
+
+      // KMZ / KML — use existing parser
+      if (ext === 'kmz' || ext === 'kml') {
+        return await parseKMZFile(file);
+      }
+
+      // GeoJSON
+      if (ext === 'geojson' || ext === 'json') {
+        var text = await file.text();
+        var json = JSON.parse(text);
+        if (json.type === 'FeatureCollection' && json.features) {
+          return json.features.map(function(f, i) {
+            var coords = f.geometry && f.geometry.coordinates;
+            if (!coords) return null;
+            var lon = coords[0], lat = coords[1];
+            if (typeof lat !== 'number' || typeof lon !== 'number') return null;
+            var props = f.properties || {};
+            var siteName = props.name || props.Name || props.title || props.TITLE || props.id || ('Site ' + (i + 1));
+            var address = props.address || props.Address || props.description || (lat.toFixed(5) + ', ' + lon.toFixed(5));
+            var status = props.status || props.Status || 'Imported';
+            return { id: String(siteName), address: String(address), status: String(status), lat: lat, lon: lon, source: file.name.replace(/\.[^.]+$/, '') };
+          }).filter(Boolean);
+        }
+        // Try as array of objects with lat/lon
+        var arr = Array.isArray(json) ? json : (json.data || json.sites || json.locations || json.points || []);
+        if (arr.length > 0) {
+          return arr.map(function(item, i) {
+            var lat = item.lat || item.latitude || item.Latitude || item.LAT || item.y;
+            var lon = item.lon || item.lng || item.longitude || item.Longitude || item.LON || item.x;
+            if (!lat || !lon) return null;
+            var siteName = item.name || item.Name || item.id || item.ID || ('Site ' + (i + 1));
+            var address = item.address || item.Address || (parseFloat(lat).toFixed(5) + ', ' + parseFloat(lon).toFixed(5));
+            return { id: String(siteName), address: String(address), status: item.status || 'Imported', lat: parseFloat(lat), lon: parseFloat(lon), source: file.name.replace(/\.[^.]+$/, '') };
+          }).filter(Boolean);
+        }
+        throw new Error('JSON file does not contain recognizable location data');
+      }
+
+      // CSV / TSV
+      if (ext === 'csv' || ext === 'tsv' || ext === 'txt') {
+        var text = await file.text();
+        var delim = ext === 'tsv' ? '\t' : (text.indexOf('\t') > -1 && text.split('\t').length > text.split(',').length ? '\t' : ',');
+        var lines = text.trim().split(/\r?\n/);
+        if (lines.length < 2) throw new Error('CSV file has no data rows');
+        var headers = lines[0].split(delim).map(function(h) { return h.trim().replace(/^["']|["']$/g, ''); });
+        var lowerHeaders = headers.map(function(h) { return h.toLowerCase().replace(/[^a-z0-9]/g, ''); });
+
+        function findCol(patterns) {
+          for (var p = 0; p < patterns.length; p++) {
+            for (var h = 0; h < lowerHeaders.length; h++) {
+              if (lowerHeaders[h].indexOf(patterns[p]) > -1) return h;
+            }
+          }
+          return -1;
+        }
+
+        var latIdx = findCol(['lat', 'latitude', 'gpsn', 'ycoor', 'northing']);
+        var lonIdx = findCol(['lon', 'lng', 'longitude', 'gpse', 'gpsw', 'xcoor', 'easting']);
+        var nameIdx = findCol(['name', 'title', 'site', 'label', 'location', 'id']);
+        var addrIdx = findCol(['addr', 'address', 'street', 'description', 'desc']);
+        var statusIdx = findCol(['status', 'type', 'category', 'state']);
+
+        if (latIdx < 0 || lonIdx < 0) throw new Error('Could not find latitude/longitude columns. Headers: ' + headers.join(', '));
+
+        var sites = [];
+        for (var r = 1; r < lines.length; r++) {
+          var cols = lines[r].split(delim).map(function(c) { return c.trim().replace(/^["']|["']$/g, ''); });
+          var lat = parseFloat(cols[latIdx]);
+          var lon = parseFloat(cols[lonIdx]);
+          if (isNaN(lat) || isNaN(lon)) continue;
+          var siteName = nameIdx >= 0 ? cols[nameIdx] : ('Site ' + r);
+          var address = addrIdx >= 0 ? cols[addrIdx] : (lat.toFixed(5) + ', ' + lon.toFixed(5));
+          var status = statusIdx >= 0 ? cols[statusIdx] : 'Imported';
+          sites.push({ id: siteName || ('Site ' + r), address: address, status: status || 'Imported', lat: lat, lon: lon, source: file.name.replace(/\.[^.]+$/, '') });
+        }
+        if (sites.length === 0) throw new Error('No valid coordinates found in CSV');
+        return sites;
+      }
+
+      // Excel (.xlsx, .xls)
+      if (ext === 'xlsx' || ext === 'xls') {
+        if (typeof XLSX === 'undefined') throw new Error('Excel parser not loaded. Try CSV format instead.');
+        var data = await file.arrayBuffer();
+        var wb = XLSX.read(data, { type: 'array' });
+        var ws = wb.Sheets[wb.SheetNames[0]];
+        var rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        if (rows.length === 0) throw new Error('Excel file has no data rows');
+
+        // Fuzzy find columns
+        var colKeys = Object.keys(rows[0]);
+        var lowerKeys = colKeys.map(function(k) { return k.toLowerCase().replace(/[^a-z0-9]/g, ''); });
+        function findKey(patterns) {
+          for (var p = 0; p < patterns.length; p++) {
+            for (var k = 0; k < lowerKeys.length; k++) {
+              if (lowerKeys[k].indexOf(patterns[p]) > -1) return colKeys[k];
+            }
+          }
+          return null;
+        }
+
+        var latKey = findKey(['lat', 'latitude', 'gpsn', 'ycoor']);
+        var lonKey = findKey(['lon', 'lng', 'longitude', 'gpse', 'gpsw', 'xcoor']);
+        var nameKey = findKey(['name', 'title', 'site', 'label', 'location', 'id']);
+        var addrKey = findKey(['addr', 'address', 'street', 'description']);
+        var statusKey = findKey(['status', 'type', 'category', 'state']);
+
+        if (!latKey || !lonKey) throw new Error('Could not find lat/lon columns. Columns: ' + colKeys.join(', '));
+
+        var sites = [];
+        rows.forEach(function(row, i) {
+          var lat = parseFloat(row[latKey]);
+          var lon = parseFloat(row[lonKey]);
+          if (isNaN(lat) || isNaN(lon)) return;
+          var siteName = nameKey ? String(row[nameKey]) : ('Site ' + (i + 1));
+          var address = addrKey ? String(row[addrKey]) : (lat.toFixed(5) + ', ' + lon.toFixed(5));
+          var status = statusKey ? String(row[statusKey]) : 'Imported';
+          sites.push({ id: siteName || ('Site ' + (i + 1)), address: address, status: status || 'Imported', lat: lat, lon: lon, source: file.name.replace(/\.[^.]+$/, '') });
+        });
+        if (sites.length === 0) throw new Error('No valid coordinates found in Excel file');
+        return sites;
+      }
+
+      // GPX
+      if (ext === 'gpx') {
+        var text = await file.text();
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(text, 'text/xml');
+        var wpts = doc.querySelectorAll('wpt, trkpt, rtept');
+        var sites = [];
+        wpts.forEach(function(wp, i) {
+          var lat = parseFloat(wp.getAttribute('lat'));
+          var lon = parseFloat(wp.getAttribute('lon'));
+          if (isNaN(lat) || isNaN(lon)) return;
+          var nameEl = wp.querySelector('name');
+          var siteName = nameEl ? nameEl.textContent.trim() : ('Point ' + (i + 1));
+          sites.push({ id: siteName, address: lat.toFixed(5) + ', ' + lon.toFixed(5), status: 'Imported', lat: lat, lon: lon, source: file.name.replace(/\.[^.]+$/, '') });
+        });
+        if (sites.length === 0) throw new Error('No waypoints found in GPX file');
+        return sites;
+      }
+
+      throw new Error('Unsupported file type: .' + ext + '. Supported: KMZ, KML, CSV, Excel, GeoJSON, GPX, JSON, TSV, TXT');
     }
 
     // ── Geo Helpers ──
@@ -1682,7 +1832,7 @@
         if (!file) return;
         setImporting(true); setError(null); setLastResult(null);
         try {
-          const sites = await parseKMZFile(file);
+          const sites = await parseUniversalFile(file);
           if (sites.length === 0) { setError('No locations found in file.'); }
           else { onImport(file.name, sites); setLastResult(`✅ Loaded ${sites.length} sites from ${file.name}`); }
         } catch (err) { setError(`Error reading file: ${err.message}`); }
@@ -1698,12 +1848,12 @@
             </div>
             <div className="p-4 space-y-4">
               <div>
-                <input ref={fileInputRef} type="file" accept=".kmz,.kml" className="hidden" onChange={handleFileSelect} />
+                <input ref={fileInputRef} type="file" accept=".kmz,.kml,.csv,.xlsx,.xls,.geojson,.json,.gpx,.tsv,.txt" className="hidden" onChange={handleFileSelect} />
                 <button className="btn btn-primary w-full gap-2" onClick={function() { fileInputRef.current && fileInputRef.current.click(); }} disabled={importing}>
                   {importing ? <span className="loading loading-spinner loading-sm"></span> : <UploadIcon size={18} />}
-                  {importing ? 'Importing...' : 'Import KMZ / KML File'}
+                  {importing ? 'Importing...' : '📂 Import Any File'}
                 </button>
-                <p className="text-xs opacity-50 mt-1 text-center">Supports .kmz and .kml files with placemarks</p>
+                <p className="text-xs opacity-50 mt-1 text-center">KMZ • KML • CSV • Excel • GeoJSON • GPX • JSON</p>
               </div>
               {error && <div className="alert alert-error text-sm py-2"><span>{error}</span></div>}
               {lastResult && <div className="alert alert-success text-sm py-2"><span>{lastResult}</span></div>}
@@ -1734,7 +1884,7 @@
                   </div>
                 ); })}
                 {importedFiles.length === 0 && (!sharedFiles || sharedFiles.length === 0) && (
-                  <p className="text-xs opacity-40 text-center py-2">No imported files yet. Tap "Import" above to add KMZ files.</p>
+                  <p className="text-xs opacity-40 text-center py-2">No imported files yet. Tap "Import" above to add files.</p>
                 )}
                 {sharedFiles && sharedFiles.length > 0 && (
                   <div className="mt-3">
