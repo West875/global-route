@@ -1810,6 +1810,8 @@
       const fiberSpanLinesLayer = useRef(null);
       const fiberEquipLayer = useRef(null);
       const [fiberEquipment, setFiberEquipment] = useState({});
+      const [fiberEnroutes, setFiberEnroutes] = useState({});
+      const fiberEnrouteLayerRef = useRef(null);
       const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
 
       // Work stages for cable runs between poles
@@ -1962,6 +1964,12 @@
         var map = L.map(fiberMapRef.current, { zoomControl: true }).setView(center, 13);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 19 }).addTo(map);
         fiberMapInstance.current = map;
+        // En-route layer for fiber poles
+        if (!fiberEnrouteLayerRef.current) {
+          fiberEnrouteLayerRef.current = L.layerGroup().addTo(map);
+        } else {
+          fiberEnrouteLayerRef.current.addTo(map);
+        }
         fiberSitesLayer.current = L.layerGroup().addTo(map);
         fiberRouteLayer.current = L.layerGroup().addTo(map);
         fiberSpanLinesLayer.current = L.layerGroup().addTo(map);
@@ -2009,6 +2017,17 @@
             iconSize: [32, 40],
             iconAnchor: [16, 40]
           });
+          // Add orange glow ring if someone is en-route to this pole
+          var enrouteGlow = fiberEnroutes[site.id] ? 'box-shadow:0 0 12px 4px rgba(245,158,11,0.7);border-radius:50%;' : '';
+          if (fiberEnroutes[site.id]) {
+            var glowIcon = L.divIcon({
+              className: '',
+              html: '<div style="width:48px;height:48px;border-radius:50%;position:absolute;top:-8px;left:-8px;animation:pulse 1.5s ease-in-out infinite;border:3px solid #f59e0b;box-shadow:0 0 15px rgba(245,158,11,0.6);"></div>',
+              iconSize: [32, 40],
+              iconAnchor: [16, 40]
+            });
+            L.marker([site.lat, site.lon], { icon: glowIcon, interactive: false, zIndexOffset: 500 }).addTo(fiberSitesLayer.current);
+          }
           var marker = L.marker([site.lat, site.lon], { icon: icon }).addTo(fiberSitesLayer.current);
           marker.on('click', function() { setSelectedPole(site); setShowLogForm(true); setShowPolePhotos(false); });
           var tip = site.name || site.id;
@@ -2022,7 +2041,7 @@
           var bounds = L.latLngBounds(allFiberSites.map(function(s) { return [s.lat, s.lon]; }));
           fiberMapInstance.current.fitBounds(bounds, { padding: [30, 30] });
         }
-      }, [allFiberSites, asBuiltData, tab]);
+      }, [allFiberSites, asBuiltData, fiberEnroutes, tab]);
 
       // ── Draw color-coded span lines + equipment markers on map ──
       useEffect(function() {
@@ -2277,6 +2296,70 @@
           setAllSnowshoes(shoes);
         });
       }, []);
+
+      // ── Firestore listener for fiber en-route claims — auto-expire after 2 hours ──
+      useEffect(function() {
+        return db.collection('fiberEnroute').onSnapshot(function(snap) {
+          var data = {};
+          var now = Date.now();
+          snap.forEach(function(doc) {
+            var d = doc.data();
+            var claimedAt = d.claimedAt && d.claimedAt.toMillis ? d.claimedAt.toMillis() : (d.claimedAt || 0);
+            if (now - claimedAt > 2 * 60 * 60 * 1000) {
+              db.collection('fiberEnroute').doc(doc.id).delete().catch(function(){});
+              return;
+            }
+            data[doc.id] = d;
+          });
+          setFiberEnroutes(data);
+        });
+      }, []);
+
+      // ── Claim fiber pole en-route ──
+      function claimFiberEnroute(poleId) {
+        // Clear any existing en-route by this user
+        Object.keys(fiberEnroutes).forEach(function(k) {
+          if (fiberEnroutes[k].userId === user.uid && k !== poleId) {
+            db.collection('fiberEnroute').doc(k).delete().catch(function(){});
+          }
+        });
+        // Write new claim
+        var claimData = {
+          userId: user.uid,
+          userName: user.displayName || user.email,
+          userPhoto: avatarURL || user.photoURL || '',
+          claimedAt: firebase.firestore.FieldValue.serverTimestamp(),
+          poleName: (allFiberSites.find(function(s){return s.id===poleId;})||{}).name || poleId
+        };
+        // Optimistic update
+        setFiberEnroutes(function(prev) {
+          var next = Object.assign({}, prev);
+          next[poleId] = Object.assign({}, claimData, { claimedAt: Date.now(), userId: user.uid });
+          return next;
+        });
+        db.collection('fiberEnroute').doc(poleId).set(claimData)
+          .catch(function(e) { console.error('Fiber en-route claim error:', e); });
+      }
+
+      function cancelFiberEnroute(poleId) {
+        setFiberEnroutes(function(prev) {
+          var next = Object.assign({}, prev);
+          delete next[poleId];
+          return next;
+        });
+        db.collection('fiberEnroute').doc(poleId).delete().catch(function(){});
+      }
+
+      // ── Fiber pole directions URL ──
+      function fiberDirectionsUrl(pole) {
+        var lat = pole.lat;
+        var lon = pole.lon;
+        var ua = navigator.userAgent || '';
+        if (/iPad|iPhone|iPod/.test(ua)) {
+          return 'https://maps.apple.com/?daddr=' + lat + ',' + lon;
+        }
+        return 'https://www.google.com/maps/dir/?api=1&destination=' + lat + ',' + lon;
+      }
 
       // ── Firestore listener for pole notes (selected pole) ──
       useEffect(function() {
@@ -2937,6 +3020,33 @@
                   </div>
 
                   <div style={{padding:16}}>
+                    {/* ─── EN-ROUTE BANNER ─── */}
+                    {fiberEnroutes[selectedPole.id] && (
+                      <div style={{background: fiberEnroutes[selectedPole.id].userId === user.uid ? 'linear-gradient(135deg,#92400e,#d97706)' : 'linear-gradient(135deg,#1e3a5f,#3b82f6)', padding:'10px 14px', borderRadius:12, marginBottom:10, display:'flex', alignItems:'center', gap:10}}>
+                        {fiberEnroutes[selectedPole.id].userPhoto ? (
+                          <img src={fiberEnroutes[selectedPole.id].userPhoto} style={{width:40,height:40,borderRadius:'50%',border:'3px solid rgba(255,255,255,0.5)',objectFit:'cover'}} referrerPolicy="no-referrer" />
+                        ) : (
+                          <div style={{width:40,height:40,borderRadius:'50%',background:'rgba(255,255,255,0.2)',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:'bold',fontSize:18,color:'white',border:'3px solid rgba(255,255,255,0.5)'}}>{(fiberEnroutes[selectedPole.id].userName||'?').charAt(0).toUpperCase()}</div>
+                        )}
+                        <div style={{flex:1}}>
+                          <div style={{color:'white',fontWeight:700,fontSize:14}}>
+                            {fiberEnroutes[selectedPole.id].userId === user.uid ? '🚗 You are en-route!' : '🚗 ' + (fiberEnroutes[selectedPole.id].userName||'Teammate') + ' is en-route'}
+                          </div>
+                          <div style={{color:'rgba(255,255,255,0.7)',fontSize:11}}>Heading to this pole</div>
+                        </div>
+                        {fiberEnroutes[selectedPole.id].userId === user.uid && (
+                          <button onClick={function(){cancelFiberEnroute(selectedPole.id);}} style={{background:'rgba(255,255,255,0.2)',border:'none',color:'white',padding:'6px 12px',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer'}}>✕ Cancel</button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ─── GET DIRECTIONS BUTTON ─── */}
+                    <a href={fiberDirectionsUrl(selectedPole)} target="_blank" rel="noopener noreferrer"
+                      onClick={function(){claimFiberEnroute(selectedPole.id); if(navigator.vibrate) navigator.vibrate([50,50,100]);}}
+                      style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,width:'100%',padding:'14px 16px',borderRadius:12,background:'linear-gradient(135deg,#065f46,#059669)',color:'white',fontWeight:800,fontSize:15,textDecoration:'none',marginBottom:10,boxShadow:'0 4px 15px rgba(5,150,105,0.4)',border:'1px solid rgba(52,211,153,0.3)'}}>
+                      🧭 Get Directions to this Pole
+                    </a>
+
                     {/* ─── ACTION BUTTONS: Correct Pin + Photos + Anchor ─── */}
                     <div style={{display:'flex',gap:6,marginBottom:8}}>
                       <button onClick={correctPinLocation} disabled={correctingPin}
@@ -3315,7 +3425,14 @@
                             {hasWork ? '✅' : '📍'}
                           </div>
                           <div>
-                            <div style={{fontWeight:700,color:'white',fontSize:14}}>{site.name}</div>
+                            <div style={{fontWeight:700,color:'white',fontSize:14}}>
+                              {site.name}
+                              {fiberEnroutes[site.id] && (
+                                <span style={{marginLeft:8,background:fiberEnroutes[site.id].userId===user.uid?'#f59e0b':'#3b82f6',color:'white',padding:'2px 8px',borderRadius:10,fontSize:10,fontWeight:700,verticalAlign:'middle'}}>
+                                  🚗 {fiberEnroutes[site.id].userId===user.uid ? 'You' : (fiberEnroutes[site.id].userName||'').split(' ')[0]}
+                                </span>
+                              )}
+                            </div>
                             <div style={{fontSize:11,color:'#64748b'}}>{site.address || site.description || ''}</div>
                             {site.poleType === 'distribution' && spanData[site.id] && spanData[site.id][0] && (
                               <div style={{fontSize:10,color:'#93c5fd',marginTop:2}}>↔ {spanData[site.id][0].name}: {spanData[site.id][0].dist} ft</div>
