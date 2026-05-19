@@ -1,4 +1,4 @@
-const CACHE_NAME = 'global-route-v49';
+const CACHE_NAME = 'global-route-v50';
 const ASSETS = ['./', './index.html'];
 
 self.addEventListener('install', (e) => {

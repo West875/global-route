@@ -123,6 +123,38 @@
         var online = this._online;
         var count = this.getQueue().length;
         this._listeners.forEach(function(fn) { fn(online, count); });
+        this._renderBanner(online, count);
+      },
+
+      _bannerEl: null,
+      _wasOffline: false,
+      _renderBanner: function(online, count) {
+        if (!document.body) return;
+        if (!this._bannerEl) {
+          this._bannerEl = document.createElement('div');
+          this._bannerEl.id = 'offline-banner';
+          this._bannerEl.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;text-align:center;font-size:12px;font-weight:bold;padding:6px 12px;display:none;align-items:center;justify-content:center;gap:8px;transition:all 0.3s ease;font-family:system-ui,sans-serif;';
+          document.body.appendChild(this._bannerEl);
+        }
+        var el = this._bannerEl;
+        if (!online) {
+          el.style.display = 'flex';
+          el.style.background = '#d97706';
+          el.style.color = 'white';
+          el.innerHTML = '<span>📡 OFFLINE</span>' +
+            (count > 0 ? '<span style="background:rgba(255,255,255,0.2);padding:2px 8px;border-radius:99px">' + count + ' action' + (count !== 1 ? 's' : '') + ' queued</span>' : '') +
+            '<span>• Auto-syncs when online</span>';
+          this._wasOffline = true;
+        } else if (this._wasOffline) {
+          el.style.display = 'flex';
+          el.style.background = '#16a34a';
+          el.style.color = 'white';
+          el.innerHTML = '✅ Back Online — Syncing...';
+          this._wasOffline = false;
+          setTimeout(function() { el.style.display = 'none'; }, 3000);
+        } else {
+          el.style.display = 'none';
+        }
       },
 
       getQueue: function() {
@@ -4366,23 +4398,7 @@
       const [idPhotoURL, setIdPhotoURL] = useState(null);
       const [profileChecked, setProfileChecked] = useState(false);
 
-      // Offline status
-      const [isOnline, setIsOnline] = useState(navigator.onLine);
-      const [offlineQueueCount, setOfflineQueueCount] = useState(0);
-      const [showBackOnline, setShowBackOnline] = useState(false);
-      const wasOfflineRef = useRef(false);
-
-      useEffect(function() {
-        return OfflineQueue.onStatusChange(function(online, count) {
-          if (online && wasOfflineRef.current) {
-            setShowBackOnline(true);
-            setTimeout(function() { setShowBackOnline(false); }, 3000);
-          }
-          wasOfflineRef.current = !online;
-          setIsOnline(online);
-          setOfflineQueueCount(count);
-        });
-      }, []);
+      // Offline banner handled by plain DOM in OfflineQueue
 
       useEffect(function() {
         const unsub = auth.onAuthStateChanged(async function(u) {
@@ -5363,18 +5379,7 @@
             <p className="text-xs opacity-80 text-center">
               {allSites.length} sites total • {teamCompletedCount} completed by team • Nearest-First Routing
             </p>
-            {(typeof isOnline !== 'undefined' ? !isOnline : !navigator.onLine) && (
-              <div className="bg-amber-600 text-white text-center py-1 px-3 text-xs font-bold flex items-center justify-center gap-2 rounded-b-lg animate-pulse">
-                <span>📡 OFFLINE</span>
-                {offlineQueueCount > 0 && <span className="bg-white/20 px-2 py-0.5 rounded-full">{offlineQueueCount} action{offlineQueueCount !== 1 ? 's' : ''} queued</span>}
-                <span>• Auto-syncs when online</span>
-              </div>
-            )}
-            {showBackOnline && (
-              <div className="bg-green-600 text-white text-center py-1 px-3 text-xs font-bold flex items-center justify-center gap-2 rounded-b-lg" style={{animation: 'fadeIn 0.3s ease-out'}}>
-                ✅ Back Online — Syncing...
-              </div>
-            )}
+            {/* Offline banner handled by plain DOM */}
           </div>
 
           {/* Toolbar */}
