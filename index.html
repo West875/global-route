@@ -6268,13 +6268,32 @@
           );
         }
         return (
-          <div className="flex flex-col items-center justify-center min-h-screen gap-5 p-8 text-center">
-            <div className="bg-error/10 rounded-full p-6"><MapPinIcon size={48} className="text-error" /></div>
-            {geoError && (<div className="alert alert-warning max-w-sm text-sm"><MapPinIcon size={16} /><span>{geoError}</span></div>)}
-            <button className="btn btn-primary btn-lg gap-2" onClick={requestLocation}><MapPinIcon size={20} /> Try Again</button>
-            <div className="divider max-w-xs">OR</div>
-            <button className="btn btn-outline btn-lg gap-2" onClick={useDefaultLocation}><GlobeIcon size={20} /> Use Myrtle Beach Center</button>
-            <p className="text-xs opacity-40 max-w-xs">This will sort sites from the center of Myrtle Beach.</p>
+          <div className="flex flex-col items-center justify-center min-h-screen gap-5 p-8 text-center" style={{background:'linear-gradient(135deg,#140d2e 0%,#0e0920 100%)'}}>
+            <div style={{background:'linear-gradient(135deg,rgba(239,68,68,0.15),rgba(239,68,68,0.05))',borderRadius:'50%',padding:24,border:'2px solid rgba(239,68,68,0.3)'}}>
+              <MapPinIcon size={48} style={{color:'#ef4444'}} />
+            </div>
+            <h2 style={{fontFamily:"'Playfair Display',serif",fontSize:'1.5rem',fontWeight:700,color:'#d4af37',margin:0}}>Location Required</h2>
+            <p style={{color:'rgba(255,255,255,0.7)',fontSize:14,maxWidth:320,lineHeight:1.6,margin:0}}>
+              Global Route needs your GPS location to navigate you to job sites, track routes, and sync with your crew.
+            </p>
+            {geoError && (<div style={{background:'rgba(245,158,11,0.15)',border:'1px solid rgba(245,158,11,0.3)',borderRadius:12,padding:'10px 16px',color:'#fbbf24',fontSize:13,maxWidth:320,display:'flex',alignItems:'center',gap:8}}>
+              <MapPinIcon size={16} /><span>{geoError}</span>
+            </div>)}
+            <button className="btn btn-primary btn-lg gap-2" onClick={requestLocation} style={{background:'linear-gradient(135deg,#7c3aed,#6d28d9)',border:'none',borderRadius:12,fontWeight:600,fontSize:16,padding:'14px 32px',boxShadow:'0 4px 15px rgba(124,58,237,0.4)'}}>
+              <MapPinIcon size={20} /> Enable Location
+            </button>
+            <div style={{background:'rgba(139,92,246,0.08)',border:'1px solid rgba(139,92,246,0.15)',borderRadius:16,padding:'16px 20px',maxWidth:320,textAlign:'left',marginTop:8}}>
+              <p style={{color:'rgba(255,255,255,0.9)',fontSize:13,fontWeight:600,margin:'0 0 8px'}}>📱 If location is blocked:</p>
+              <p style={{color:'rgba(255,255,255,0.5)',fontSize:12,margin:'0 0 4px'}}>
+                <strong style={{color:'rgba(255,255,255,0.7)'}}>Android:</strong> Settings → Apps → Chrome → Permissions → Location → Allow
+              </p>
+              <p style={{color:'rgba(255,255,255,0.5)',fontSize:12,margin:0}}>
+                <strong style={{color:'rgba(255,255,255,0.7)'}}>iPhone:</strong> Settings → Safari → Location → Allow
+              </p>
+            </div>
+            <p style={{color:'rgba(255,255,255,0.3)',fontSize:11,maxWidth:280,margin:'8px 0 0'}}>
+              🔒 Your location is only shared with your crew while the app is open
+            </p>
           </div>
         );
       }
@@ -6304,7 +6323,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v51</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v52</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
