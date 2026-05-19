@@ -2317,9 +2317,9 @@
       const [fiberUserLoc, setFiberUserLoc] = useState(null);
       const fiberUserLocLayer = useRef(null);
 
-      // ── GPS tracking for fiber map ──
+      // ── GPS tracking for fiber map (only when logged in) ──
       useEffect(function() {
-        if (!navigator.geolocation) return;
+        if (!user || !navigator.geolocation) return;
         var watchId = navigator.geolocation.watchPosition(
           function(pos) {
             setFiberUserLoc({ lat: pos.coords.latitude, lon: pos.coords.longitude });
@@ -2338,8 +2338,13 @@
         return function() { navigator.geolocation.clearWatch(watchId); };
       }, [user]);
 
-      // ── Draw user location avatar on fiber map ──
+      // ── Draw user location avatar on fiber map (only when logged in) ──
       useEffect(function() {
+        if (!user) {
+          // Clear markers on logout
+          if (fiberUserLocLayer.current) fiberUserLocLayer.current.clearLayers();
+          return;
+        }
         if (!fiberMapInstance.current || !fiberUserLoc) return;
         if (!fiberUserLocLayer.current) {
           fiberUserLocLayer.current = L.layerGroup().addTo(fiberMapInstance.current);
@@ -2368,9 +2373,13 @@
             '<span style="font-size:11px;color:#888;">Your live location</span></div>');
       }, [fiberUserLoc, avatarURL, user]);
 
-      // ── Draw TEAMMATE locations on fiber map from presence data ──
+      // ── Draw TEAMMATE locations on fiber map (only when logged in) ──
       const fiberTeamLocLayer = useRef(null);
       useEffect(function() {
+        if (!user) {
+          if (fiberTeamLocLayer.current) fiberTeamLocLayer.current.clearLayers();
+          return;
+        }
         if (!fiberMapInstance.current || !fiberPresence) return;
         if (!fiberTeamLocLayer.current) {
           fiberTeamLocLayer.current = L.layerGroup().addTo(fiberMapInstance.current);
@@ -6369,7 +6378,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v55</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v56</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
