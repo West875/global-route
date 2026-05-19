@@ -1,0 +1,102 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Admin has full access to everything
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'd.west@globalwestgroupllc.com';
+    }
+
+    // Any authenticated user
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // Admin: full read/write on everything
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+
+    // Users collection — authenticated users can read all, write own
+    match /users/{userId} {
+      allow read: if isAuth();
+      allow write: if isAuth() && request.auth.uid == userId;
+    }
+
+    // Shared routes (completions, enroute, revisits)
+    match /sharedRoutes/{routeId}/{sub=**} {
+      allow read, write: if isAuth();
+    }
+
+    // Site notes
+    match /siteNotes/{docId}/{sub=**} {
+      allow read, write: if isAuth();
+    }
+
+    // Site photos
+    match /sitePhotos/{docId}/{sub=**} {
+      allow read, write: if isAuth();
+    }
+
+    // Shared KMZ files
+    match /sharedKMZ/{docId} {
+      allow read, write: if isAuth();
+    }
+
+    // KMZ files (alternate collection name)
+    match /kmzFiles/{docId} {
+      allow read, write: if isAuth();
+    }
+
+    // Sites collection
+    match /sites/{siteId} {
+      allow read, write: if isAuth();
+    }
+
+    // Fiber Production collections (v1)
+    match /fiberAsBuilt/{docId} {
+      allow read, write: if isAuth();
+    }
+    match /fiberEnroute/{docId} {
+      allow read, write: if isAuth();
+    }
+    match /fiberRoutes/{docId} {
+      allow read, write: if isAuth();
+    }
+    match /fiberTreeTrims/{docId} {
+      allow read, write: if isAuth();
+    }
+    match /fiberSpanStages/{docId} {
+      allow read, write: if isAuth();
+    }
+    match /fiberEquipment/{docId} {
+      allow read, write: if isAuth();
+    }
+    match /fiberPinCorrections/{docId} {
+      allow read, write: if isAuth();
+    }
+    match /fiberPoleNotes/{docId}/{sub=**} {
+      allow read, write: if isAuth();
+    }
+    match /fiberPolePhotos/{docId}/{sub=**} {
+      allow read, write: if isAuth();
+    }
+    match /fiberProduction/{docId} {
+      allow read, write: if isAuth();
+    }
+    match /fiberSchedule/{docId} {
+      allow read, write: if isAuth();
+    }
+    match /fiberSnowshoes/{docId} {
+      allow read, write: if isAuth();
+    }
+    match /fiberPresence/{docId} {
+      allow read, write: if isAuth();
+    }
+
+    // SaaS workspaces (v2)
+    match /workspaces/{workspaceId}/{sub=**} {
+      allow read, write: if isAuth();
+    }
+  }
+}

@@ -2361,6 +2361,34 @@
       const [showRouteImporter, setShowRouteImporter] = useState(false);
       const [importingRoute, setImportingRoute] = useState(false);
       const routeFileRef = useRef(null);
+      const [fiberPresence, setFiberPresence] = useState({});
+
+      // ── Crew Presence: write presence on mount, listen for all crew ──
+      useEffect(function() {
+        if (!user) return;
+        // Write my presence (may fail if Firestore rules not yet updated — that's OK)
+        db.collection('fiberPresence').doc(user.uid).set({
+          userId: user.uid,
+          userName: user.displayName || user.email.split('@')[0],
+          userPhoto: avatarURL || user.photoURL || null,
+          userEmail: user.email,
+          lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
+          online: true
+        }, { merge: true }).catch(function(err) { console.warn('Presence write failed (rules may need updating):', err.message); });
+        // Update lastSeen every 2 minutes
+        var interval = setInterval(function() {
+          db.collection('fiberPresence').doc(user.uid).update({
+            lastSeen: firebase.firestore.FieldValue.serverTimestamp()
+          }).catch(function(){});
+        }, 120000);
+        // Listen for all crew presence
+        var unsub = db.collection('fiberPresence').onSnapshot(function(snap) {
+          var pres = {};
+          snap.forEach(function(doc) { pres[doc.id] = doc.data(); });
+          setFiberPresence(pres);
+        }, function(err) { console.warn('Presence listener failed:', err.message); });
+        return function() { clearInterval(interval); unsub(); };
+      }, [user]);
 
       // ── Firestore listener for imported fiber routes ──
       // NOTE: No orderBy — docs without the sort field would be silently excluded
@@ -4016,23 +4044,27 @@
           </div>
 
           {/* Route Selector + Import */}
-          <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 16px',background:'rgba(30,20,60,0.6)',borderBottom:'1px solid rgba(139,92,246,0.15)'}}>
-            <span style={{fontSize:10,color:'#a78bfa',fontWeight:700}}>ROUTE:</span>
-            <select value={activeRouteId} onChange={function(e){setActiveRouteId(e.target.value);}}
-              style={{flex:1,background:'rgba(139,92,246,0.15)',border:'1px solid rgba(139,92,246,0.3)',borderRadius:8,color:'white',padding:'6px 10px',fontSize:12,fontWeight:600}}>
-              <option value="olt57">OLT-57 (Built-in)</option>
-              {importedRoutes.map(function(r) {
-                return <option key={r.id} value={r.id}>📂 {r.name} ({r.poleCount} poles)</option>;
-              })}
-            </select>
-            <button onClick={function(){setShowRouteImporter(true);}}
-              style={{padding:'6px 12px',borderRadius:8,border:'1px solid rgba(34,197,94,0.4)',background:'linear-gradient(135deg,#166534,#15803d)',color:'white',fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>
-              📂 Import
-            </button>
-            <button onClick={addPoleAtGPS}
-              style={{padding:'6px 12px',borderRadius:8,border:'1px solid rgba(250,204,21,0.4)',background:'linear-gradient(135deg,#854d0e,#a16207)',color:'white',fontSize:11,fontWeight:700,cursor:'pointer',whiteSpace:'nowrap'}}>
-              📍 Add Pole
-            </button>
+          <div style={{padding:'6px 12px',background:'rgba(30,20,60,0.6)',borderBottom:'1px solid rgba(139,92,246,0.15)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:6}}>
+              <span style={{fontSize:10,color:'#a78bfa',fontWeight:700}}>ROUTE:</span>
+              <select value={activeRouteId} onChange={function(e){setActiveRouteId(e.target.value);}}
+                style={{flex:1,background:'rgba(139,92,246,0.15)',border:'1px solid rgba(139,92,246,0.3)',borderRadius:8,color:'white',padding:'6px 10px',fontSize:12,fontWeight:600,minWidth:0}}>
+                <option value="olt57">OLT-57 (Built-in)</option>
+                {importedRoutes.map(function(r) {
+                  return <option key={r.id} value={r.id}>📂 {r.name} ({r.poleCount} poles)</option>;
+                })}
+              </select>
+            </div>
+            <div style={{display:'flex',gap:6}}>
+              <button onClick={function(){setShowRouteImporter(true);}}
+                style={{flex:1,padding:'8px 0',borderRadius:8,border:'1px solid rgba(34,197,94,0.4)',background:'linear-gradient(135deg,#166534,#15803d)',color:'white',fontSize:12,fontWeight:700,cursor:'pointer'}}>
+                📂 Import
+              </button>
+              <button onClick={addPoleAtGPS}
+                style={{flex:1,padding:'8px 0',borderRadius:8,border:'1px solid rgba(250,204,21,0.4)',background:'linear-gradient(135deg,#854d0e,#a16207)',color:'white',fontSize:12,fontWeight:700,cursor:'pointer'}}>
+                📍 Add Pole
+              </button>
+            </div>
           </div>
 
           {/* Route Import Modal */}
@@ -4113,38 +4145,37 @@
                     </div>
                   </div>
                 </div>
-                {/* ── Floating Snowshoe Buttons ── */}
-                <div style={{position:'absolute',bottom:10,right:10,zIndex:1000,display:'flex',flexDirection:'column',gap:6}}>
-                  <button onClick={function(){addSnowshoeAtGPS('in');}} disabled={placingSnowshoe !== null}
-                    style={{padding:'10px 14px',borderRadius:12,border:'2px solid rgba(6,182,212,0.5)',background:'linear-gradient(135deg,#0e7490,#06b6d4)',color:'white',fontSize:12,fontWeight:800,cursor:'pointer',boxShadow:'0 4px 15px rgba(6,182,212,0.4)',display:'flex',alignItems:'center',gap:6}}>
-                    {placingSnowshoe === 'in' ? '⏳ GPS...' : '❄️ Tic IN'}
-                  </button>
-                  <button onClick={function(){addSnowshoeAtGPS('out');}} disabled={placingSnowshoe !== null}
-                    style={{padding:'10px 14px',borderRadius:12,border:'2px solid rgba(6,182,212,0.5)',background:'linear-gradient(135deg,#155e75,#0891b2)',color:'white',fontSize:12,fontWeight:800,cursor:'pointer',boxShadow:'0 4px 15px rgba(6,182,212,0.4)',display:'flex',alignItems:'center',gap:6}}>
-                    {placingSnowshoe === 'out' ? '⏳ GPS...' : '❄️ Tic OUT'}
-                  </button>
-                  <div style={{background:'rgba(15,10,30,0.85)',borderRadius:8,padding:'4px 8px',fontSize:9,color:'#67e8f9',textAlign:'center'}}>
-                    {allSnowshoes.length} snowshoe{allSnowshoes.length !== 1 ? 's' : ''} placed
+                {/* ── Floating Action Buttons (compact for mobile) ── */}
+                <div style={{position:'absolute',bottom:8,right:8,zIndex:1000,display:'flex',flexDirection:'column',gap:4,maxWidth:160}}>
+                  {/* Snowshoe row */}
+                  <div style={{display:'flex',gap:4}}>
+                    <button onClick={function(){addSnowshoeAtGPS('in');}} disabled={placingSnowshoe !== null}
+                      style={{flex:1,padding:'7px 0',borderRadius:10,border:'1px solid rgba(6,182,212,0.5)',background:'linear-gradient(135deg,#0e7490,#06b6d4)',color:'white',fontSize:10,fontWeight:800,cursor:'pointer',textAlign:'center'}}>
+                      {placingSnowshoe === 'in' ? '⏳...' : '❄️ Tic IN'}
+                    </button>
+                    <button onClick={function(){addSnowshoeAtGPS('out');}} disabled={placingSnowshoe !== null}
+                      style={{flex:1,padding:'7px 0',borderRadius:10,border:'1px solid rgba(6,182,212,0.5)',background:'linear-gradient(135deg,#155e75,#0891b2)',color:'white',fontSize:10,fontWeight:800,cursor:'pointer',textAlign:'center'}}>
+                      {placingSnowshoe === 'out' ? '⏳...' : '❄️ Tic OUT'}
+                    </button>
                   </div>
-                  <div style={{fontSize:10,color:'#93c5fd',display:'flex',alignItems:'center',gap:4}}>
-                    🌳 {allTreeTrims.length} tree trim{allTreeTrims.length !== 1 ? 's' : ''} • {allTreeTrims.reduce(function(s,t){return s+t.footage;},0)} ft
+                  {/* Counts badge */}
+                  <div style={{background:'rgba(15,10,30,0.9)',borderRadius:6,padding:'3px 6px',fontSize:8,color:'#67e8f9',textAlign:'center'}}>
+                    ❄️ {allSnowshoes.length} · 🌳 {allTreeTrims.length} • {allTreeTrims.reduce(function(s,t){return s+t.footage;},0)}ft
                   </div>
-                  {/* ── Tree Trimming Buttons ── */}
-                  <div style={{height:8}}></div>
-                  <button onClick={function(){startTreeTrimGPS();}} disabled={placingTrim !== null || trimStartPoint !== null}
-                    style={{padding:'10px 14px',borderRadius:12,border:'2px solid rgba(59,130,246,0.5)',background: trimStartPoint ? 'rgba(59,130,246,0.3)' : 'linear-gradient(135deg,#1d4ed8,#3b82f6)',color:'white',fontSize:12,fontWeight:800,cursor:'pointer',boxShadow:'0 4px 15px rgba(59,130,246,0.4)',display:'flex',alignItems:'center',gap:6,opacity: trimStartPoint ? 0.5 : 1}}>
-                    {placingTrim === 'start' ? '⏳ GPS...' : '🌳 TRIM START'}
-                  </button>
-                  <button onClick={function(){stopTreeTrimGPS();}} disabled={placingTrim !== null || !trimStartPoint}
-                    style={{padding:'10px 14px',borderRadius:12,border:'2px solid rgba(59,130,246,0.5)',background: trimStartPoint ? 'linear-gradient(135deg,#dc2626,#ef4444)' : 'rgba(59,130,246,0.2)',color:'white',fontSize:12,fontWeight:800,cursor:'pointer',boxShadow: trimStartPoint ? '0 4px 15px rgba(239,68,68,0.4)' : 'none',display:'flex',alignItems:'center',gap:6,opacity: trimStartPoint ? 1 : 0.4,animation: trimStartPoint ? 'pulse 1.5s infinite' : 'none'}}>
-                    {placingTrim === 'stop' ? '⏳ GPS...' : '🌳 TRIM STOP'}
-                  </button>
-                  {trimStartPoint && <div style={{background:'rgba(59,130,246,0.9)',borderRadius:8,padding:'4px 8px',fontSize:9,color:'white',textAlign:'center',fontWeight:700}}>
-                    📍 Start marked — walk to end & tap STOP
+                  {/* Trim row */}
+                  <div style={{display:'flex',gap:4}}>
+                    <button onClick={function(){startTreeTrimGPS();}} disabled={placingTrim !== null || trimStartPoint !== null}
+                      style={{flex:1,padding:'7px 0',borderRadius:10,border:'1px solid rgba(59,130,246,0.5)',background: trimStartPoint ? 'rgba(59,130,246,0.3)' : 'linear-gradient(135deg,#1d4ed8,#3b82f6)',color:'white',fontSize:10,fontWeight:800,cursor:'pointer',opacity: trimStartPoint ? 0.5 : 1,textAlign:'center'}}>
+                      {placingTrim === 'start' ? '⏳...' : '🌳 START'}
+                    </button>
+                    <button onClick={function(){stopTreeTrimGPS();}} disabled={placingTrim !== null || !trimStartPoint}
+                      style={{flex:1,padding:'7px 0',borderRadius:10,border:'1px solid ' + (trimStartPoint ? 'rgba(239,68,68,0.5)' : 'rgba(59,130,246,0.3)'),background: trimStartPoint ? 'linear-gradient(135deg,#dc2626,#ef4444)' : 'rgba(59,130,246,0.2)',color:'white',fontSize:10,fontWeight:800,cursor:'pointer',opacity: trimStartPoint ? 1 : 0.4,textAlign:'center',animation: trimStartPoint ? 'pulse 1.5s infinite' : 'none'}}>
+                      {placingTrim === 'stop' ? '⏳...' : '🌳 STOP'}
+                    </button>
+                  </div>
+                  {trimStartPoint && <div style={{background:'rgba(59,130,246,0.9)',borderRadius:6,padding:'3px 6px',fontSize:8,color:'white',textAlign:'center',fontWeight:700}}>
+                    📍 Walk to end → tap STOP
                   </div>}
-                  <div style={{background:'rgba(15,10,30,0.85)',borderRadius:8,padding:'4px 8px',fontSize:9,color:'#93c5fd',textAlign:'center'}}>
-                    {allTreeTrims.length} trim{allTreeTrims.length !== 1 ? 's' : ''} • {allTreeTrims.reduce(function(sum,t){return sum+t.footage;},0)} ft
-                  </div>
                 </div>
                 {/* Legend */}
                 <div style={{position:'absolute',bottom:16,left:16,zIndex:1000,background:'rgba(15,10,30,0.9)',borderRadius:10,padding:'10px 14px',border:'1px solid rgba(139,92,246,0.3)',fontSize:12}}>
@@ -4629,185 +4660,143 @@
             {/* ─── CREW TAB ─── */}
             {tab === 'crew' && (
               <div style={{padding:16}}>
-                <div style={{background:'linear-gradient(135deg,rgba(99,102,241,0.15),rgba(139,92,246,0.1))',borderRadius:14,padding:16,marginBottom:16,border:'1px solid rgba(139,92,246,0.2)'}}>
-                  <div style={{fontSize:16,fontWeight:800,color:'white',marginBottom:4}}>👥 Fiber Crew</div>
-                  <div style={{fontSize:12,color:'#94a3b8'}}>
-                    {(function() {
-                      var workers = {};
-                      // From as-built work
-                      Object.values(asBuiltData).forEach(function(pole) {
-                        Object.values(pole.entries || {}).forEach(function(entry) {
-                          if (!workers[entry.userId]) workers[entry.userId] = {
-                            name: entry.userName || 'Unknown',
-                            photo: entry.userPhoto || null,
-                            poles: new Set(),
-                            codes: {},
-                            lastActive: null,
-                            enrouteTo: null
-                          };
-                          workers[entry.userId].poles.add(pole.siteId || pole.siteName);
-                          Object.keys(entry.codes || {}).forEach(function(code) {
-                            workers[entry.userId].codes[code] = (workers[entry.userId].codes[code] || 0) + entry.codes[code];
-                          });
-                          var ts = entry.timestamp;
-                          if (ts) {
-                            var d = ts.toDate ? ts.toDate() : new Date(ts);
-                            if (!workers[entry.userId].lastActive || d > workers[entry.userId].lastActive) {
-                              workers[entry.userId].lastActive = d;
-                            }
-                          }
-                        });
-                      });
-                      // From en-route claims
-                      Object.keys(fiberEnroutes).forEach(function(poleId) {
-                        var claim = fiberEnroutes[poleId];
-                        if (claim && claim.userId) {
-                          if (!workers[claim.userId]) workers[claim.userId] = {
-                            name: claim.userName || 'Unknown',
-                            photo: claim.userPhoto || null,
-                            poles: new Set(),
-                            codes: {},
-                            lastActive: new Date(),
-                            enrouteTo: null
-                          };
-                          workers[claim.userId].enrouteTo = poleId;
-                          workers[claim.userId].lastActive = new Date();
-                          var poleName = (allFiberSites.find(function(s){return s.id===poleId;}) || {}).siteName || poleId;
-                          workers[claim.userId].enrouteTo = poleName;
-                        }
-                      });
-                      // Current user always shows
-                      if (!workers[user.uid]) workers[user.uid] = {
-                        name: user.displayName || user.email.split('@')[0],
-                        photo: avatarURL || user.photoURL || null,
-                        poles: new Set(),
-                        codes: {},
-                        lastActive: new Date(),
-                        enrouteTo: null
-                      };
-                      var count = Object.keys(workers).length;
-                      var activeCount = Object.values(workers).filter(function(w) { return w.lastActive && (Date.now() - w.lastActive.getTime()) < 24*60*60*1000; }).length;
-                      return count + ' member' + (count !== 1 ? 's' : '') + ' · ' + activeCount + ' active today';
-                    })()}
-                  </div>
-                </div>
-
                 {(function() {
-                  var workers = {};
+                  // Build crew list from PRESENCE first (shows everyone who opened fiber mode)
+                  var crew = {};
+                  Object.keys(fiberPresence).forEach(function(uid) {
+                    var p = fiberPresence[uid];
+                    var lastSeen = p.lastSeen ? (p.lastSeen.toDate ? p.lastSeen.toDate() : new Date(p.lastSeen)) : null;
+                    crew[uid] = {
+                      name: p.userName || p.userEmail || 'Unknown',
+                      photo: p.userPhoto || null,
+                      email: p.userEmail || '',
+                      lastSeen: lastSeen,
+                      poles: new Set(),
+                      codeCount: 0,
+                      enrouteTo: null,
+                      recentWork: []
+                    };
+                  });
+                  // Always include current user
+                  if (!crew[user.uid]) {
+                    crew[user.uid] = {
+                      name: user.displayName || user.email.split('@')[0],
+                      photo: avatarURL || user.photoURL || null,
+                      email: user.email,
+                      lastSeen: new Date(),
+                      poles: new Set(),
+                      codeCount: 0,
+                      enrouteTo: null,
+                      recentWork: []
+                    };
+                  }
+                  // Enrich with as-built work data
                   Object.values(asBuiltData).forEach(function(pole) {
                     Object.values(pole.entries || {}).forEach(function(entry) {
-                      if (!workers[entry.userId]) workers[entry.userId] = {
-                        name: entry.userName || 'Unknown',
-                        photo: entry.userPhoto || null,
-                        poles: new Set(),
-                        codeCount: 0,
-                        lastActive: null,
-                        enrouteTo: null,
-                        recentWork: []
-                      };
-                      workers[entry.userId].poles.add(pole.siteId || pole.siteName);
-                      workers[entry.userId].codeCount += Object.keys(entry.codes || {}).length;
+                      var uid2 = entry.userId;
+                      if (!crew[uid2]) {
+                        crew[uid2] = { name: entry.userName || 'Unknown', photo: entry.userPhoto || null, email: '', lastSeen: null, poles: new Set(), codeCount: 0, enrouteTo: null, recentWork: [] };
+                      }
+                      crew[uid2].poles.add(pole.siteId || pole.siteName);
+                      crew[uid2].codeCount += Object.keys(entry.codes || {}).length;
                       var ts = entry.timestamp;
                       var d = ts ? (ts.toDate ? ts.toDate() : new Date(ts)) : null;
-                      if (d && (!workers[entry.userId].lastActive || d > workers[entry.userId].lastActive)) {
-                        workers[entry.userId].lastActive = d;
-                      }
-                      var poleName2 = (allFiberSites.find(function(s){return s.id===(pole.siteId||pole.siteName);}) || {}).siteName || pole.siteId || pole.siteName;
-                      var codeStr2 = Object.keys(entry.codes || {}).map(function(c){return c+'×'+entry.codes[c];}).join(', ');
-                      workers[entry.userId].recentWork.push({ pole: poleName2, codes: codeStr2, time: d });
+                      if (d && (!crew[uid2].lastSeen || d > crew[uid2].lastSeen)) crew[uid2].lastSeen = d;
+                      var poleName = (allFiberSites.find(function(s){ return s.id === (pole.siteId || pole.siteName); }) || {}).name || pole.siteId || pole.siteName;
+                      var codeStr = Object.keys(entry.codes || {}).map(function(c){ return c + '×' + entry.codes[c]; }).join(', ');
+                      crew[uid2].recentWork.push({ pole: poleName, codes: codeStr, time: d });
                     });
                   });
+                  // Enrich with en-route claims
                   Object.keys(fiberEnroutes).forEach(function(poleId) {
                     var claim = fiberEnroutes[poleId];
                     if (claim && claim.userId) {
-                      if (!workers[claim.userId]) workers[claim.userId] = {
-                        name: claim.userName || 'Unknown',
-                        photo: claim.userPhoto || null,
-                        poles: new Set(),
-                        codeCount: 0,
-                        lastActive: new Date(),
-                        enrouteTo: null,
-                        recentWork: []
-                      };
-                      var poleName3 = (allFiberSites.find(function(s){return s.id===poleId;}) || {}).siteName || poleId;
-                      workers[claim.userId].enrouteTo = poleName3;
-                      workers[claim.userId].lastActive = new Date();
+                      if (!crew[claim.userId]) {
+                        crew[claim.userId] = { name: claim.userName || 'Unknown', photo: claim.userPhoto || null, email: '', lastSeen: new Date(), poles: new Set(), codeCount: 0, enrouteTo: null, recentWork: [] };
+                      }
+                      var poleName2 = (allFiberSites.find(function(s){ return s.id === poleId; }) || {}).name || poleId;
+                      crew[claim.userId].enrouteTo = poleName2;
+                      crew[claim.userId].lastSeen = new Date();
                     }
                   });
-                  if (!workers[user.uid]) workers[user.uid] = {
-                    name: user.displayName || user.email.split('@')[0],
-                    photo: avatarURL || user.photoURL || null,
-                    poles: new Set(),
-                    codeCount: 0,
-                    lastActive: new Date(),
-                    enrouteTo: null,
-                    recentWork: []
-                  };
 
-                  var sorted = Object.keys(workers).sort(function(a,b) {
+                  var crewIds = Object.keys(crew);
+                  var onlineCount = crewIds.filter(function(uid3) { var c = crew[uid3]; return c.lastSeen && (Date.now() - c.lastSeen.getTime()) < 10 * 60 * 1000; }).length;
+                  var activeToday = crewIds.filter(function(uid3) { var c = crew[uid3]; return c.lastSeen && (Date.now() - c.lastSeen.getTime()) < 24 * 60 * 60 * 1000; }).length;
+
+                  // Sort: current user first, then online, then by recent activity
+                  crewIds.sort(function(a, b) {
                     if (a === user.uid) return -1;
                     if (b === user.uid) return 1;
-                    return (workers[b].poles.size) - (workers[a].poles.size);
+                    var aOnline = crew[a].lastSeen && (Date.now() - crew[a].lastSeen.getTime()) < 10 * 60 * 1000;
+                    var bOnline = crew[b].lastSeen && (Date.now() - crew[b].lastSeen.getTime()) < 10 * 60 * 1000;
+                    if (aOnline && !bOnline) return -1;
+                    if (!aOnline && bOnline) return 1;
+                    return ((crew[b].lastSeen || 0) - (crew[a].lastSeen || 0));
                   });
 
-                  return sorted.map(function(uid) {
-                    var w = workers[uid];
-                    var isMe = uid === user.uid;
-                    var isActiveToday = w.lastActive && (Date.now() - w.lastActive.getTime()) < 24*60*60*1000;
-                    var recentSorted = w.recentWork.sort(function(a,b) {
+                  return [
+                    <div key="header" style={{background:'linear-gradient(135deg,rgba(99,102,241,0.15),rgba(139,92,246,0.1))',borderRadius:14,padding:16,marginBottom:16,border:'1px solid rgba(139,92,246,0.2)'}}>
+                      <div style={{fontSize:16,fontWeight:800,color:'white',marginBottom:4}}>👥 Fiber Crew</div>
+                      <div style={{fontSize:12,color:'#94a3b8'}}>
+                        {crewIds.length + ' member' + (crewIds.length !== 1 ? 's' : '') + ' · '}
+                        <span style={{color:'#22c55e',fontWeight:700}}>{onlineCount + ' online'}</span>
+                        {' · ' + activeToday + ' active today'}
+                      </div>
+                    </div>
+                  ].concat(crewIds.map(function(uid4) {
+                    var c = crew[uid4];
+                    var isMe = uid4 === user.uid;
+                    var isOnline = c.lastSeen && (Date.now() - c.lastSeen.getTime()) < 10 * 60 * 1000;
+                    var isActive = c.lastSeen && (Date.now() - c.lastSeen.getTime()) < 24 * 60 * 60 * 1000;
+                    var recentSorted = c.recentWork.sort(function(a, b) {
                       if (!a.time && !b.time) return 0;
                       if (!a.time) return 1;
                       if (!b.time) return -1;
                       return b.time.getTime() - a.time.getTime();
-                    }).slice(0, 8);
+                    }).slice(0, 5);
 
                     return (
-                      <div key={uid} style={{
-                        background:'rgba(30,20,60,0.5)',borderRadius:14,padding:16,marginBottom:12,
-                        border:'2px solid ' + (isMe ? 'rgba(34,197,94,0.4)' : isActiveToday ? 'rgba(59,130,246,0.3)' : 'rgba(100,100,120,0.15)'),
-                        borderLeft:'4px solid ' + (isMe ? '#22c55e' : isActiveToday ? '#3b82f6' : '#475569')
+                      <div key={uid4} style={{
+                        background:'rgba(30,20,60,0.5)',borderRadius:14,padding:14,marginBottom:10,
+                        border:'2px solid ' + (isMe ? 'rgba(34,197,94,0.4)' : isOnline ? 'rgba(59,130,246,0.4)' : 'rgba(100,100,120,0.1)'),
+                        borderLeft:'4px solid ' + (isMe ? '#22c55e' : isOnline ? '#3b82f6' : '#475569')
                       }}>
-                        <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:w.enrouteTo || recentSorted.length > 0 ? 12 : 0}}>
-                          <div style={{position:'relative'}}>
-                            {w.photo ? (
-                              <img src={w.photo} style={{width:48,height:48,borderRadius:'50%',objectFit:'cover',border:'3px solid ' + (isMe ? '#22c55e' : isActiveToday ? '#3b82f6' : '#475569')}} referrerPolicy="no-referrer" />
+                        <div style={{display:'flex',alignItems:'center',gap:10}}>
+                          <div style={{position:'relative',flexShrink:0}}>
+                            {c.photo ? (
+                              <img src={c.photo} style={{width:44,height:44,borderRadius:'50%',objectFit:'cover',border:'3px solid ' + (isMe ? '#22c55e' : isOnline ? '#3b82f6' : '#475569')}} referrerPolicy="no-referrer" />
                             ) : (
-                              <div style={{width:48,height:48,borderRadius:'50%',background:isMe?'#166534':'#1e3a5f',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:20,color:'white',border:'3px solid ' + (isMe ? '#22c55e' : '#3b82f6')}}>{(w.name||'?')[0].toUpperCase()}</div>
+                              <div style={{width:44,height:44,borderRadius:'50%',background:isMe?'#166534':'#1e3a5f',display:'flex',alignItems:'center',justifyContent:'center',fontWeight:700,fontSize:18,color:'white',border:'3px solid ' + (isMe ? '#22c55e' : '#3b82f6')}}>{(c.name||'?')[0].toUpperCase()}</div>
                             )}
-                            {isActiveToday && (
-                              <div style={{position:'absolute',bottom:-1,right:-1,width:14,height:14,borderRadius:'50%',background:'#22c55e',border:'2px solid #0e0b1c'}}></div>
-                            )}
+                            <div style={{position:'absolute',bottom:-1,right:-1,width:13,height:13,borderRadius:'50%',background:isOnline?'#22c55e':isActive?'#f59e0b':'#475569',border:'2px solid #0e0b1c'}}></div>
                           </div>
-                          <div style={{flex:1}}>
-                            <div style={{fontWeight:800,color:'white',fontSize:16}}>{w.name}{isMe ? ' (You)' : ''}</div>
-                            <div style={{fontSize:12,color:'#94a3b8'}}>
-                              {w.poles.size > 0 ? w.poles.size + ' pole' + (w.poles.size !== 1 ? 's' : '') + ' worked · ' + w.codeCount + ' items logged' : 'No work logged yet'}
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontWeight:800,color:'white',fontSize:15}}>{c.name}{isMe ? ' (You)' : ''}</div>
+                            <div style={{fontSize:11,color:'#94a3b8'}}>
+                              {isOnline ? '🟢 Online now' : isActive ? '🟡 Active today' : '⚪ Offline'}
+                              {c.poles.size > 0 ? ' · ' + c.poles.size + ' pole' + (c.poles.size !== 1 ? 's' : '') : ''}
                             </div>
-                            {w.lastActive && (
-                              <div style={{fontSize:10,color:'#64748b',marginTop:2}}>
-                                Last active: {w.lastActive.toLocaleDateString()} {w.lastActive.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
-                              </div>
-                            )}
                           </div>
                         </div>
 
-                        {w.enrouteTo && (
-                          <div style={{background:isMe?'rgba(245,158,11,0.15)':'rgba(59,130,246,0.12)',borderRadius:10,padding:'8px 12px',marginBottom:recentSorted.length > 0 ? 10 : 0,display:'flex',alignItems:'center',gap:8,border:'1px solid ' + (isMe ? 'rgba(245,158,11,0.3)' : 'rgba(59,130,246,0.2)')}}>
+                        {c.enrouteTo && (
+                          <div style={{background:isMe?'rgba(245,158,11,0.15)':'rgba(59,130,246,0.12)',borderRadius:10,padding:'6px 10px',marginTop:8,display:'flex',alignItems:'center',gap:6,border:'1px solid ' + (isMe ? 'rgba(245,158,11,0.3)' : 'rgba(59,130,246,0.2)')}}>
                             <span>🚗</span>
-                            <span style={{fontSize:13,color:isMe?'#fbbf24':'#93c5fd',fontWeight:600}}>En-route to <span style={{fontWeight:800}}>{w.enrouteTo}</span></span>
+                            <span style={{fontSize:12,color:isMe?'#fbbf24':'#93c5fd',fontWeight:600}}>En-route to {c.enrouteTo}</span>
                           </div>
                         )}
 
                         {recentSorted.length > 0 && (
-                          <div style={{display:'flex',flexDirection:'column',gap:4}}>
+                          <div style={{marginTop:8,display:'flex',flexDirection:'column',gap:3}}>
                             {recentSorted.map(function(work, idx) {
                               return (
-                                <div key={idx} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 10px',borderRadius:8,background:'rgba(14,11,28,0.6)',fontSize:12}}>
-                                  <div>
+                                <div key={idx} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'4px 8px',borderRadius:6,background:'rgba(14,11,28,0.6)',fontSize:11}}>
+                                  <div style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flex:1}}>
                                     <span style={{color:'#c4b5fd',fontWeight:600}}>⚡ {work.pole}</span>
-                                    {work.codes && <span style={{color:'#64748b',marginLeft:6}}>{work.codes}</span>}
+                                    {work.codes && <span style={{color:'#64748b',marginLeft:4}}>{work.codes}</span>}
                                   </div>
-                                  {work.time && <span style={{color:'#475569',fontSize:10}}>{work.time.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>}
+                                  {work.time && <span style={{color:'#475569',fontSize:10,marginLeft:4,flexShrink:0}}>{work.time.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</span>}
                                 </div>
                               );
                             })}
@@ -4815,7 +4804,7 @@
                         )}
                       </div>
                     );
-                  });
+                  }));
                 })()}
               </div>
             )}
