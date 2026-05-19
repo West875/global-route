@@ -85,7 +85,142 @@
     firebase.initializeApp(firebaseConfig);
     const auth = firebase.auth();
     const db = firebase.firestore();
+    // Enable Firestore offline persistence
+    db.enablePersistence({ synchronizeTabs: true }).catch(function(err) {
+      console.log('Firestore persistence:', err.code);
+    });
     const googleProvider = new firebase.auth.GoogleAuthProvider();
+
+    // ── Offline Queue System ──
+    const OfflineQueue = {
+      STORAGE_KEY: 'gr_offline_queue',
+      _online: navigator.onLine,
+      _listeners: [],
+      _processing: false,
+
+      init: function() {
+        window.addEventListener('online', function() {
+          OfflineQueue._online = true;
+          OfflineQueue._notifyListeners();
+          OfflineQueue.processQueue();
+        });
+        window.addEventListener('offline', function() {
+          OfflineQueue._online = false;
+          OfflineQueue._notifyListeners();
+        });
+      },
+
+      isOnline: function() { return this._online; },
+
+      onStatusChange: function(fn) {
+        this._listeners.push(fn);
+        return function() {
+          OfflineQueue._listeners = OfflineQueue._listeners.filter(function(l) { return l !== fn; });
+        };
+      },
+
+      _notifyListeners: function() {
+        var online = this._online;
+        var count = this.getQueue().length;
+        this._listeners.forEach(function(fn) { fn(online, count); });
+      },
+
+      getQueue: function() {
+        try {
+          return JSON.parse(localStorage.getItem(this.STORAGE_KEY) || '[]');
+        } catch(e) { return []; }
+      },
+
+      enqueue: function(action) {
+        var queue = this.getQueue();
+        action.queuedAt = Date.now();
+        action.id = Date.now() + '_' + Math.random().toString(36).substr(2,6);
+        queue.push(action);
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(queue));
+        this._notifyListeners();
+        return action.id;
+      },
+
+      removeFromQueue: function(id) {
+        var queue = this.getQueue().filter(function(a) { return a.id !== id; });
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(queue));
+        this._notifyListeners();
+      },
+
+      processQueue: async function() {
+        if (this._processing || !this._online) return;
+        this._processing = true;
+        var queue = this.getQueue();
+        var processed = 0;
+        for (var i = 0; i < queue.length; i++) {
+          var action = queue[i];
+          try {
+            await OfflineQueue._executeAction(action);
+            this.removeFromQueue(action.id);
+            processed++;
+          } catch(e) {
+            console.error('Offline queue replay failed:', action.type, e);
+            // Keep in queue for next retry
+          }
+        }
+        this._processing = false;
+        if (processed > 0) this._notifyListeners();
+        return processed;
+      },
+
+      _executeAction: async function(action) {
+        switch(action.type) {
+          case 'fiber_work_log':
+            await db.collection('fiberAsBuilt').doc(action.poleId).set(action.data, { merge: true });
+            break;
+          case 'fiber_span_stage':
+            await db.collection('fiberSpanStages').doc(action.spanId).set(action.data);
+            break;
+          case 'fiber_equipment':
+            await db.collection('fiberEquipment').doc(action.poleId).set(action.data, { merge: true });
+            break;
+          case 'fiber_pin_correction':
+            await db.collection('fiberPinCorrections').doc(action.poleId).set(action.data);
+            break;
+          case 'fiber_pole_note':
+            await db.collection('fiberPoleNotes').doc(action.poleId).collection('messages').add(action.data);
+            break;
+          case 'fiber_enroute':
+            await db.collection('fiberEnroute').doc(action.poleId).set(action.data);
+            break;
+          case 'fiber_enroute_cancel':
+            await db.collection('fiberEnroute').doc(action.poleId).delete();
+            break;
+          case 'fiber_snowshoe_add':
+            await db.collection('fiberSnowshoes').add(action.data);
+            break;
+          case 'fiber_snowshoe_delete':
+            await db.collection('fiberSnowshoes').doc(action.docId).delete();
+            break;
+          case 'fiber_schedule_add':
+            await db.collection('fiberSchedule').add(action.data);
+            break;
+          case 'fiber_schedule_update':
+            await db.collection('fiberSchedule').doc(action.docId).update(action.data);
+            break;
+          case 'fiber_auto_bill':
+            await db.collection('fiberAsBuilt').doc(action.poleId).set(action.data, { merge: true });
+            break;
+          case 'site_completion':
+            await db.collection('sharedRoutes').doc('builtin').collection('completions').doc(action.siteId).set(action.data);
+            break;
+          case 'site_note':
+            await db.collection('siteNotes').doc(action.docPath).collection('messages').add(action.data);
+            break;
+          case 'site_enroute':
+            await db.collection('sharedRoutes').doc('builtin').collection('enroute').doc(action.siteId).set(action.data);
+            break;
+          default:
+            console.warn('Unknown offline action type:', action.type);
+        }
+      }
+    };
+    OfflineQueue.init();
   </script>
 
   <script type="text/babel">
@@ -2177,7 +2312,15 @@
           setSaved(true);
           if (navigator.vibrate) navigator.vibrate(100);
           setTimeout(function() { setShowLogForm(false); setFormQty({}); setFormNotes(''); setSaved(false); setSelectedPole(null); }, 800);
-        } catch(e) { alert('Save failed: ' + e.message); }
+        } catch(e) {
+          if (!navigator.onLine) {
+            setSaved(true);
+            if (navigator.vibrate) navigator.vibrate(100);
+            setTimeout(function() { setShowLogForm(false); setFormQty({}); setFormNotes(''); setSaved(false); setSelectedPole(null); }, 800);
+          } else {
+            alert('Save failed: ' + e.message);
+          }
+        }
         setSaving(false);
       }
 
@@ -2258,7 +2401,7 @@
           });
           if (navigator.vibrate) navigator.vibrate(30);
         } catch(e) {
-          alert('Photo upload failed: ' + e.message);
+          if (navigator.onLine) alert('Photo upload failed: ' + e.message);
         }
         setUploadingPhoto(false);
       }
@@ -2413,7 +2556,7 @@
             }));
           }
           setEditSchedule(null);
-        } catch(e) { alert('Save failed: ' + e.message); }
+        } catch(e) { if (navigator.onLine) alert('Save failed: ' + e.message); }
       }
 
       async function deleteScheduleEntry(id) {
@@ -3958,6 +4101,24 @@
       const [idPhotoURL, setIdPhotoURL] = useState(null);
       const [profileChecked, setProfileChecked] = useState(false);
 
+      // Offline status
+      const [isOnline, setIsOnline] = useState(navigator.onLine);
+      const [offlineQueueCount, setOfflineQueueCount] = useState(0);
+      const [showBackOnline, setShowBackOnline] = useState(false);
+      const wasOfflineRef = useRef(false);
+
+      useEffect(function() {
+        return OfflineQueue.onStatusChange(function(online, count) {
+          if (online && wasOfflineRef.current) {
+            setShowBackOnline(true);
+            setTimeout(function() { setShowBackOnline(false); }, 3000);
+          }
+          wasOfflineRef.current = !online;
+          setIsOnline(online);
+          setOfflineQueueCount(count);
+        });
+      }, []);
+
       useEffect(function() {
         const unsub = auth.onAuthStateChanged(async function(u) {
           setUser(u);
@@ -4937,6 +5098,18 @@
             <p className="text-xs opacity-80 text-center">
               {allSites.length} sites total • {teamCompletedCount} completed by team • Nearest-First Routing
             </p>
+            {!isOnline && (
+              <div className="bg-amber-600 text-white text-center py-1 px-3 text-xs font-bold flex items-center justify-center gap-2 rounded-b-lg animate-pulse">
+                <span>📡 OFFLINE</span>
+                {offlineQueueCount > 0 && <span className="bg-white/20 px-2 py-0.5 rounded-full">{offlineQueueCount} action{offlineQueueCount !== 1 ? 's' : ''} queued</span>}
+                <span>• Auto-syncs when online</span>
+              </div>
+            )}
+            {showBackOnline && (
+              <div className="bg-green-600 text-white text-center py-1 px-3 text-xs font-bold flex items-center justify-center gap-2 rounded-b-lg" style={{animation: 'fadeIn 0.3s ease-out'}}>
+                ✅ Back Online — Syncing...
+              </div>
+            )}
           </div>
 
           {/* Toolbar */}
