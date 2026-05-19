@@ -1,4 +1,10 @@
 <!DOCTYPE html>
+<!-- 
+  Global Route™ — © 2026 Global West Group LLC. All rights reserved.
+  This software is proprietary and confidential. Unauthorized copying,
+  modification, distribution, or use of this software is strictly prohibited.
+  See Terms of Service: https://west875.github.io/global-route/terms.html
+-->
 <html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
@@ -160,6 +166,7 @@
       user: null, isAdmin: false, authLoading: true,
       tab: 'dashboard', q: '', expandedId: null,
       users: [], completions: [], sites: [], notes: {}, kmzFiles: [],
+      fiberAsBuilt: [], fiberEnroute: [], fiberRoutes: [], fiberTreeTrims: [],
       editingSite: null, showAddSite: false,
       dataReady: false
     };
@@ -266,6 +273,35 @@
         snap.forEach(function(d) { arr.push(Object.assign({id:d.id}, d.data())); });
         set({kmzFiles: arr});
       }, function(e) { logErr('kmz', e); });
+
+
+      // Fiber As-Built
+      db.collection('fiberAsBuilt').onSnapshot(function(snap) {
+        var arr = [];
+        snap.forEach(function(d) { arr.push(Object.assign({id: d.id}, d.data())); });
+        set({fiberAsBuilt: arr});
+      }, function(e) { logErr('fiberAsBuilt', e); });
+
+      // Fiber En-Route
+      db.collection('fiberEnroute').onSnapshot(function(snap) {
+        var arr = [];
+        snap.forEach(function(d) { arr.push(Object.assign({id: d.id}, d.data())); });
+        set({fiberEnroute: arr});
+      }, function(e) { logErr('fiberEnroute', e); });
+
+      // Fiber Routes
+      db.collection('fiberRoutes').onSnapshot(function(snap) {
+        var arr = [];
+        snap.forEach(function(d) { arr.push(Object.assign({id: d.id}, d.data())); });
+        set({fiberRoutes: arr});
+      }, function(e) { logErr('fiberRoutes', e); });
+
+      // Fiber Tree Trims
+      db.collection('fiberTreeTrims').onSnapshot(function(snap) {
+        var arr = [];
+        snap.forEach(function(d) { arr.push(Object.assign({id: d.id}, d.data())); });
+        set({fiberTreeTrims: arr});
+      }, function(e) { logErr('fiberTreeTrims', e); });
 
       // Notes — batch all 29 listeners, single setState after all first loads
       var notesBySite = {};
@@ -417,6 +453,7 @@
       {id:'sites',icon:'📍',label:'Sites'},
       {id:'notes',icon:'📝',label:'Notes'},
       {id:'kmz',icon:'📁',label:'KMZ'},
+      {id:'fiber',icon:'⚡',label:'Fiber'},
       {id:'roles',icon:'🔒',label:'Roles'}
     ];
 
@@ -452,6 +489,7 @@
         case 'sites': content = rSites(); break;
         case 'notes': content = rNotes(); break;
         case 'kmz': content = rKmz(); break;
+        case 'fiber': content = rFiber(); break;
         case 'roles': content = rRoles(); break;
       }
 
@@ -482,6 +520,8 @@
       h += sBox('📝','Notes',tn,'#3abff8');
       h += sBox('🔥','Today',todayC,'#f87272');
       h += sBox('📈','Done',pct+'%','#a78bfa');
+      h += sBox('⚡','Fiber Poles',S.fiberAsBuilt.length,'#f59e0b');
+      h += sBox('🌳','Tree Trims',S.fiberTreeTrims.length,'#22c55e');
       h += '</div>';
 
       // Recent
@@ -835,6 +875,236 @@
         h += '</div></div>';
       });
       return h;
+    }
+
+
+    // ── FIBER PRODUCTION ──
+    function rFiber() {
+      var ab = S.fiberAsBuilt;
+      var routes = S.fiberRoutes;
+      var trims = S.fiberTreeTrims;
+      var enroute = S.fiberEnroute;
+
+      // Crew stats
+      var crewStats = {};
+      ab.forEach(function(entry) {
+        var uid = entry.userId || entry.completedBy || 'unknown';
+        var name = entry.userName || entry.completedByName || 'Unknown';
+        var photo = entry.userPhoto || entry.completedByPhoto || '';
+        if (!crewStats[uid]) crewStats[uid] = {name: name, photo: photo, poles: 0, entries: []};
+        crewStats[uid].poles++;
+        crewStats[uid].entries.push(entry);
+      });
+      var crewArr = Object.keys(crewStats).map(function(uid) {
+        return {uid: uid, name: crewStats[uid].name, photo: crewStats[uid].photo, poles: crewStats[uid].poles, entries: crewStats[uid].entries};
+      }).sort(function(a,b) { return b.poles - a.poles; });
+
+      // Route stats
+      var routeStats = {};
+      ab.forEach(function(entry) {
+        var rk = entry.routeKey || entry.routeName || 'OLT-57';
+        if (!routeStats[rk]) routeStats[rk] = {name: rk, completed: 0, entries: []};
+        routeStats[rk].completed++;
+        routeStats[rk].entries.push(entry);
+      });
+
+      // Total trim footage
+      var totalTrimFt = 0;
+      trims.forEach(function(t) { totalTrimFt += (t.footage || t.distance || 0); });
+
+      // Equipment counts from as-built entries
+      var eqCounts = {anchors: 0, downGuys: 0, snowshoes: 0};
+      ab.forEach(function(entry) {
+        if (entry.billingCodes) {
+          (entry.billingCodes || []).forEach(function(bc) {
+            if (bc.code === 'AE5') eqCounts.anchors += (bc.qty || 1);
+            if (bc.code === 'AE4') eqCounts.downGuys += (bc.qty || 1);
+            if (bc.code === 'AE6') eqCounts.snowshoes += (bc.qty || 1);
+          });
+        }
+      });
+
+      var h = '<h2 style="font-size:1.3rem;font-weight:bold;margin-bottom:16px;">⚡ Fiber Production</h2>';
+
+      // Stats row
+      h += '<div class="stats-grid">';
+      h += sBox('⚡','Poles Logged', ab.length, '#f59e0b');
+      h += sBox('📂','Routes', routes.length + 1, '#3abff8');
+      h += sBox('👷','Crew Active', crewArr.length, '#570df8');
+      h += sBox('🌳','Tree Trims', trims.length, '#22c55e');
+      h += sBox('📏','Trim Footage', Math.round(totalTrimFt) + ' ft', '#f000b8');
+      h += sBox('🚗','En-Route', enroute.length, '#f59e0b');
+      h += sBox('⚓','Anchors', eqCounts.anchors, '#eab308');
+      h += sBox('📎','Down Guys', eqCounts.downGuys, '#3b82f6');
+      h += '</div>';
+
+      // ── CREW PRODUCTION ──
+      h += '<div class="stat-box" style="margin-bottom:14px;">';
+      h += '<h3 style="font-weight:bold;margin-bottom:12px;">👷 Crew Production</h3>';
+      if (crewArr.length === 0) {
+        h += '<p style="color:#a6adbb;">No fiber work logged yet.</p>';
+      } else {
+        var medals = ['🥇','🥈','🥉','🏅','🏅','🏅','🏅','🏅'];
+        h += '<div class="perf-row">';
+        crewArr.forEach(function(c, i) {
+          h += '<div class="perf-card">' + (medals[i] || '🏅');
+          if (c.photo) {
+            h += '<div style="margin:6px 0;"><img src="' + c.photo + '" class="av av-sm" /></div>';
+          } else {
+            var ci = _avColors[c.name.length % _avColors.length];
+            h += '<div style="margin:6px 0;"><div class="av-init" style="width:34px;height:34px;background:'+ci+';font-size:13px;margin:0 auto;">'+initials(c.name)+'</div></div>';
+          }
+          h += '<div style="font-weight:500;font-size:0.8rem;">' + c.name + '</div>';
+          h += '<div style="font-size:1.2rem;font-weight:bold;color:#f59e0b;">' + c.poles + '</div>';
+          h += '<div style="font-size:0.68rem;color:#a6adbb;">poles</div></div>';
+        });
+        h += '</div>';
+
+        // Detailed crew cards
+        crewArr.forEach(function(c) {
+          var ex = S.expandedId === 'fc_' + c.uid;
+          h += '<div class="card-item amber" onclick="toggle(\'fc_' + c.uid + '\')">';
+          h += '<div style="display:flex;align-items:center;gap:10px;">';
+          if (c.photo) {
+            h += '<img src="' + c.photo + '" class="av av-sm" />';
+          } else {
+            var ci = _avColors[c.name.length % _avColors.length];
+            h += '<div class="av-init" style="width:34px;height:34px;background:'+ci+';font-size:13px;">'+initials(c.name)+'</div>';
+          }
+          h += '<div style="flex:1;min-width:0;"><div style="font-weight:600;">' + c.name + '</div>';
+          h += '<div style="font-size:0.78rem;color:#a6adbb;">' + c.poles + ' poles logged</div></div>';
+          h += '<span class="arrow' + (ex ? ' open' : '') + '">▼</span></div>';
+
+          h += '<div class="detail-panel' + (ex ? ' open' : '') + '">';
+          if (ex) {
+            h += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #2a323c;" onclick="event.stopPropagation()">';
+            var sorted = c.entries.slice().sort(function(a,b) {
+              var ta = a.timestamp?(a.timestamp.toDate?a.timestamp.toDate().getTime():+new Date(a.timestamp)):0;
+              var tb = b.timestamp?(b.timestamp.toDate?b.timestamp.toDate().getTime():+new Date(b.timestamp)):0;
+              return tb - ta;
+            });
+            sorted.slice(0, 15).forEach(function(e) {
+              h += '<div style="display:flex;justify-content:space-between;padding:5px 8px;background:#1d232a;border-radius:6px;margin-bottom:3px;font-size:0.82rem;">';
+              h += '<span>📍 ' + (e.poleId || e.poleName || e.id || '?') + '</span>';
+              h += '<span style="color:#a6adbb;font-size:0.72rem;">' + fmtTime(e.timestamp || e.createdAt) + '</span></div>';
+            });
+            if (sorted.length > 15) h += '<div style="text-align:center;color:#a6adbb;font-size:0.78rem;padding:6px;">... and ' + (sorted.length - 15) + ' more</div>';
+            h += '</div>';
+          }
+          h += '</div></div>';
+        });
+      }
+      h += '</div>';
+
+      // ── ROUTES ──
+      h += '<div class="stat-box" style="margin-bottom:14px;">';
+      h += '<h3 style="font-weight:bold;margin-bottom:12px;">📂 Fiber Routes</h3>';
+      h += '<div class="card-item blue">';
+      h += '<div style="display:flex;align-items:center;gap:10px;">';
+      h += '<div style="font-size:1.3rem;">📡</div>';
+      h += '<div style="flex:1;"><div style="font-weight:600;">OLT-57 (Built-in)</div>';
+      h += '<div style="font-size:0.78rem;color:#a6adbb;">Blacksburg, VA — GigaBeam/DTI</div></div>';
+      h += '<div style="text-align:right;"><div style="font-weight:bold;color:#3abff8;">58 pts</div></div></div></div>';
+
+      routes.forEach(function(r, i) {
+        var ex = S.expandedId === 'fr_' + i;
+        h += '<div class="card-item blue" onclick="toggle(\'fr_' + i + '\')">';
+        h += '<div style="display:flex;align-items:center;gap:10px;">';
+        h += '<div style="font-size:1.3rem;">📂</div>';
+        h += '<div style="flex:1;min-width:0;"><div style="font-weight:600;">' + (r.name || r.routeName || 'Unnamed Route') + '</div>';
+        h += '<div style="font-size:0.78rem;color:#a6adbb;">Imported ' + fmtDate(r.createdAt || r.uploadedAt) + '</div></div>';
+        h += '<div style="text-align:right;"><div style="font-weight:bold;color:#3abff8;">' + (r.pointCount || (r.points ? r.points.length : '?')) + ' pts</div></div>';
+        h += '<span class="arrow' + (ex ? ' open' : '') + '">▼</span></div>';
+
+        h += '<div class="detail-panel' + (ex ? ' open' : '') + '">';
+        if (ex) {
+          h += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #2a323c;" onclick="event.stopPropagation()">';
+          h += '<div class="detail-grid">';
+          h += '<div class="detail-cell"><div class="label">Route ID</div><div class="value" style="font-size:0.8rem;word-break:break-all;">' + r.id + '</div></div>';
+          h += '<div class="detail-cell"><div class="label">Created</div><div class="value">' + fmtDate(r.createdAt || r.uploadedAt) + '</div></div>';
+          if (r.createdBy || r.userName) h += '<div class="detail-cell span2"><div class="label">Created By</div><div class="value">' + (r.userName || r.createdBy || '—') + '</div></div>';
+          h += '</div>';
+          h += '<button class="btn btn-sm btn-del" onclick="deleteFiberRoute(\''+r.id+'\',' + "'"+((r.name||r.routeName||'').replace(/'/g,"\\'"))+"'" + ')">🗑️ Delete Route</button>';
+          h += '</div>';
+        }
+        h += '</div></div>';
+      });
+      if (routes.length === 0) h += '<p style="color:#a6adbb;font-size:0.85rem;">No imported routes. OLT-57 is built-in.</p>';
+      h += '</div>';
+
+      // ── TREE TRIMS ──
+      h += '<div class="stat-box" style="margin-bottom:14px;">';
+      h += '<h3 style="font-weight:bold;margin-bottom:12px;">🌳 Tree Trims (' + trims.length + ')</h3>';
+      if (trims.length === 0) {
+        h += '<p style="color:#a6adbb;">No tree trims recorded yet.</p>';
+      } else {
+        var sortedTrims = trims.slice().sort(function(a,b) {
+          var ta = a.timestamp?(a.timestamp.toDate?a.timestamp.toDate().getTime():+new Date(a.timestamp)):0;
+          var tb = b.timestamp?(b.timestamp.toDate?b.timestamp.toDate().getTime():+new Date(b.timestamp)):0;
+          return tb - ta;
+        });
+        sortedTrims.slice(0, 20).forEach(function(t) {
+          var u = S.users.find(function(x){return x.id===t.userId;});
+          var name = u?(u.displayName||u.email):(t.userName||'Unknown');
+          var ft = Math.round(t.footage || t.distance || 0);
+          h += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #2a323c;">';
+          h += photoOrAv(t.userPhoto, u, 'sm');
+          h += '<div style="flex:1;min-width:0;"><div style="font-weight:500;font-size:0.9rem;">' + name + '</div>';
+          h += '<div style="font-size:0.78rem;color:#a6adbb;">📍 ' + (t.nearestPole || t.poleId || '—') + '</div></div>';
+          h += '<div style="text-align:right;"><div style="font-weight:bold;color:#22c55e;">' + ft + ' ft</div>';
+          h += '<div style="font-size:0.72rem;color:#a6adbb;">' + fmtTime(t.timestamp || t.createdAt) + '</div></div></div>';
+        });
+        if (trims.length > 20) h += '<div style="text-align:center;color:#a6adbb;font-size:0.78rem;padding:8px;">... and ' + (trims.length - 20) + ' more</div>';
+      }
+      h += '</div>';
+
+      // ── EN-ROUTE ──
+      h += '<div class="stat-box" style="margin-bottom:14px;">';
+      h += '<h3 style="font-weight:bold;margin-bottom:12px;">🚗 Currently En-Route (' + enroute.length + ')</h3>';
+      if (enroute.length === 0) {
+        h += '<p style="color:#a6adbb;">No one currently en-route to a fiber pole.</p>';
+      } else {
+        enroute.forEach(function(er) {
+          var u = S.users.find(function(x){return x.id===er.userId;});
+          var name = u?(u.displayName||u.email):(er.userName||'Unknown');
+          h += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #2a323c;">';
+          h += photoOrAv(er.userPhoto, u, 'sm');
+          h += '<div style="flex:1;min-width:0;"><div style="font-weight:500;font-size:0.9rem;">' + name + '</div>';
+          h += '<div style="font-size:0.78rem;color:#a6adbb;">🚗 Heading to: ' + (er.poleId || er.id || '—') + '</div></div>';
+          h += '<div style="font-size:0.72rem;color:#a6adbb;">' + fmtTime(er.startedAt || er.timestamp) + '</div></div>';
+        });
+      }
+      h += '</div>';
+
+      // ── RECENT FIBER ACTIVITY ──
+      h += '<div class="stat-box">';
+      h += '<h3 style="font-weight:bold;margin-bottom:12px;">🕐 Recent Fiber Activity</h3>';
+      var recentFiber = ab.slice().sort(function(a,b) {
+        var ta = a.timestamp?(a.timestamp.toDate?a.timestamp.toDate().getTime():+new Date(a.timestamp)):0;
+        var tb = b.timestamp?(b.timestamp.toDate?b.timestamp.toDate().getTime():+new Date(b.timestamp)):0;
+        return tb - ta;
+      }).slice(0, 15);
+
+      if (recentFiber.length === 0) {
+        h += '<p style="color:#a6adbb;">No fiber work logged yet.</p>';
+      } else {
+        recentFiber.forEach(function(entry) {
+          var u = S.users.find(function(x){return x.id===(entry.userId||entry.completedBy);});
+          var name = u?(u.displayName||u.email):(entry.userName||entry.completedByName||'Unknown');
+          h += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #2a323c;">';
+          h += photoOrAv(entry.userPhoto||entry.completedByPhoto, u, 'sm');
+          h += '<div style="flex:1;min-width:0;"><div style="font-weight:500;font-size:0.9rem;">' + name + '</div>';
+          h += '<div style="font-size:0.78rem;color:#a6adbb;">📍 ' + (entry.poleId||entry.poleName||entry.id||'—') + '</div></div>';
+          h += '<div style="font-size:0.72rem;color:#a6adbb;white-space:nowrap;">' + fmtTime(entry.timestamp||entry.createdAt) + '</div></div>';
+        });
+      }
+      h += '</div>';
+
+      return h;
+    }
+
+    function deleteFiberRoute(id, name) {
+      if (confirm('Delete fiber route "' + name + '"?')) db.collection('fiberRoutes').doc(id).delete();
     }
 
     // ── ROLES ──
