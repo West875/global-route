@@ -4108,6 +4108,7 @@
 
       // ── Add Pole at GPS Location ──
       async function addPoleAtGPS() {
+        if (!user) { alert('❌ Please log in first to add poles.'); return; }
         if (!navigator.geolocation) { alert('❌ Geolocation not available on this device.'); return; }
         
         // Step 1: Get GPS
@@ -4718,6 +4719,11 @@
                   </svg></button>
                 {/* ── Floating Action Buttons (compact for mobile) ── */}
                 <div style={{position:'absolute',bottom:8,right:8,zIndex:1000,display:'flex',flexDirection:'column',gap:4,maxWidth:160}}>
+                  {/* Add Pole button */}
+                  <button onClick={addPoleAtGPS}
+                    style={{width:'100%',padding:'8px 0',borderRadius:10,border:'1px solid rgba(250,204,21,0.5)',background:'linear-gradient(135deg,#854d0e,#a16207)',color:'white',fontSize:11,fontWeight:800,cursor:'pointer',textAlign:'center',boxShadow:'0 2px 8px rgba(161,98,7,0.4)'}}>
+                    📍 Add Pole at GPS
+                  </button>
                   {/* Snowshoe row */}
                   <div style={{display:'flex',gap:4}}>
                     <button onClick={function(){addSnowshoeAtGPS('in');}} disabled={placingSnowshoe !== null}
@@ -7322,7 +7328,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v69.1</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v69.2</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
