@@ -2424,6 +2424,36 @@
       const [showPoleNotes, setShowPoleNotes] = useState(false);
       const [newPoleNote, setNewPoleNote] = useState('');
       const polePhotoInputRef = useRef(null);
+      // Global photo input injected into document.body (outside portals — fixes mobile camera trigger)
+      useEffect(function() {
+        if (document.getElementById('globalPolePhotoInput')) return;
+        var inp = document.createElement('input');
+        inp.type = 'file';
+        inp.accept = 'image/*';
+        inp.capture = 'environment';
+        inp.id = 'globalPolePhotoInput';
+        inp.style.display = 'none';
+        document.body.appendChild(inp);
+        return function() { try { document.body.removeChild(inp); } catch(e){} };
+      }, []);
+      // Wire up the global input's onChange
+      useEffect(function() {
+        var inp = document.getElementById('globalPolePhotoInput');
+        if (!inp) return;
+        function handleChange(e) {
+          if (e.target.files && e.target.files[0]) {
+            capturePolePhoto(e.target.files[0]);
+            e.target.value = '';
+          }
+        }
+        inp.addEventListener('change', handleChange);
+        return function() { inp.removeEventListener('change', handleChange); };
+      });
+      function triggerPolePhoto(e) {
+        if (e) e.stopPropagation();
+        var inp = document.getElementById('globalPolePhotoInput');
+        if (inp) inp.click();
+      }
       const fiberMapRef = useRef(null);
       const fiberMapInstance = useRef(null);
       const fiberSitesLayer = useRef(null);
@@ -4785,12 +4815,10 @@
                       <div style={{marginBottom:16,background:'rgba(30,20,60,0.5)',borderRadius:12,border:'1px solid rgba(236,72,153,0.2)',padding:12}}>
                         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
                           <div style={{fontSize:13,fontWeight:700,color:'#f9a8d4'}}>📷 SITE PHOTOS</div>
-                          <button onClick={function(e){e.stopPropagation(); if(polePhotoInputRef.current) polePhotoInputRef.current.click();}}
+                          <button onClick={triggerPolePhoto}
                             style={{background:'linear-gradient(135deg,#ec4899,#f472b6)',color:'white',padding:'6px 12px',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:4,border:'none'}}>
                             {uploadingPhoto ? '⏳ Uploading...' : '📸 Take Photo'}
                           </button>
-                          <input ref={polePhotoInputRef} type="file" accept="image/*" capture="environment" style={{display:'none'}}
-                            onChange={function(e){if(e.target.files&&e.target.files[0]){capturePolePhoto(e.target.files[0]); e.target.value='';}}} />
                         </div>
 
                         {Object.keys(polePhotos).length === 0 && (
@@ -7079,7 +7107,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v66</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v67</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
