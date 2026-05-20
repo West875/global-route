@@ -202,7 +202,7 @@
     @keyframes subtleFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
 
     /* ── MAP ── */
-    #map-container { height: calc(100vh - 110px); width: 100%; }
+    #map-container { height: 100%; width: 100%; }
     .leaflet-div-icon { overflow: visible !important; background: none !important; border: none !important; }
     .leaflet-popup-content { margin: 10px 14px; font-family: 'Inter', system-ui, sans-serif; }
     .leaflet-popup-content-wrapper {
@@ -1649,7 +1649,43 @@
         }
       }, [sites, visited, sharedCompletions, currentTargetId, enroutes, revisits, mapVersion]);
 
-      return <div id="map-container" ref={mapRef}></div>;
+      var handleRecenter = function() {
+        if (!mapInstanceRef.current) return;
+        if (userLoc) {
+          mapInstanceRef.current.flyTo([userLoc.lat, userLoc.lon], 15, { duration: 0.8 });
+        } else {
+          navigator.geolocation.getCurrentPosition(function(pos) {
+            mapInstanceRef.current.flyTo([pos.coords.latitude, pos.coords.longitude], 15, { duration: 0.8 });
+          }, function() {
+            alert('📍 Could not get your location');
+          }, { enableHighAccuracy: true, timeout: 8000 });
+        }
+        if (navigator.vibrate) navigator.vibrate(20);
+      };
+
+      return (
+        <div style={{position: 'relative', height: 'calc(100vh - 110px)', width: '100%'}}>
+          <div id="map-container" ref={mapRef} style={{height: '100%', width: '100%'}}></div>
+          <button
+            onClick={handleRecenter}
+            title="Re-center on my location"
+            style={{
+              position: 'absolute', bottom: 24, right: 14, zIndex: 1000,
+              width: 48, height: 48, borderRadius: '50%',
+              background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+              border: '2px solid rgba(255,255,255,0.2)',
+              boxShadow: '0 4px 15px rgba(124,58,237,0.4)',
+              color: 'white', fontSize: 22, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'transform 0.2s'
+            }}
+            onMouseDown={function(e) { e.currentTarget.style.transform = 'scale(0.9)'; }}
+            onMouseUp={function(e) { e.currentTarget.style.transform = 'scale(1)'; }}
+            onTouchStart={function(e) { e.currentTarget.style.transform = 'scale(0.9)'; }}
+            onTouchEnd={function(e) { e.currentTarget.style.transform = 'scale(1)'; }}
+          >📍</button>
+        </div>
+      );
     }
 
     // ── Site Card ──
@@ -4223,6 +4259,30 @@
                     </div>
                   </div>
                 </div>
+                {/* Re-center button */}
+                <button
+                  onClick={function() {
+                    if (!fiberMapInstance.current) return;
+                    if (fiberUserLoc) {
+                      fiberMapInstance.current.flyTo([fiberUserLoc.lat, fiberUserLoc.lon], 15, { duration: 0.8 });
+                    } else {
+                      navigator.geolocation.getCurrentPosition(function(pos) {
+                        fiberMapInstance.current.flyTo([pos.coords.latitude, pos.coords.longitude], 15, { duration: 0.8 });
+                      }, function() { alert('📍 Could not get your location'); }, { enableHighAccuracy: true, timeout: 8000 });
+                    }
+                    if (navigator.vibrate) navigator.vibrate(20);
+                  }}
+                  title="Re-center on my location"
+                  style={{
+                    position: 'absolute', bottom: 180, right: 14, zIndex: 1000,
+                    width: 44, height: 44, borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
+                    border: '2px solid rgba(255,255,255,0.2)',
+                    boxShadow: '0 4px 15px rgba(124,58,237,0.4)',
+                    color: 'white', fontSize: 20, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}
+                >📍</button>
                 {/* ── Floating Action Buttons (compact for mobile) ── */}
                 <div style={{position:'absolute',bottom:8,right:8,zIndex:1000,display:'flex',flexDirection:'column',gap:4,maxWidth:160}}>
                   {/* Snowshoe row */}
@@ -6617,7 +6677,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v57</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v58</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
