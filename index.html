@@ -1670,20 +1670,26 @@
             onClick={handleRecenter}
             title="Re-center on my location"
             style={{
-              position: 'absolute', bottom: 24, right: 14, zIndex: 1000,
-              width: 48, height: 48, borderRadius: '50%',
-              background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
-              border: '2px solid rgba(255,255,255,0.2)',
-              boxShadow: '0 4px 15px rgba(124,58,237,0.4)',
-              color: 'white', fontSize: 22, cursor: 'pointer',
+              position: 'absolute', bottom: 90, right: 10, zIndex: 1000,
+              width: 44, height: 44, borderRadius: 4,
+              background: 'white',
+              border: 'none',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+              cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              transition: 'transform 0.2s'
+              transition: 'background 0.2s'
             }}
-            onMouseDown={function(e) { e.currentTarget.style.transform = 'scale(0.9)'; }}
-            onMouseUp={function(e) { e.currentTarget.style.transform = 'scale(1)'; }}
-            onTouchStart={function(e) { e.currentTarget.style.transform = 'scale(0.9)'; }}
-            onTouchEnd={function(e) { e.currentTarget.style.transform = 'scale(1)'; }}
-          >📍</button>
+            onMouseDown={function(e) { e.currentTarget.style.background = '#e0e0e0'; }}
+            onMouseUp={function(e) { e.currentTarget.style.background = 'white'; }}
+            onTouchStart={function(e) { e.currentTarget.style.background = '#e0e0e0'; }}
+            onTouchEnd={function(e) { e.currentTarget.style.background = 'white'; }}
+          ><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round">
+              <circle cx="12" cy="12" r="4"/>
+              <line x1="12" y1="2" x2="12" y2="6"/>
+              <line x1="12" y1="18" x2="12" y2="22"/>
+              <line x1="2" y1="12" x2="6" y2="12"/>
+              <line x1="18" y1="12" x2="22" y2="12"/>
+            </svg></button>
         </div>
       );
     }
@@ -4274,15 +4280,25 @@
                   }}
                   title="Re-center on my location"
                   style={{
-                    position: 'absolute', bottom: 180, right: 14, zIndex: 1000,
-                    width: 44, height: 44, borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
-                    border: '2px solid rgba(255,255,255,0.2)',
-                    boxShadow: '0 4px 15px rgba(124,58,237,0.4)',
-                    color: 'white', fontSize: 20, cursor: 'pointer',
+                    position: 'absolute', bottom: 180, right: 10, zIndex: 1000,
+                    width: 44, height: 44, borderRadius: 4,
+                    background: 'white',
+                    border: 'none',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                    cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'center'
                   }}
-                >📍</button>
+                  onMouseDown={function(e) { e.currentTarget.style.background = '#e0e0e0'; }}
+                  onMouseUp={function(e) { e.currentTarget.style.background = 'white'; }}
+                  onTouchStart={function(e) { e.currentTarget.style.background = '#e0e0e0'; }}
+                  onTouchEnd={function(e) { e.currentTarget.style.background = 'white'; }}
+                ><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="2" strokeLinecap="round">
+                    <circle cx="12" cy="12" r="4"/>
+                    <line x1="12" y1="2" x2="12" y2="6"/>
+                    <line x1="12" y1="18" x2="12" y2="22"/>
+                    <line x1="2" y1="12" x2="6" y2="12"/>
+                    <line x1="18" y1="12" x2="22" y2="12"/>
+                  </svg></button>
                 {/* ── Floating Action Buttons (compact for mobile) ── */}
                 <div style={{position:'absolute',bottom:8,right:8,zIndex:1000,display:'flex',flexDirection:'column',gap:4,maxWidth:160}}>
                   {/* Snowshoe row */}
@@ -6677,7 +6693,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v58</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v59</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
