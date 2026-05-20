@@ -3270,10 +3270,10 @@
             else { w = Math.round(w * maxDim / h); h = maxDim; }
           }
           canvas.width = w; canvas.height = h;
-          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-          var compressed = canvas.toDataURL('image/jpeg', 0.6);
+          var ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
 
-          // Get GPS
+          // Get GPS BEFORE watermark so we can stamp it
           var gps = null;
           try {
             var gpsPos = await new Promise(function(resolve, reject) {
@@ -3281,6 +3281,48 @@
             });
             gps = { lat: gpsPos.coords.latitude, lon: gpsPos.coords.longitude, accuracy: Math.round(gpsPos.coords.accuracy) };
           } catch(ge) {}
+
+          // ── TIMESTAMP WATERMARK ──
+          var now = new Date();
+          var dateStr = (now.getMonth()+1) + '/' + now.getDate() + '/' + now.getFullYear();
+          var timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+          var userName = user.displayName || user.email.split('@')[0];
+          var poleName = (poleRenames[selectedPole.id] || selectedPole.name || selectedPole.id);
+          
+          var line1 = dateStr + ' ' + timeStr + '  •  ' + userName;
+          var line2 = '📍 ' + poleName;
+          if (gps) { line2 += '  •  ' + gps.lat.toFixed(6) + ', ' + gps.lon.toFixed(6); }
+          
+          var fontSize = Math.max(14, Math.round(w * 0.028));
+          ctx.font = 'bold ' + fontSize + 'px Inter, Arial, sans-serif';
+          
+          // Measure text for background
+          var pad = Math.round(fontSize * 0.6);
+          var line1W = ctx.measureText(line1).width;
+          var line2W = ctx.measureText(line2).width;
+          var maxW = Math.max(line1W, line2W) + pad * 2;
+          var bgH = fontSize * 2.8 + pad;
+          var bgY = h - bgH;
+          
+          // Semi-transparent dark background
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+          ctx.fillRect(0, bgY, w, bgH);
+          
+          // Gold accent line at top
+          ctx.fillStyle = '#F59E0B';
+          ctx.fillRect(0, bgY, w, 3);
+          
+          // White text - line 1 (date, time, name)
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = 'bold ' + fontSize + 'px Inter, Arial, sans-serif';
+          ctx.fillText(line1, pad, bgY + fontSize + pad * 0.5);
+          
+          // Slightly smaller line 2 (pole + GPS)
+          ctx.font = '' + Math.round(fontSize * 0.85) + 'px Inter, Arial, sans-serif';
+          ctx.fillStyle = '#FCD34D';
+          ctx.fillText(line2, pad, bgY + fontSize * 2.2 + pad * 0.5);
+
+          var compressed = canvas.toDataURL('image/jpeg', 0.6);
 
           await db.collection('fiberPolePhotos').doc(selectedPole.id).collection('photos').add({
             imageData: compressed,
@@ -7107,7 +7149,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v67.1</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v67.2</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
