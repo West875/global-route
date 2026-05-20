@@ -2740,6 +2740,23 @@
         return spans;
       }, [allFiberSites]);
 
+      // ── Compute ACTUAL crew-worked footage from Firestore spanStages ──
+      const crewSpanData = useMemo(function() {
+        var workedSpans = [];
+        var totalWorked = 0;
+        var byStage = { strand: 0, cable: 0, lashed: 0, complete: 0 };
+        Object.keys(spanStages).forEach(function(spanId) {
+          var s = spanStages[spanId];
+          if (s.stage && s.stage !== 'none') {
+            workedSpans.push(s);
+            var ft = s.distFt || 0;
+            totalWorked += ft;
+            if (byStage[s.stage] !== undefined) byStage[s.stage] += ft;
+          }
+        });
+        return { workedSpans: workedSpans, totalWorked: Math.round(totalWorked), byStage: byStage };
+      }, [spanStages]);
+
       // Load as-built entries from Firestore (all poles)
       useEffect(function() {
         return db.collection('fiberAsBuilt').onSnapshot(function(snap) {
@@ -2947,45 +2964,62 @@
         var siteMap = {};
         allFiberSites.forEach(function(s) { siteMap[s.id] = s; });
 
-        // Draw span lines for each route span
+        // ── GUIDE LINES: thin gray dashed for nearest-neighbor route (unworked spans only) ──
         if (spanData._routeSpans) {
           spanData._routeSpans.forEach(function(span) {
             var spanId = span.from.id + '__' + span.to.id;
             var reverseId = span.to.id + '__' + span.from.id;
-            var stageData = spanStages[spanId] || spanStages[reverseId] || { stage: 'none' };
-            var stage = stageData.stage;
-            var p1 = [span.from.lat, span.from.lon];
-            var p2 = [span.to.lat, span.to.lon];
-
-            if (stage === 'none') {
-              // Thin gray dashed
-              L.polyline([p1, p2], { color: '#475569', weight: 1.5, opacity: 0.4, dashArray: '4,6' }).addTo(fiberSpanLinesLayer.current);
-            } else if (stage === 'strand') {
-              // Single yellow line = strand
-              L.polyline([p1, p2], { color: '#eab308', weight: 4, opacity: 0.9 }).addTo(fiberSpanLinesLayer.current);
-            } else if (stage === 'cable') {
-              // Yellow strand + orange cable (offset side by side)
-              var left = offsetLine(p1, p2, -3);
-              var right = offsetLine(p1, p2, 3);
-              L.polyline(left, { color: '#eab308', weight: 3, opacity: 0.9 }).addTo(fiberSpanLinesLayer.current);
-              L.polyline(right, { color: '#f97316', weight: 3, opacity: 0.9 }).addTo(fiberSpanLinesLayer.current);
-            } else if (stage === 'lashed') {
-              // Yellow strand + green lashed (orange removed)
-              var left = offsetLine(p1, p2, -3);
-              var right = offsetLine(p1, p2, 3);
-              L.polyline(left, { color: '#eab308', weight: 3, opacity: 0.9 }).addTo(fiberSpanLinesLayer.current);
-              L.polyline(right, { color: '#22c55e', weight: 3, opacity: 0.9 }).addTo(fiberSpanLinesLayer.current);
-            } else if (stage === 'complete') {
-              // Yellow strand + green lashed (thicker, solid)
-              var left = offsetLine(p1, p2, -3);
-              var right = offsetLine(p1, p2, 3);
-              L.polyline(left, { color: '#eab308', weight: 4, opacity: 1.0 }).addTo(fiberSpanLinesLayer.current);
-              L.polyline(right, { color: '#22c55e', weight: 4, opacity: 1.0 }).addTo(fiberSpanLinesLayer.current);
+            var stageData = spanStages[spanId] || spanStages[reverseId];
+            // Only show gray guide if crew hasn't worked this span yet
+            if (!stageData || !stageData.stage || stageData.stage === 'none') {
+              var p1 = [span.from.lat, span.from.lon];
+              var p2 = [span.to.lat, span.to.lon];
+              L.polyline([p1, p2], { color: '#475569', weight: 1.5, opacity: 0.3, dashArray: '4,6' }).addTo(fiberSpanLinesLayer.current);
             }
-
-            // (Snowshoes now rendered separately from allSnowshoes collection)
           });
         }
+
+        // ── CREW WORK LINES: colored lines follow ACTUAL crew direction (from Firestore) ──
+        Object.keys(spanStages).forEach(function(spanId) {
+          var stageData = spanStages[spanId];
+          var stage = stageData.stage;
+          if (!stage || stage === 'none') return;
+          // Look up actual pole positions
+          var fromSite = siteMap[stageData.fromId];
+          var toSite = siteMap[stageData.toId];
+          if (!fromSite || !toSite) return;
+          var p1 = [fromSite.lat, fromSite.lon];
+          var p2 = [toSite.lat, toSite.lon];
+
+          if (stage === 'strand') {
+            L.polyline([p1, p2], { color: '#eab308', weight: 4, opacity: 0.9 }).addTo(fiberSpanLinesLayer.current);
+          } else if (stage === 'cable') {
+            var left = offsetLine(p1, p2, -3);
+            var right = offsetLine(p1, p2, 3);
+            L.polyline(left, { color: '#eab308', weight: 3, opacity: 0.9 }).addTo(fiberSpanLinesLayer.current);
+            L.polyline(right, { color: '#f97316', weight: 3, opacity: 0.9 }).addTo(fiberSpanLinesLayer.current);
+          } else if (stage === 'lashed') {
+            var left = offsetLine(p1, p2, -3);
+            var right = offsetLine(p1, p2, 3);
+            L.polyline(left, { color: '#eab308', weight: 3, opacity: 0.9 }).addTo(fiberSpanLinesLayer.current);
+            L.polyline(right, { color: '#22c55e', weight: 3, opacity: 0.9 }).addTo(fiberSpanLinesLayer.current);
+          } else if (stage === 'complete') {
+            var left = offsetLine(p1, p2, -3);
+            var right = offsetLine(p1, p2, 3);
+            L.polyline(left, { color: '#eab308', weight: 4, opacity: 1.0 }).addTo(fiberSpanLinesLayer.current);
+            L.polyline(right, { color: '#22c55e', weight: 4, opacity: 1.0 }).addTo(fiberSpanLinesLayer.current);
+          }
+          // Direction arrow at midpoint showing crew direction
+          var midLat = (p1[0] + p2[0]) / 2;
+          var midLon = (p1[1] + p2[1]) / 2;
+          var angle = Math.atan2(p2[1] - p1[1], p2[0] - p1[0]) * 180 / Math.PI;
+          var arrowIcon = L.divIcon({
+            className: '',
+            html: '<div style="transform:rotate(' + (90 - angle) + 'deg);font-size:14px;color:' + (stage === 'lashed' || stage === 'complete' ? '#22c55e' : '#eab308') + ';text-shadow:0 1px 4px rgba(0,0,0,0.8);font-weight:900;">▼</div>',
+            iconSize: [14, 14], iconAnchor: [7, 7]
+          });
+          L.marker([midLat, midLon], { icon: arrowIcon, interactive: false }).addTo(fiberSpanLinesLayer.current);
+        });
 
         // Draw screw anchor + down guy icons at poles
         allFiberSites.forEach(function(site) {
@@ -3739,20 +3773,18 @@
         var snowshoeCount = allSnowshoes.length;
         
         // Build span stage summary
+        // Build span summary from ACTUAL crew work (not pre-calculated route)
         var spanSummary = { none: 0, strand: 0, cable: 0, lashed: 0, complete: 0 };
         var spanDetails = [];
-        if (spanData._routeSpans) {
-          spanData._routeSpans.forEach(function(span) {
-            var sId = span.from.id + '__' + span.to.id;
-            var rId = span.to.id + '__' + span.from.id;
-            var stageData = spanStages[sId] || spanStages[rId] || { stage: 'none' };
-            var stage = stageData.stage || 'none';
-            spanSummary[stage] = (spanSummary[stage] || 0) + 1;
-            var stageLabel = stage === 'none' ? '⬜ Not Started' : stage === 'strand' ? '🟡 Strand' : stage === 'cable' ? '🟠 Cable' : stage === 'lashed' ? '🟢 Lashed' : '✅ Complete';
-            var stageColor = stage === 'none' ? '#64748b' : stage === 'strand' ? '#eab308' : stage === 'cable' ? '#f97316' : stage === 'lashed' ? '#22c55e' : '#10b981';
-            spanDetails.push('<tr><td style="padding:6px 10px;border-bottom:1px solid #333;color:#ccc;">' + span.from.name + '</td><td style="padding:6px 10px;border-bottom:1px solid #333;color:#ccc;">' + span.to.name + '</td><td style="padding:6px 10px;border-bottom:1px solid #333;color:#fff;font-weight:700;">' + span.dist + ' ft</td><td style="padding:6px 10px;border-bottom:1px solid #333;color:' + stageColor + ';font-weight:700;">' + stageLabel + '</td><td style="padding:6px 10px;border-bottom:1px solid #333;color:#94a3b8;font-size:11px;">' + (stageData.updatedByName || '-') + '</td></tr>');
-          });
-        }
+        Object.values(spanStages).forEach(function(stageData) {
+          var stage = stageData.stage || 'none';
+          spanSummary[stage] = (spanSummary[stage] || 0) + 1;
+          if (stage !== 'none') {
+            var stageLabel = stage === 'strand' ? '🟡 Strand' : stage === 'cable' ? '🟠 Cable' : stage === 'lashed' ? '🟢 Lashed' : '✅ Complete';
+            var stageColor = stage === 'strand' ? '#eab308' : stage === 'cable' ? '#f97316' : stage === 'lashed' ? '#22c55e' : '#10b981';
+            spanDetails.push('<tr><td style="padding:6px 10px;border-bottom:1px solid #333;color:#ccc;">' + (stageData.fromName||stageData.fromId) + '</td><td style="padding:6px 10px;border-bottom:1px solid #333;color:#ccc;">' + (stageData.toName||stageData.toId) + '</td><td style="padding:6px 10px;border-bottom:1px solid #333;color:#fff;font-weight:700;">' + Math.round(stageData.distFt||0) + ' ft</td><td style="padding:6px 10px;border-bottom:1px solid #333;color:' + stageColor + ';font-weight:700;">' + stageLabel + '</td><td style="padding:6px 10px;border-bottom:1px solid #333;color:#94a3b8;font-size:11px;">' + (stageData.updatedByName || '-') + '</td></tr>');
+          }
+        });
         
         // Build workers summary
         var workers = {};
@@ -3826,28 +3858,39 @@
           ctx.stroke();
           ctx.setLineDash([]);
         }
-        // Draw span lines with colors
-        if (spanData._routeSpans) {
-          spanData._routeSpans.forEach(function(span) {
-            var sId = span.from.id + '__' + span.to.id;
-            var rId = span.to.id + '__' + span.from.id;
-            var stageData = spanStages[sId] || spanStages[rId] || { stage: 'none' };
-            var stage = stageData.stage || 'none';
-            var x1 = toX(span.from.lon), y1 = toY(span.from.lat);
-            var x2 = toX(span.to.lon), y2 = toY(span.to.lat);
-            if (stage === 'none') {
-              ctx.strokeStyle = '#475569'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
-            } else if (stage === 'strand') {
-              ctx.strokeStyle = '#eab308'; ctx.lineWidth = 3; ctx.setLineDash([]);
-            } else if (stage === 'cable') {
-              ctx.strokeStyle = '#f97316'; ctx.lineWidth = 3; ctx.setLineDash([]);
-            } else {
-              ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 3; ctx.setLineDash([]);
-            }
-            ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-            ctx.setLineDash([]);
-          });
-        }
+        // Draw span lines from ACTUAL crew work direction
+        var siteMapForCanvas = {};
+        allFiberSites.forEach(function(s) { siteMapForCanvas[s.id] = s; });
+        Object.values(spanStages).forEach(function(stageData) {
+          var stage = stageData.stage || 'none';
+          var fromSite = siteMapForCanvas[stageData.fromId];
+          var toSite = siteMapForCanvas[stageData.toId];
+          if (!fromSite || !toSite) return;
+          var x1 = toX(fromSite.lon), y1 = toY(fromSite.lat);
+          var x2 = toX(toSite.lon), y2 = toY(toSite.lat);
+          if (stage === 'none') {
+            ctx.strokeStyle = '#475569'; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+          } else if (stage === 'strand') {
+            ctx.strokeStyle = '#eab308'; ctx.lineWidth = 3; ctx.setLineDash([]);
+          } else if (stage === 'cable') {
+            ctx.strokeStyle = '#f97316'; ctx.lineWidth = 3; ctx.setLineDash([]);
+          } else {
+            ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 3; ctx.setLineDash([]);
+          }
+          ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+          ctx.setLineDash([]);
+          // Draw direction arrow
+          if (stage !== 'none') {
+            var mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+            var angle = Math.atan2(y2 - y1, x2 - x1);
+            ctx.save();
+            ctx.translate(mx, my);
+            ctx.rotate(angle);
+            ctx.fillStyle = ctx.strokeStyle;
+            ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(-4, -4); ctx.lineTo(-4, 4); ctx.closePath(); ctx.fill();
+            ctx.restore();
+          }
+        });
         // Draw pole markers
         allFiberSites.forEach(function(s) {
           var x = toX(s.lon), y = toY(s.lat);
@@ -3937,7 +3980,7 @@
 
         // Span Details
         html += '<div style="background:rgba(30,20,60,0.5);border-radius:12px;padding:20px;margin-bottom:24px;border:1px solid rgba(139,92,246,0.2);">';
-        html += '<div style="font-size:14px;font-weight:700;color:#a78bfa;margin-bottom:4px;">🔗 SPAN DETAILS (' + (spanData._routeSpans ? spanData._routeSpans.length : 0) + ' spans)</div>';
+        html += '<div style="font-size:14px;font-weight:700;color:#a78bfa;margin-bottom:4px;">🔗 CREW SPANS (' + spanDetails.length + ' worked)</div>';
         html += '<div style="font-size:11px;color:#64748b;margin-bottom:12px;">🟡 Strand: ' + (spanSummary.strand||0) + ' • 🟠 Cable: ' + (spanSummary.cable||0) + ' • 🟢 Lashed: ' + (spanSummary.lashed||0) + ' • ✅ Complete: ' + (spanSummary.complete||0) + ' • ⬜ Not started: ' + (spanSummary.none||0) + '</div>';
         html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
         html += '<tr><th style="text-align:left;padding:6px 10px;color:#64748b;border-bottom:1px solid #555;">From</th><th style="text-align:left;padding:6px 10px;color:#64748b;border-bottom:1px solid #555;">To</th><th style="text-align:right;padding:6px 10px;color:#64748b;border-bottom:1px solid #555;">Distance</th><th style="text-align:left;padding:6px 10px;color:#64748b;border-bottom:1px solid #555;">Stage</th><th style="text-align:left;padding:6px 10px;color:#64748b;border-bottom:1px solid #555;">By</th></tr>';
@@ -4452,15 +4495,13 @@
         var rows = [['Pole','Site Name','Date','Worker','Code','Description','Unit','Qty'].concat(isAdmin ? ['Rate','Total'] : [])];
         // Add span stages sheet data
         var spanRows = [['\n--- SPAN STAGES ---'],['From Pole','To Pole','Distance (ft)','Stage','Updated By','Updated At']];
-        if (spanData._routeSpans) {
-          spanData._routeSpans.forEach(function(span) {
-            var spanId = span.from.id + '__' + span.to.id;
-            var reverseId = span.to.id + '__' + span.from.id;
-            var stageData = spanStages[spanId] || spanStages[reverseId] || { stage: 'none' };
-            var stg = SPAN_STAGES.find(function(s){return s.key===stageData.stage;}) || SPAN_STAGES[0];
-            spanRows.push([span.from.name, span.to.name, span.dist, stg.label, stageData.updatedByName||'', stageData.updatedAt||'']);
-          });
-        }
+        // Export actual crew-worked spans (not pre-calculated route)
+        Object.values(spanStages).forEach(function(s) {
+          if (s.stage && s.stage !== 'none') {
+            var stg = SPAN_STAGES.find(function(st){return st.key===s.stage;}) || SPAN_STAGES[0];
+            spanRows.push([s.fromName||s.fromId, s.toName||s.toId, Math.round(s.distFt||0), stg.label, s.updatedByName||'', s.updatedAt||'']);
+          }
+        });
         Object.values(asBuiltData).forEach(function(pole) {
           Object.values(pole.entries || {}).forEach(function(entry) {
             Object.keys(entry.codes || {}).forEach(function(code) {
@@ -5235,29 +5276,29 @@
                       );
                     })()}
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-                      <div style={{fontSize:13,fontWeight:700,color:'#93c5fd',display:'flex',alignItems:'center',gap:6}}>📏 ROUTE SPANS</div>
+                      <div style={{fontSize:13,fontWeight:700,color:'#93c5fd',display:'flex',alignItems:'center',gap:6}}>📏 CREW SPANS (actual work)</div>
                       <div style={{background:'linear-gradient(135deg,#1e3a5f,#2563eb)',borderRadius:8,padding:'4px 12px',fontSize:12,fontWeight:800,color:'white'}}>
-                        Total: {spanData._totalFootage.toLocaleString()} ft
+                        {crewSpanData.totalWorked.toLocaleString()} ft worked
                       </div>
                     </div>
                     <div style={{background:'rgba(30,40,60,0.4)',borderRadius:12,border:'1px solid rgba(59,130,246,0.15)',overflow:'hidden'}}>
-                      {spanData._routeSpans.map(function(span, idx) {
-                        var spanId = span.from.id + '__' + span.to.id;
-                        var reverseId = span.to.id + '__' + span.from.id;
-                        var stageData = spanStages[spanId] || spanStages[reverseId] || { stage: 'none' };
-                        var stg = SPAN_STAGES.find(function(s){return s.key===stageData.stage;}) || SPAN_STAGES[0];
+                      {crewSpanData.workedSpans.length === 0 && (
+                        <div style={{padding:20,textAlign:'center',color:'#64748b',fontSize:12}}>No spans worked yet — tap a pole → pick a neighbor → set stage</div>
+                      )}
+                      {crewSpanData.workedSpans.map(function(s, idx) {
+                        var stg = SPAN_STAGES.find(function(st){return st.key===s.stage;}) || SPAN_STAGES[0];
                         return (
-                          <div key={idx} style={{display:'flex',alignItems:'center',padding:'10px 14px',borderBottom:idx < spanData._routeSpans.length - 1 ? '1px solid rgba(59,130,246,0.08)' : 'none',background:stg.color+'08'}}>
+                          <div key={idx} style={{display:'flex',alignItems:'center',padding:'10px 14px',borderBottom:idx < crewSpanData.workedSpans.length - 1 ? '1px solid rgba(59,130,246,0.08)' : 'none',background:stg.color+'08'}}>
                             <div style={{width:24,textAlign:'center',marginRight:8,fontSize:14}}>{stg.icon}</div>
                             <div style={{flex:1}}>
                               <div style={{display:'flex',alignItems:'center',gap:4}}>
-                                <span style={{fontSize:12,color:'white',fontWeight:600}}>{span.from.name}</span>
+                                <span style={{fontSize:12,color:'white',fontWeight:600}}>{s.fromName || s.fromId}</span>
                                 <span style={{fontSize:11,color:'#64748b'}}>→</span>
-                                <span style={{fontSize:12,color:'white',fontWeight:600}}>{span.to.name}</span>
+                                <span style={{fontSize:12,color:'white',fontWeight:600}}>{s.toName || s.toId}</span>
                               </div>
-                              <div style={{fontSize:10,color:stg.color,fontWeight:600}}>{stg.label}{stageData.updatedByName ? ' • ' + stageData.updatedByName : ''}</div>
+                              <div style={{fontSize:10,color:stg.color,fontWeight:600}}>{stg.label}{s.updatedByName ? ' • ' + s.updatedByName : ''}{s.updatedAt ? ' • ' + new Date(s.updatedAt).toLocaleString() : ''}</div>
                             </div>
-                            <div style={{background:stg.color+'25',borderRadius:6,padding:'3px 10px',fontSize:12,fontWeight:800,color:stg.color,minWidth:60,textAlign:'center'}}>{span.dist} ft</div>
+                            <div style={{background:stg.color+'25',borderRadius:6,padding:'3px 10px',fontSize:12,fontWeight:800,color:stg.color,minWidth:60,textAlign:'center'}}>{Math.round(s.distFt || 0)} ft</div>
                           </div>
                         );
                       })}
@@ -7281,7 +7322,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v69</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v69.1</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
