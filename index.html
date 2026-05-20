@@ -206,6 +206,56 @@
     /* ── MAP ── */
     #map-container { height: 100%; width: 100%; }
     .leaflet-div-icon { overflow: visible !important; background: none !important; border: none !important; }
+    .leaflet-control-layers {
+      background: rgba(20, 13, 46, 0.95) !important;
+      border: 1px solid rgba(139, 92, 246, 0.25) !important;
+      border-radius: 12px !important;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5), 0 0 15px rgba(139,92,246,0.1) !important;
+      backdrop-filter: blur(12px);
+      color: #e4e0f0 !important;
+    }
+    .leaflet-control-layers-toggle {
+      background-image: none !important;
+      width: 40px !important;
+      height: 40px !important;
+      border-radius: 10px !important;
+      background: rgba(20, 13, 46, 0.92) !important;
+      border: 1px solid rgba(139, 92, 246, 0.25) !important;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.4) !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+    }
+    .leaflet-control-layers-toggle::after {
+      content: '🗺️';
+      font-size: 20px;
+      line-height: 1;
+    }
+    .leaflet-control-layers-expanded {
+      padding: 10px 14px !important;
+    }
+    .leaflet-control-layers-base label {
+      display: flex !important;
+      align-items: center !important;
+      gap: 8px;
+      padding: 6px 4px !important;
+      color: #e4e0f0 !important;
+      font-family: 'Inter', system-ui, sans-serif !important;
+      font-size: 13px !important;
+      font-weight: 500 !important;
+      cursor: pointer !important;
+      border-radius: 6px;
+      margin: 0 !important;
+    }
+    .leaflet-control-layers-base label:hover {
+      background: rgba(139, 92, 246, 0.15);
+    }
+    .leaflet-control-layers-base input {
+      accent-color: #7c3aed;
+    }
+    .leaflet-control-layers-separator {
+      border-color: rgba(139, 92, 246, 0.15) !important;
+    }
     .leaflet-popup-content { margin: 10px 14px; font-family: 'Inter', system-ui, sans-serif; }
     .leaflet-popup-content-wrapper {
       border-radius: var(--radius-lg) !important;
@@ -1475,7 +1525,11 @@
         if (mapInstanceRef.current) return;
         const center = [33.6891, -78.8867];
         const map = L.map(mapRef.current, { zoomControl: true }).setView(center, 12);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 19 }).addTo(map);
+        var streetTile = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 19 });
+        var satelliteTile = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 });
+        var terrainTile = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '© OpenTopoMap', maxZoom: 17 });
+        streetTile.addTo(map);
+        L.control.layers({ '🗺️ Street': streetTile, '🛰️ Satellite': satelliteTile, '⛰️ Terrain': terrainTile }, null, { position: 'topright', collapsed: true }).addTo(map);
         mapInstanceRef.current = map;
         userLayerRef.current = L.layerGroup().addTo(map);
         sitesLayerRef.current = L.layerGroup().addTo(map);
@@ -1672,7 +1726,7 @@
             onClick={handleRecenter}
             title="Re-center on my location"
             style={{
-              position: 'absolute', top: 10, right: 10, zIndex: 1000,
+              position: 'absolute', top: 60, right: 10, zIndex: 1000,
               width: 48, height: 48, borderRadius: 6,
               background: 'white',
               border: 'none',
@@ -2690,7 +2744,11 @@
         if (tab !== 'map' || !fiberMapRef.current || fiberMapInstance.current) return;
         var center = allFiberSites.length > 0 ? [allFiberSites[0].lat, allFiberSites[0].lon] : [37.27, -80.41];
         var map = L.map(fiberMapRef.current, { zoomControl: true }).setView(center, 13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 19 }).addTo(map);
+        var fStreet = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 19 });
+        var fSatellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: '© Esri', maxZoom: 19 });
+        var fTerrain = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { attribution: '© OpenTopoMap', maxZoom: 17 });
+        fStreet.addTo(map);
+        L.control.layers({ '🗺️ Street': fStreet, '🛰️ Satellite': fSatellite, '⛰️ Terrain': fTerrain }, null, { position: 'topright', collapsed: true }).addTo(map);
         fiberMapInstance.current = map;
         // En-route layer for fiber poles
         if (!fiberEnrouteLayerRef.current) {
@@ -4282,7 +4340,7 @@
                   }}
                   title="Re-center on my location"
                   style={{
-                    position: 'absolute', top: 10, right: 10, zIndex: 1000,
+                    position: 'absolute', top: 60, right: 10, zIndex: 1000,
                     width: 48, height: 48, borderRadius: 6,
                     background: 'white',
                     border: 'none',
@@ -6737,7 +6795,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v62</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v63</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
