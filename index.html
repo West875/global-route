@@ -4699,6 +4699,46 @@
                         ⚓ {(fiberEquipment[selectedPole.id]||{}).screwAnchor ? '✓ Anchor' : 'Anchor'}
                       </button>
                     </div>
+                    {/* ─── PHOTO GALLERY (moved up — immediately visible when toggled) ─── */}
+                    {showPolePhotos && (
+                      <div style={{marginBottom:10,background:'rgba(30,20,60,0.5)',borderRadius:12,border:'1px solid rgba(236,72,153,0.2)',padding:12}}>
+                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
+                          <div style={{fontSize:13,fontWeight:700,color:'#f9a8d4'}}>📷 SITE PHOTOS</div>
+                          <button onClick={triggerPolePhoto}
+                            style={{background:'linear-gradient(135deg,#ec4899,#f472b6)',color:'white',padding:'6px 12px',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:4,border:'none'}}>
+                            {uploadingPhoto ? '⏳ Uploading...' : '📸 Take Photo'}
+                          </button>
+                        </div>
+
+                        {Object.keys(polePhotos).length === 0 && (
+                          <div style={{textAlign:'center',padding:20,color:'#64748b',fontSize:12}}>No photos yet — tap 📸 to capture the first one</div>
+                        )}
+
+                        <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8}}>
+                          {Object.values(polePhotos).map(function(photo) {
+                            return (
+                              <div key={photo.id} style={{borderRadius:10,overflow:'hidden',border:'1px solid rgba(139,92,246,0.2)',background:'rgba(20,15,40,0.8)'}}>
+                                <img src={photo.imageData} style={{width:'100%',height:140,objectFit:'cover',display:'block'}} />
+                                <div style={{padding:6}}>
+                                  <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:2}}>
+                                    {photo.userPhoto ? <img src={photo.userPhoto} style={{width:16,height:16,borderRadius:'50%',objectFit:'cover'}} /> : <div style={{width:16,height:16,borderRadius:'50%',background:'#7c3aed',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontSize:8,fontWeight:700}}>{(photo.userName||'?')[0]}</div>}
+                                    <span style={{fontSize:10,color:'#94a3b8',fontWeight:600}}>{photo.userName}</span>
+                                  </div>
+                                  <div style={{fontSize:9,color:'#64748b'}}>{new Date(photo.createdAt).toLocaleString()}</div>
+                                  {photo.gps && (
+                                    <div style={{fontSize:9,color:'#4ade80',marginTop:2}}>📍 {photo.gps.lat.toFixed(5)}, {photo.gps.lon.toFixed(5)} (±{photo.gps.accuracy}m)</div>
+                                  )}
+                                  {photo.userId === user.uid && (
+                                    <button onClick={function(){deletePolePhoto(photo.id);}} style={{marginTop:4,padding:'2px 8px',borderRadius:4,border:'1px solid rgba(239,68,68,0.3)',background:'rgba(239,68,68,0.15)',color:'#f87171',fontSize:10,cursor:'pointer'}}>🗑️ Delete</button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Down Guy button row */}
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:8}}>
                       <button onClick={function(){toggleDownGuy(selectedPole.id);}}
@@ -4807,46 +4847,6 @@
                           })}
                         </div>
                         <div style={{fontSize:10,color:'#64748b',marginTop:6,textAlign:'center'}}>⬜ Not Started → 🟡 Strand → 🟠 Cable → 🟢 Lashed → ✅ Complete</div>
-                      </div>
-                    )}
-
-                    {/* ─── PHOTO GALLERY ─── */}
-                    {showPolePhotos && (
-                      <div style={{marginBottom:16,background:'rgba(30,20,60,0.5)',borderRadius:12,border:'1px solid rgba(236,72,153,0.2)',padding:12}}>
-                        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10}}>
-                          <div style={{fontSize:13,fontWeight:700,color:'#f9a8d4'}}>📷 SITE PHOTOS</div>
-                          <button onClick={triggerPolePhoto}
-                            style={{background:'linear-gradient(135deg,#ec4899,#f472b6)',color:'white',padding:'6px 12px',borderRadius:8,fontSize:12,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:4,border:'none'}}>
-                            {uploadingPhoto ? '⏳ Uploading...' : '📸 Take Photo'}
-                          </button>
-                        </div>
-
-                        {Object.keys(polePhotos).length === 0 && (
-                          <div style={{textAlign:'center',padding:20,color:'#64748b',fontSize:12}}>No photos yet — tap 📸 to capture the first one</div>
-                        )}
-
-                        <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8}}>
-                          {Object.values(polePhotos).map(function(photo) {
-                            return (
-                              <div key={photo.id} style={{borderRadius:10,overflow:'hidden',border:'1px solid rgba(139,92,246,0.2)',background:'rgba(20,15,40,0.8)'}}>
-                                <img src={photo.imageData} style={{width:'100%',height:140,objectFit:'cover',display:'block'}} />
-                                <div style={{padding:6}}>
-                                  <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:2}}>
-                                    {photo.userPhoto ? <img src={photo.userPhoto} style={{width:16,height:16,borderRadius:'50%',objectFit:'cover'}} /> : <div style={{width:16,height:16,borderRadius:'50%',background:'#7c3aed',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontSize:8,fontWeight:700}}>{(photo.userName||'?')[0]}</div>}
-                                    <span style={{fontSize:10,color:'#94a3b8',fontWeight:600}}>{photo.userName}</span>
-                                  </div>
-                                  <div style={{fontSize:9,color:'#64748b'}}>{new Date(photo.createdAt).toLocaleString()}</div>
-                                  {photo.gps && (
-                                    <div style={{fontSize:9,color:'#4ade80',marginTop:2}}>📍 {photo.gps.lat.toFixed(5)}, {photo.gps.lon.toFixed(5)} (±{photo.gps.accuracy}m)</div>
-                                  )}
-                                  {photo.userId === user.uid && (
-                                    <button onClick={function(){deletePolePhoto(photo.id);}} style={{marginTop:4,padding:'2px 8px',borderRadius:4,border:'1px solid rgba(239,68,68,0.3)',background:'rgba(239,68,68,0.15)',color:'#f87171',fontSize:10,cursor:'pointer'}}>🗑️ Delete</button>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
                       </div>
                     )}
 
@@ -7107,7 +7107,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v67</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v67.1</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
