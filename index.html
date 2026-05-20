@@ -5930,9 +5930,9 @@
               {/* Avatar */}
               <div className="relative">
                 {photoUrl ? (
-                  <img src={photoUrl} className="w-20 h-20 rounded-full border-4 border-primary object-cover" />
+                  <img src={photoUrl} style={{width:80,height:80,borderRadius:'50%',objectFit:'cover',border:'4px solid #d4af37',boxShadow:'0 0 20px rgba(212,175,55,0.5), 0 0 40px rgba(212,175,55,0.2)'}} />
                 ) : (
-                  <div className="w-20 h-20 rounded-full border-4 border-primary bg-primary/20 flex items-center justify-center text-3xl font-bold text-primary">
+                  <div style={{width:80,height:80,borderRadius:'50%',border:'4px solid #d4af37',boxShadow:'0 0 20px rgba(212,175,55,0.5), 0 0 40px rgba(212,175,55,0.2)',background:'rgba(212,175,55,0.15)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,fontWeight:700,color:'#d4af37'}}>
                     {displayName.charAt(0).toUpperCase()}
                   </div>
                 )}
