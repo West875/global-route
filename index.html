@@ -3760,6 +3760,53 @@
         }
       }
 
+      // ── Undo Pin Correction — revert to original position ──
+      async function undoPinCorrection(poleId) {
+        if (!poleId) return;
+        var correction = correctedPins[poleId];
+        if (!correction) { alert('This pole has no pin correction to undo.'); return; }
+        if (!confirm('↩ Reset pin to original position?\n\nCurrent: ' + correction.correctedLat.toFixed(6) + ', ' + correction.correctedLon.toFixed(6) + '\nOriginal: ' + correction.originalLat.toFixed(6) + ', ' + correction.originalLon.toFixed(6))) return;
+        try {
+          await db.collection('fiberPinCorrections').doc(poleId).delete();
+          if (navigator.vibrate) navigator.vibrate(100);
+          // Update selected pole view if open
+          if (selectedPole && selectedPole.id === poleId) {
+            var origSite = sites.find(function(s){return s.id === poleId;});
+            if (origSite) setSelectedPole(Object.assign({}, selectedPole, { lat: origSite.lat, lon: origSite.lon, pinCorrected: false }));
+          }
+        } catch(e) { alert('↩ Undo failed: ' + e.message); }
+      }
+
+      // ── Undo Rename — revert to original pole name ──
+      async function undoRename(poleId) {
+        if (!poleId) return;
+        var rename = poleRenames[poleId];
+        if (!rename) { alert('This pole has no name change to undo.'); return; }
+        if (!confirm('↩ Reset pole name back to original?\n\nCurrent: ' + rename.newName + '\nOriginal ID: ' + poleId)) return;
+        try {
+          await db.collection('fiberPoleRenames').doc(poleId).delete();
+          if (navigator.vibrate) navigator.vibrate(100);
+        } catch(e) { alert('↩ Undo failed: ' + e.message); }
+      }
+
+      // ── Delete Work Log Entry — remove a specific billing entry ──
+      async function deleteWorkLogEntry(poleId, entryKey) {
+        if (!poleId || !entryKey) return;
+        if (!confirm('🗑️ Remove this work log entry? This will also remove any auto-billed amounts.')) return;
+        try {
+          var existing = asBuiltData[poleId] || {};
+          var entries = Object.assign({}, existing.entries || {});
+          if (entries[entryKey]) {
+            delete entries[entryKey];
+            await db.collection('fiberAsBuilt').doc(poleId).update({
+              entries: entries,
+              lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            if (navigator.vibrate) navigator.vibrate(100);
+          }
+        } catch(e) { alert('🗑️ Delete failed: ' + e.message); }
+      }
+
       // ── Generate End-of-Day Report (HTML with map + as-built) ──
       function generateDailyReport() {
         var today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
@@ -4805,7 +4852,7 @@
                           </React.Fragment>
                         )}
                       </div>
-                      {selectedPole.originalName && <div style={{fontSize:10,color:'#a78bfa',marginTop:2}}>Original: {selectedPole.originalName}</div>}
+                      {selectedPole.originalName && <div style={{fontSize:10,color:'#a78bfa',marginTop:2,display:'flex',alignItems:'center',gap:6}}>Original: {selectedPole.originalName} <button onClick={function(){undoRename(selectedPole.id);}} style={{background:'rgba(245,158,11,0.15)',border:'1px solid rgba(245,158,11,0.3)',color:'#f59e0b',borderRadius:6,padding:'1px 8px',fontSize:9,fontWeight:700,cursor:'pointer'}}>↩ Reset Name</button></div>}
                       <div style={{fontSize:12,color:'#a78bfa'}}>{selectedPole.address || selectedPole.description || 'Log work at this pole'}</div>
                     </div>
                     <div style={{display:'flex',gap:6,alignItems:'center'}}>
@@ -4849,6 +4896,12 @@
                         style={{flex:1,padding:'10px 6px',borderRadius:10,border:'1px solid rgba(59,130,246,0.4)',background:'linear-gradient(135deg,#1e3a5f,#2563eb)',color:'white',fontSize:12,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:4}}>
                         {correctingPin ? '⏳...' : '📍 Pin'}
                       </button>
+                      {correctedPins[selectedPole.id] && (
+                        <button onClick={function(){undoPinCorrection(selectedPole.id);}}
+                          style={{padding:'10px 6px',borderRadius:10,border:'1px solid rgba(245,158,11,0.4)',background:'linear-gradient(135deg,#78350f,#b45309)',color:'white',fontSize:11,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:3}}>
+                          ↩ Pin
+                        </button>
+                      )}
                       <button onClick={function(e){e.stopPropagation();setShowPolePhotos(!showPolePhotos);}}
                         style={{flex:1,padding:'10px 6px',borderRadius:10,border:'1px solid rgba(236,72,153,0.4)',background:showPolePhotos?'linear-gradient(135deg,#9d174d,#ec4899)':'linear-gradient(135deg,#831843,#be185d)',color:'white',fontSize:12,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:4}}>
                         📷 Photos {Object.keys(polePhotos).length > 0 && <span style={{background:'#ec4899',borderRadius:10,padding:'1px 6px',fontSize:10}}>{Object.keys(polePhotos).length}</span>}
@@ -5109,13 +5162,17 @@
                     {asBuiltData[selectedPole.id] && asBuiltData[selectedPole.id].entries && (
                       <div style={{marginBottom:16}}>
                         <div style={{fontSize:12,fontWeight:700,color:'#a78bfa',marginBottom:8}}>📜 PREVIOUS WORK AT THIS POLE</div>
-                        {Object.values(asBuiltData[selectedPole.id].entries).sort(function(a,b){ return (b.updatedAt||'').localeCompare(a.updatedAt||''); }).map(function(entry, idx) {
+                        {Object.entries(asBuiltData[selectedPole.id].entries).sort(function(a,b){ return ((b[1].updatedAt||'')).localeCompare(a[1].updatedAt||''); }).map(function(pair) {
+                          var entryKey = pair[0]; var entry = pair[1];
                           return (
-                            <div key={idx} style={{background:'rgba(30,20,60,0.6)',borderRadius:8,padding:10,marginBottom:6,border:'1px solid rgba(139,92,246,0.1)'}}>
+                            <div key={entryKey} style={{background:'rgba(30,20,60,0.6)',borderRadius:8,padding:10,marginBottom:6,border:'1px solid rgba(139,92,246,0.1)'}}>
                               <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
                                 {entry.userPhoto ? <img src={entry.userPhoto} style={{width:24,height:24,borderRadius:'50%',objectFit:'cover'}} /> : <div style={{width:24,height:24,borderRadius:'50%',background:'#7c3aed',display:'flex',alignItems:'center',justifyContent:'center',color:'white',fontSize:10,fontWeight:700}}>{(entry.userName||'?')[0]}</div>}
                                 <span style={{color:'white',fontSize:12,fontWeight:600}}>{entry.userName}</span>
+                                {entry.auto && <span style={{background:'rgba(251,191,36,0.2)',border:'1px solid rgba(251,191,36,0.4)',color:'#fbbf24',padding:'0 5px',borderRadius:4,fontSize:8,fontWeight:800}}>⚡ AUTO</span>}
                                 <span style={{color:'#64748b',fontSize:11,marginLeft:'auto'}}>{entry.date}</span>
+                                <button onClick={function(){deleteWorkLogEntry(selectedPole.id, entryKey);}}
+                                  style={{background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.3)',color:'#f87171',borderRadius:6,padding:'2px 6px',fontSize:9,fontWeight:700,cursor:'pointer',flexShrink:0}}>🗑️</button>
                               </div>
                               <div style={{fontSize:11,color:'#94a3b8'}}>
                                 {Object.keys(entry.codes || {}).map(function(code) {
@@ -5359,7 +5416,7 @@
                                   <button onClick={function(e){e.stopPropagation();setSelectedPole(site);setShowLogForm(true);setShowMakeReadyPicker(!(fiberEquipment[site.id]||{}).makeReady);}}
                                     title="Make Ready"
                                     style={{background:(fiberEquipment[site.id]||{}).makeReady ? 'rgba(245,158,11,0.25)' : 'rgba(245,158,11,0.1)',border:'1px solid ' + ((fiberEquipment[site.id]||{}).makeReady ? 'rgba(245,158,11,0.5)' : 'rgba(245,158,11,0.2)'),borderRadius:6,width:24,height:24,cursor:'pointer',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,padding:0}}>🏗️</button>
-                                  {site.originalName && <span style={{fontSize:9,color:'#a78bfa',opacity:0.7}}>(was: {site.originalName})</span>}
+                                  {site.originalName && <React.Fragment><span style={{fontSize:9,color:'#a78bfa',opacity:0.7}}>(was: {site.originalName})</span><button onClick={function(e){e.stopPropagation();undoRename(site.id);}} style={{background:'rgba(245,158,11,0.1)',border:'1px solid rgba(245,158,11,0.3)',color:'#f59e0b',borderRadius:4,padding:'0 5px',fontSize:8,fontWeight:700,cursor:'pointer',lineHeight:'16px'}}>↩</button></React.Fragment>}
                                   {(fiberEquipment[site.id]||{}).makeReady && (
                                     <span style={{background:'rgba(245,158,11,0.2)',border:'1px solid rgba(245,158,11,0.4)',color:'#fbbf24',padding:'1px 6px',borderRadius:6,fontSize:9,fontWeight:700}}>🏗️ {(fiberEquipment[site.id]||{}).makeReadyCode}</span>
                                   )}
@@ -7328,7 +7385,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v69.2</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v69.3</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
