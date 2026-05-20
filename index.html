@@ -532,6 +532,12 @@
       }
     };
     OfflineQueue.init();
+
+    // Global error handler — prevent silent crashes in the field
+    window.addEventListener('unhandledrejection', function(event) {
+      console.error('Unhandled promise rejection:', event.reason);
+      event.preventDefault(); // Prevent crash
+    });
   </script>
 
   <script type="text/babel">
@@ -761,7 +767,8 @@
       // GeoJSON
       if (ext === 'geojson' || ext === 'json') {
         var text = await file.text();
-        var json = JSON.parse(text);
+        var json;
+        try { json = JSON.parse(text); } catch(e) { alert('⚠️ Invalid JSON file'); return []; }
         if (json.type === 'FeatureCollection' && json.features) {
           return json.features.map(function(f, i) {
             var coords = f.geometry && f.geometry.coordinates;
@@ -986,6 +993,7 @@
       };
 
       var saveAvatar = async function() {
+        if (!user) return;
         if (!captured) return;
         setSaving(true);
         try {
@@ -1153,6 +1161,7 @@
       };
 
       var saveID = async function() {
+        if (!user) return;
         if (!captured) return;
         setSaving(true);
         try {
@@ -1488,11 +1497,11 @@
                           if (ok) {
                             BiometricAuth.register(user.uid, user.email).then(function(success) {
                               alert(success ? '🔐 Fingerprint login enabled!' : '❌ Could not register fingerprint');
-                            });
+                            }).catch(function(e) { console.warn('Biometric register error:', e); alert('❌ Could not register fingerprint'); });
                           } else {
                             alert('⚠️ Fingerprint / Face ID not available on this device');
                           }
-                        });
+                        }).catch(function(e) { console.warn('Biometric check error:', e); });
                       }
                     }}>
                     {BiometricAuth.isEnabled() ? '🔓 Disable Fingerprint Login' : '🔐 Enable Fingerprint Login'}
@@ -2502,7 +2511,7 @@
           if (fiberUserLocLayer.current) fiberUserLocLayer.current.clearLayers();
           return;
         }
-        if (!fiberMapInstance.current || !fiberUserLoc) return;
+        if (!fiberMapInstance.current || !fiberUserLoc || !fiberUserLoc.lat || !fiberUserLoc.lon) return;
         if (!fiberUserLocLayer.current) {
           fiberUserLocLayer.current = L.layerGroup().addTo(fiberMapInstance.current);
         }
@@ -2537,7 +2546,7 @@
           if (fiberTeamLocLayer.current) fiberTeamLocLayer.current.clearLayers();
           return;
         }
-        if (!fiberMapInstance.current || !fiberPresence) return;
+        if (!fiberMapInstance.current || !fiberPresence || typeof fiberPresence !== 'object') return;
         if (!fiberTeamLocLayer.current) {
           fiberTeamLocLayer.current = L.layerGroup().addTo(fiberMapInstance.current);
         }
@@ -2610,8 +2619,8 @@
           snap.forEach(function(doc) { routes.push(Object.assign({ id: doc.id }, doc.data())); });
           // Sort newest first using whatever timestamp exists
           routes.sort(function(a, b) {
-            var ta = a.importedAt?.toMillis?.() || a.createdAt?.toMillis?.() || 0;
-            var tb = b.importedAt?.toMillis?.() || b.createdAt?.toMillis?.() || 0;
+            var ta = (a.importedAt && a.importedAt.toMillis ? a.importedAt.toMillis() : 0) || (a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : 0);
+            var tb = (b.importedAt && b.importedAt.toMillis ? b.importedAt.toMillis() : 0) || (b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : 0);
             return tb - ta;
           });
           setImportedRoutes(routes);
@@ -2892,7 +2901,7 @@
                 originalLat: origLat,
                 originalLon: origLon,
                 correctedLat: newPos.lat,
-                correctedLon: newPos.lng,
+                correctedLon: newPos.lng || newPos.lon,
                 accuracy: -1,
                 correctedBy: user ? user.uid : 'unknown',
                 correctedByName: (user ? (user.displayName || user.email.split('@')[0]) : 'Unknown') + ' (drag)',
@@ -3242,7 +3251,7 @@
               bulkShift: true
             });
           });
-          await batch.commit();
+          await batch.commit().catch(function(e) { console.error('Batch commit error:', e); });
           if (navigator.vibrate) navigator.vibrate([50, 50, 100]);
           setShowBulkShiftModal(null);
         } catch(e) {
@@ -3409,6 +3418,7 @@
 
       // ── Claim fiber pole en-route ──
       function claimFiberEnroute(poleId) {
+        if (!user || !poleId) return;
         // Clear any existing en-route by this user
         Object.keys(fiberEnroutes).forEach(function(k) {
           if (fiberEnroutes[k].userId === user.uid && k !== poleId) {
@@ -3633,36 +3643,40 @@
 
       // ── Toggle SCREW ANCHOR at pole (AE5 - $60.35) + auto-bill ──
       async function toggleScrewAnchor(poleId) {
-        var existing = fiberEquipment[poleId] || {};
-        var has = existing.screwAnchor;
-        var placing = !has;
-        await db.collection('fiberEquipment').doc(poleId).set({
-          screwAnchor: placing,
-          screwAnchorBy: placing ? (user.displayName || user.email.split('@')[0]) : null,
-          screwAnchorByPhoto: placing ? (avatarURL || user.photoURL || null) : null,
-          screwAnchorAt: placing ? new Date().toISOString() : null,
-          screwAnchorUid: placing ? user.uid : null
-        }, { merge: true });
-        // ── AUTO-BILL: write/remove AE5 entry to production sheet ──
-        await autoPopulateEquipment(poleId, 'AE5', placing);
-        if (navigator.vibrate) navigator.vibrate(50);
+        if (!user || !poleId) return;
+        try {
+          var existing = fiberEquipment[poleId] || {};
+          var has = existing.screwAnchor;
+          var placing = !has;
+          await db.collection('fiberEquipment').doc(poleId).set({
+            screwAnchor: placing,
+            screwAnchorBy: placing ? (user.displayName || user.email.split('@')[0]) : null,
+            screwAnchorByPhoto: placing ? (avatarURL || user.photoURL || null) : null,
+            screwAnchorAt: placing ? new Date().toISOString() : null,
+            screwAnchorUid: placing ? user.uid : null
+          }, { merge: true });
+          await autoPopulateEquipment(poleId, 'AE5', placing);
+          if (navigator.vibrate) navigator.vibrate(50);
+        } catch(e) { console.error('Anchor error:', e); alert('⚠️ Failed — check connection'); }
       }
 
       // ── Toggle DOWN GUY at pole (AE4 - $15.30) + auto-bill ──
       async function toggleDownGuy(poleId) {
-        var existing = fiberEquipment[poleId] || {};
-        var has = existing.downGuy;
-        var placing = !has;
-        await db.collection('fiberEquipment').doc(poleId).set({
-          downGuy: placing,
-          downGuyBy: placing ? (user.displayName || user.email.split('@')[0]) : null,
-          downGuyByPhoto: placing ? (avatarURL || user.photoURL || null) : null,
-          downGuyAt: placing ? new Date().toISOString() : null,
-          downGuyUid: placing ? user.uid : null
-        }, { merge: true });
-        // ── AUTO-BILL: write/remove AE4 entry to production sheet ──
-        await autoPopulateEquipment(poleId, 'AE4', placing);
-        if (navigator.vibrate) navigator.vibrate(50);
+        if (!user || !poleId) return;
+        try {
+          var existing = fiberEquipment[poleId] || {};
+          var has = existing.downGuy;
+          var placing = !has;
+          await db.collection('fiberEquipment').doc(poleId).set({
+            downGuy: placing,
+            downGuyBy: placing ? (user.displayName || user.email.split('@')[0]) : null,
+            downGuyByPhoto: placing ? (avatarURL || user.photoURL || null) : null,
+            downGuyAt: placing ? new Date().toISOString() : null,
+            downGuyUid: placing ? user.uid : null
+          }, { merge: true });
+          await autoPopulateEquipment(poleId, 'AE4', placing);
+          if (navigator.vibrate) navigator.vibrate(50);
+        } catch(e) { console.error('Down guy error:', e); alert('⚠️ Failed — check connection'); }
       }
 
       // ── MAKE READY at pole — picks MR type, auto-bills, prompts photo ──
@@ -4383,7 +4397,7 @@
           if (navigator.vibrate) navigator.vibrate(50);
         } catch(e) {
           if (!navigator.onLine) {
-            offlineQueue.add({ type: 'removeTreeTrim', docId: docId });
+            OfflineQueue.add({ type: 'removeTreeTrim', docId: docId });
           } else {
             console.error('Remove tree trim error:', e);
             alert('Error removing tree trim: ' + e.message);
@@ -4393,21 +4407,26 @@
 
       // ── Save pole note ──
       async function savePoleNote(poleId, text) {
+        if (!user || !poleId || !text) return;
         if (!text.trim()) return;
-        await db.collection('fiberPoleNotes').doc(poleId).collection('messages').add({
-          text: text.trim(),
-          userId: user.uid,
-          userName: user.displayName || user.email.split('@')[0],
-          userPhoto: avatarURL || user.photoURL || null,
-          createdAt: new Date().toISOString(),
-          timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        setNewPoleNote('');
+        try {
+          await db.collection('fiberPoleNotes').doc(poleId).collection('messages').add({
+            text: text.trim(),
+            userId: user.uid,
+            userName: user.displayName || user.email.split('@')[0],
+            userPhoto: avatarURL || user.photoURL || null,
+            createdAt: new Date().toISOString(),
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          setNewPoleNote('');
+        } catch(e) { console.error('Note save error:', e); alert('⚠️ Note failed to save'); }
       }
 
       // ── Delete pole note (own notes only) ──
       async function deletePoleNote(poleId, noteId) {
-        await db.collection('fiberPoleNotes').doc(poleId).collection('messages').doc(noteId).delete();
+        try {
+          await db.collection('fiberPoleNotes').doc(poleId).collection('messages').doc(noteId).delete();
+        } catch(e) { console.error('Delete note error:', e); }
       }
 
       // ── Calculate daily footage by stage ──
@@ -5909,7 +5928,7 @@
       if (_sndCtx.state === 'suspended') _sndCtx.resume();
       return _sndCtx;
     }
-    function vibrate(p) { try { navigator?.vibrate?.(p); } catch(_) {} }
+    function vibrate(p) { try { if (navigator && navigator.vibrate) navigator.vibrate(p); } catch(_) {} }
 
     function playVictorySound() {
       vibrate([100, 50, 100, 50, 200]);
@@ -6199,9 +6218,9 @@
                   // Register silently on first login
                   BiometricAuth.register(u.uid, u.email).then(function(ok) {
                     if (ok) console.log('Biometric registered successfully');
-                  });
+                  }).catch(function(e) { console.warn('Biometric register error:', e); });
                 }
-              });
+              }).catch(function(e) { console.warn('Biometric check error:', e); });
             }
           } else {
             setAvatarURL(null);
@@ -6411,9 +6430,9 @@
                         uploadedBy: uid,
                         uploadedByName: user.displayName || user.email || 'Unknown',
                         uploadedAt: firebase.firestore.FieldValue.serverTimestamp()
-                      });
+                      }).catch(function(e) { console.error('KMZ save error:', e); });
                     }
-                  });
+                  }).catch(function(e) { console.error('KMZ check error:', e); });
                 }
               });
             }
@@ -6452,7 +6471,9 @@
         db.collection('sharedKMZ').get().then(function(snapshot) {
           var docs = [];
           snapshot.forEach(function(doc) {
-            docs.push({ name: doc.id, sites: doc.data().sites || [], data: doc.data() });
+            var d = doc.data();
+            if (!d) return;
+            docs.push({ name: doc.id, sites: d.sites || [], data: d });
           });
           if (docs.length < 2) return;
 
@@ -6487,7 +6508,7 @@
                 uploadedAt: firebase.firestore.FieldValue.serverTimestamp()
               });
               // Delete duplicate doc
-              db.collection('sharedKMZ').doc(remove.name).delete();
+              db.collection('sharedKMZ').doc(remove.name).delete().catch(function(e) { console.error('KMZ delete error:', e); });
 
               // Copy any completions from removed route key to kept route key
               var keepRK = keep.name.replace(/[^a-zA-Z0-9\-_]/g, '_');
@@ -6850,6 +6871,7 @@
         setMapVersion(function(v) { return v + 1; });
         db.collection('sharedRoutes').doc(routeKey)
           .collection('enroute').doc(siteId).set(claimData)
+          .catch(function(e) { console.error('En-route claim error:', e); });
         if (onConfirmed) onConfirmed();
       };
 
@@ -7259,7 +7281,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v68</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v69</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
