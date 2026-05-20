@@ -1423,6 +1423,29 @@
                     📥 Download Report
                   </button>
                   <div style={{margin:'4px 14px',borderTop:'1px solid rgba(139,92,246,0.1)'}}></div>
+                  <button style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 14px',background:'transparent',border:'none',borderRadius:10,cursor:'pointer',color:'white',fontSize:13,fontWeight:500,textAlign:'left'}}
+                    onMouseOver={function(e){e.currentTarget.style.background='rgba(139,92,246,0.1)';}}
+                    onMouseOut={function(e){e.currentTarget.style.background='transparent';}}
+                    onClick={function() {
+                      setOpen(false);
+                      if (BiometricAuth.isEnabled()) {
+                        BiometricAuth.disable();
+                        alert('🔓 Fingerprint login disabled');
+                      } else {
+                        BiometricAuth.isAvailable().then(function(ok) {
+                          if (ok) {
+                            BiometricAuth.register(user.uid, user.email).then(function(success) {
+                              alert(success ? '🔐 Fingerprint login enabled!' : '❌ Could not register fingerprint');
+                            });
+                          } else {
+                            alert('⚠️ Fingerprint / Face ID not available on this device');
+                          }
+                        });
+                      }
+                    }}>
+                    {BiometricAuth.isEnabled() ? '🔓 Disable Fingerprint Login' : '🔐 Enable Fingerprint Login'}
+                  </button>
+                  <div style={{margin:'4px 14px',borderTop:'1px solid rgba(139,92,246,0.1)'}}></div>
                   <button style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 14px',background:'transparent',border:'none',borderRadius:10,cursor:'pointer',color:'#94a3b8',fontSize:13,fontWeight:500,textAlign:'left'}}
                     onMouseOver={function(e){e.currentTarget.style.background='rgba(148,163,184,0.08)';}}
                     onMouseOut={function(e){e.currentTarget.style.background='transparent';}}
@@ -5359,6 +5382,183 @@
       } catch(e) {}
     }
 
+    // ── Biometric (Fingerprint / Face ID) Authentication ──
+    var BiometricAuth = {
+      isAvailable: async function() {
+        if (!window.PublicKeyCredential) return false;
+        try {
+          return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+        } catch(e) { return false; }
+      },
+
+      register: async function(userId, userEmail) {
+        try {
+          var challenge = crypto.getRandomValues(new Uint8Array(32));
+          var credential = await navigator.credentials.create({
+            publicKey: {
+              challenge: challenge,
+              rp: { name: "Global Route", id: window.location.hostname },
+              user: {
+                id: new TextEncoder().encode(userId),
+                name: userEmail,
+                displayName: userEmail.split('@')[0]
+              },
+              pubKeyCredParams: [
+                { type: "public-key", alg: -7 },
+                { type: "public-key", alg: -257 }
+              ],
+              authenticatorSelection: {
+                authenticatorAttachment: "platform",
+                userVerification: "required",
+                residentKey: "preferred"
+              },
+              timeout: 60000
+            }
+          });
+          var credId = btoa(String.fromCharCode.apply(null, new Uint8Array(credential.rawId)));
+          localStorage.setItem('gr_bio_cred', credId);
+          localStorage.setItem('gr_bio_email', userEmail);
+          localStorage.setItem('gr_bio_uid', userId);
+          localStorage.setItem('gr_bio_enabled', 'true');
+          return true;
+        } catch(e) {
+          console.log('Biometric registration failed:', e);
+          return false;
+        }
+      },
+
+      verify: async function() {
+        try {
+          var credId = localStorage.getItem('gr_bio_cred');
+          if (!credId) return false;
+          var rawId = Uint8Array.from(atob(credId), function(c) { return c.charCodeAt(0); });
+          var challenge = crypto.getRandomValues(new Uint8Array(32));
+          var assertion = await navigator.credentials.get({
+            publicKey: {
+              challenge: challenge,
+              allowCredentials: [{
+                type: "public-key",
+                id: rawId,
+                transports: ["internal"]
+              }],
+              userVerification: "required",
+              timeout: 60000
+            }
+          });
+          return !!assertion;
+        } catch(e) {
+          console.log('Biometric verification failed:', e);
+          return false;
+        }
+      },
+
+      isEnabled: function() {
+        return localStorage.getItem('gr_bio_enabled') === 'true' && !!localStorage.getItem('gr_bio_cred');
+      },
+
+      getStoredEmail: function() {
+        return localStorage.getItem('gr_bio_email');
+      },
+
+      disable: function() {
+        localStorage.removeItem('gr_bio_cred');
+        localStorage.removeItem('gr_bio_email');
+        localStorage.removeItem('gr_bio_uid');
+        localStorage.removeItem('gr_bio_enabled');
+      }
+    };
+
+    // ── Biometric Lock Screen ──
+    function BiometricLockScreen({ user, avatarURL, onUnlock, onUsePassword }) {
+      const [verifying, setVerifying] = useState(false);
+      const [error, setError] = useState(null);
+
+      var handleBiometric = async function() {
+        setVerifying(true);
+        setError(null);
+        try {
+          var success = await BiometricAuth.verify();
+          if (success) {
+            if (navigator.vibrate) navigator.vibrate(30);
+            onUnlock();
+          } else {
+            setError('Verification failed. Try again or use password.');
+          }
+        } catch(e) {
+          setError('Biometric error. Use password to sign in.');
+        }
+        setVerifying(false);
+      };
+
+      // Auto-trigger on mount
+      useEffect(function() {
+        var timer = setTimeout(handleBiometric, 600);
+        return function() { clearTimeout(timer); };
+      }, []);
+
+      var photoUrl = avatarURL || (user && user.photoURL) || '';
+      var displayName = (user && user.displayName) || BiometricAuth.getStoredEmail() || '';
+
+      return (
+        <div className="auth-bg min-h-screen flex items-center justify-center p-6">
+          <div className="card bg-base-200 w-full max-w-sm glow-card fade-in">
+            <div className="card-body items-center text-center gap-5">
+              {/* Logo */}
+              <div>
+                <div className="inline-flex rounded-full p-3 mb-2" style={{background: 'radial-gradient(circle, rgba(180,140,60,0.15), transparent 70%)'}}>
+                  <span style={{fontSize: '48px'}}>🧭</span>
+                </div>
+                <h1 style={{fontFamily: "'Playfair Display', serif", fontSize: '1.5rem', fontWeight: 700, letterSpacing: '0.08em', color: '#d4af37'}}>GLOBAL ROUTE</h1>
+              </div>
+
+              {/* Avatar */}
+              <div className="relative">
+                {photoUrl ? (
+                  <img src={photoUrl} className="w-20 h-20 rounded-full border-4 border-primary object-cover" />
+                ) : (
+                  <div className="w-20 h-20 rounded-full border-4 border-primary bg-primary/20 flex items-center justify-center text-3xl font-bold text-primary">
+                    {displayName.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-success flex items-center justify-center text-white text-xs">🔒</div>
+              </div>
+
+              <div>
+                <p className="font-semibold text-lg">{displayName.split('@')[0]}</p>
+                <p className="text-xs opacity-50">Tap to unlock with fingerprint</p>
+              </div>
+
+              {error && (
+                <div className="alert alert-warning text-xs py-2 w-full">
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {/* Fingerprint button */}
+              <button
+                className="btn btn-circle btn-lg btn-primary shadow-lg shadow-primary/30"
+                onClick={handleBiometric}
+                disabled={verifying}
+                style={{width: '80px', height: '80px', fontSize: '36px'}}
+              >
+                {verifying ? (
+                  <span className="loading loading-spinner loading-md"></span>
+                ) : (
+                  '👆'
+                )}
+              </button>
+              <p className="text-xs opacity-40">Fingerprint / Face ID</p>
+
+              {/* Fallback */}
+              <button className="btn btn-ghost btn-sm opacity-60 mt-2" onClick={onUsePassword}>
+                Use password instead
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     function App() {
       // Auth state
       const [user, setUser] = useState(null);
@@ -5366,6 +5566,9 @@
       const [avatarURL, setAvatarURL] = useState(null);
       const [idPhotoURL, setIdPhotoURL] = useState(null);
       const [profileChecked, setProfileChecked] = useState(false);
+      const [biometricLocked, setBiometricLocked] = useState(false);
+      const [biometricAvailable, setBiometricAvailable] = useState(false);
+      const [skipBiometric, setSkipBiometric] = useState(false);
 
       // Offline banner handled by plain DOM in OfflineQueue
 
@@ -5384,10 +5587,27 @@
               }
             } catch(e) {}
             setProfileChecked(true);
+            // Check if biometric lock should activate
+            if (BiometricAuth.isEnabled() && !skipBiometric) {
+              setBiometricLocked(true);
+            }
+            // Auto-register biometric if available and not yet registered
+            if (!BiometricAuth.isEnabled()) {
+              BiometricAuth.isAvailable().then(function(available) {
+                setBiometricAvailable(available);
+                if (available) {
+                  // Register silently on first login
+                  BiometricAuth.register(u.uid, u.email).then(function(ok) {
+                    if (ok) console.log('Biometric registered successfully');
+                  });
+                }
+              });
+            }
           } else {
             setAvatarURL(null);
             setIdPhotoURL(null);
             setProfileChecked(false);
+            setBiometricLocked(false);
           }
         });
         return unsub;
@@ -5399,6 +5619,8 @@
           setAvatarURL(null);
           setIdPhotoURL(null);
           setProfileChecked(false);
+          setBiometricLocked(false);
+          setSkipBiometric(false);
         }
       };
 
@@ -5414,6 +5636,23 @@
 
       if (!user) {
         return <AuthScreen />;
+      }
+
+      // Biometric lock screen — user is logged in but needs fingerprint to unlock
+      if (biometricLocked && BiometricAuth.isEnabled()) {
+        return (
+          <BiometricLockScreen
+            user={user}
+            avatarURL={avatarURL}
+            onUnlock={function() { setBiometricLocked(false); }}
+            onUsePassword={function() {
+              // Sign out and let them re-authenticate with password
+              setBiometricLocked(false);
+              setSkipBiometric(true);
+              auth.signOut();
+            }}
+          />
+        );
       }
 
       // Wait for profile check
@@ -6378,7 +6617,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v56</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v57</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
