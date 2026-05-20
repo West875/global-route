@@ -78,6 +78,9 @@ service cloud.firestore {
     match /fiberPoleRenames/{docId} {
       allow read, write: if isAuth();
     }
+    match /fiberPoleDeletes/{docId} {
+      allow read, write: if isAuth();
+    }
     match /fiberPoleNotes/{docId}/{sub=**} {
       allow read, write: if isAuth();
     }

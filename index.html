@@ -2411,6 +2411,8 @@
       const [asBuiltData, setAsBuiltData] = useState({});
       const [correctedPins, setCorrectedPins] = useState({});
       const [poleRenames, setPoleRenames] = useState({});
+      const [poleDeletes, setPoleDeletes] = useState({});
+      const [showBulkShiftModal, setShowBulkShiftModal] = useState(null); // { poleId, deltaLat, deltaLon, routeId, count }
       const [editingPoleId, setEditingPoleId] = useState(null);
       const [editPoleValue, setEditPoleValue] = useState('');
       const [polePhotos, setPolePhotos] = useState({});
@@ -2637,6 +2639,8 @@
             seen[s.id] = true;
           }
         });
+        // Filter out soft-deleted poles
+        merged = merged.filter(function(s) { return !poleDeletes[s.id]; });
         // Apply pin corrections and name renames from Firestore
         return merged.map(function(s) {
           var result = s;
@@ -2650,7 +2654,7 @@
           }
           return result;
         });
-      }, [sites, correctedPins, poleRenames, activeRouteId, importedRoutes]);
+      }, [sites, correctedPins, poleRenames, poleDeletes, activeRouteId, importedRoutes]);
 
       // ── Calculate span footage between consecutive poles using GPS ──
       var spanData = useMemo(function() {
@@ -2722,6 +2726,15 @@
           var data = {};
           snap.docs.forEach(function(doc) { data[doc.id] = doc.data(); });
           setPoleRenames(data);
+        });
+      }, []);
+
+      // Load pole soft-deletes from Firestore
+      useEffect(function() {
+        return db.collection('fiberPoleDeletes').onSnapshot(function(snap) {
+          var data = {};
+          snap.docs.forEach(function(doc) { data[doc.id] = doc.data(); });
+          setPoleDeletes(data);
         });
       }, []);
 
@@ -2831,13 +2844,40 @@
             });
             L.marker([site.lat, site.lon], { icon: glowIcon, interactive: false, zIndexOffset: 500 }).addTo(fiberSitesLayer.current);
           }
-          var marker = L.marker([site.lat, site.lon], { icon: icon }).addTo(fiberSitesLayer.current);
+          var marker = L.marker([site.lat, site.lon], { icon: icon, draggable: true }).addTo(fiberSitesLayer.current);
           marker.on('click', function() { setSelectedPole(site); setShowLogForm(true); setShowPolePhotos(false); });
+          // Drag to reposition — save new position on drag end
+          (function(s) {
+            marker.on('dragend', function(e) {
+              var newPos = e.target.getLatLng();
+              var origLat = s.lat;
+              var origLon = s.lon;
+              // If already corrected, preserve original import position
+              if (correctedPins[s.id]) {
+                origLat = correctedPins[s.id].originalLat;
+                origLon = correctedPins[s.id].originalLon;
+              }
+              db.collection('fiberPinCorrections').doc(s.id).set({
+                originalLat: origLat,
+                originalLon: origLon,
+                correctedLat: newPos.lat,
+                correctedLon: newPos.lng,
+                accuracy: -1,
+                correctedBy: user ? user.uid : 'unknown',
+                correctedByName: (user ? (user.displayName || user.email.split('@')[0]) : 'Unknown') + ' (drag)',
+                correctedByPhoto: avatarURL || (user ? user.photoURL : null) || null,
+                correctedAt: new Date().toISOString(),
+                dragCorrected: true
+              });
+              if (navigator.vibrate) navigator.vibrate([50, 50, 100]);
+            });
+          })(site);
           var tip = site.name || site.id;
           if (pType === 'transmission') tip += ' (Tower)';
           if (pType === 'key') tip += ' (' + (site.locationType || 'Key') + ')';
           if (hasWork) tip += ' ✅';
           if (site.pinCorrected) tip += ' 📍';
+          tip += ' — hold & drag to move';
           marker.bindTooltip(tip, { direction: 'top', offset: [0, -40] });
         });
         if (allFiberSites.length > 0 && fiberMapInstance.current) {
@@ -3043,9 +3083,17 @@
               { enableHighAccuracy: true, timeout: 15000 }
             );
           });
+          // Get original (pre-correction) coordinates for offset calculation
+          var origLat = selectedPole.lat;
+          var origLon = selectedPole.lon;
+          // If pole was already corrected, use its uncorrected original position for offset
+          if (correctedPins[selectedPole.id]) {
+            origLat = correctedPins[selectedPole.id].originalLat;
+            origLon = correctedPins[selectedPole.id].originalLon;
+          }
           await db.collection('fiberPinCorrections').doc(selectedPole.id).set({
-            originalLat: selectedPole.lat,
-            originalLon: selectedPole.lon,
+            originalLat: origLat,
+            originalLon: origLon,
             correctedLat: pos.lat,
             correctedLon: pos.lon,
             accuracy: Math.round(pos.accuracy),
@@ -3056,6 +3104,27 @@
           });
           if (navigator.vibrate) navigator.vibrate([50, 50, 100]);
           setSelectedPole(Object.assign({}, selectedPole, { lat: pos.lat, lon: pos.lon, pinCorrected: true }));
+          // Calculate offset and count uncorrected poles for bulk shift offer
+          var deltaLat = pos.lat - origLat;
+          var deltaLon = pos.lon - origLon;
+          var offsetFt = Math.round(haversineFt(origLat, origLon, pos.lat, pos.lon));
+          // Only offer bulk shift if offset > 50ft (meaningful difference)
+          if (offsetFt > 50) {
+            var uncorrectedCount = allFiberSites.filter(function(s) {
+              return s.id !== selectedPole.id && !correctedPins[s.id];
+            }).length;
+            if (uncorrectedCount > 0) {
+              setShowBulkShiftModal({
+                poleId: selectedPole.id,
+                poleName: selectedPole.name,
+                deltaLat: deltaLat,
+                deltaLon: deltaLon,
+                offsetFt: offsetFt,
+                routeId: activeRouteId,
+                count: uncorrectedCount
+              });
+            }
+          }
         } catch(e) {
           alert('Could not get your location: ' + e.message);
         }
@@ -3076,6 +3145,77 @@
           if (navigator.vibrate) navigator.vibrate(30);
         } catch(e) {
           alert('Rename failed: ' + e.message);
+        }
+      }
+
+      // ── Delete pole (soft-delete) ──
+      async function deletePole(poleId, poleName) {
+        if (!confirm('🗑️ Remove "' + (poleName || poleId) + '" from the map?\n\nThis hides it from all teammates. You can restore it later.')) return;
+        try {
+          await db.collection('fiberPoleDeletes').doc(poleId).set({
+            deletedBy: user.uid,
+            deletedByName: user.displayName || user.email.split('@')[0],
+            deletedAt: new Date().toISOString(),
+            originalName: poleName || poleId
+          });
+          if (navigator.vibrate) navigator.vibrate(200);
+          if (selectedPole && selectedPole.id === poleId) {
+            setSelectedPole(null);
+            setShowLogForm(false);
+          }
+        } catch(e) {
+          alert('Delete failed: ' + e.message);
+        }
+      }
+
+      // ── Restore a soft-deleted pole ──
+      async function restorePole(poleId) {
+        try {
+          await db.collection('fiberPoleDeletes').doc(poleId).delete();
+          if (navigator.vibrate) navigator.vibrate(30);
+        } catch(e) {
+          alert('Restore failed: ' + e.message);
+        }
+      }
+
+      // ── Bulk shift all uncorrected poles by offset ──
+      async function bulkShiftPoles(deltaLat, deltaLon, routeId) {
+        try {
+          // Get all current sites (before filtering) that belong to same route and are not corrected
+          var merged = [];
+          if (routeId === 'olt57' || activeRouteId === 'olt57') {
+            if (typeof OLT57_DATA !== 'undefined') {
+              OLT57_DATA.poles.forEach(function(p, i) { merged.push({ id: 'olt57-pole-' + (i + 1), name: p.name, lat: p.lat, lon: p.lon }); });
+              OLT57_DATA.towers.forEach(function(t, i) { merged.push({ id: 'olt57-tower-' + (i + 1), name: t.name, lat: t.lat, lon: t.lon }); });
+              OLT57_DATA.keyLocations.forEach(function(k, i) { merged.push({ id: 'olt57-key-' + (i + 1), name: k.name, lat: k.lat, lon: k.lon }); });
+            }
+          } else {
+            var route = importedRoutes.find(function(r) { return r.id === activeRouteId; });
+            if (route && route.poles) {
+              route.poles.forEach(function(p) { merged.push({ id: route.id + '-' + p.id, name: p.name, lat: p.lat, lon: p.lon }); });
+            }
+          }
+          var uncorrected = merged.filter(function(s) { return !correctedPins[s.id]; });
+          var batch = db.batch();
+          uncorrected.forEach(function(site) {
+            batch.set(db.collection('fiberPinCorrections').doc(site.id), {
+              originalLat: site.lat,
+              originalLon: site.lon,
+              correctedLat: site.lat + deltaLat,
+              correctedLon: site.lon + deltaLon,
+              accuracy: -1,
+              correctedBy: user.uid,
+              correctedByName: (user.displayName || user.email.split('@')[0]) + ' (bulk shift)',
+              correctedByPhoto: avatarURL || user.photoURL || null,
+              correctedAt: new Date().toISOString(),
+              bulkShift: true
+            });
+          });
+          await batch.commit();
+          if (navigator.vibrate) navigator.vibrate([50, 50, 100]);
+          setShowBulkShiftModal(null);
+        } catch(e) {
+          alert('Bulk shift failed: ' + e.message);
         }
       }
 
@@ -4479,7 +4619,11 @@
                       {selectedPole.originalName && <div style={{fontSize:10,color:'#a78bfa',marginTop:2}}>Original: {selectedPole.originalName}</div>}
                       <div style={{fontSize:12,color:'#a78bfa'}}>{selectedPole.address || selectedPole.description || 'Log work at this pole'}</div>
                     </div>
-                    <button onClick={function(){setShowLogForm(false); setFormQty({}); setFormNotes(''); setSelectedPole(null);}} style={{background:'rgba(255,255,255,0.1)',border:'none',color:'white',width:36,height:36,borderRadius:'50%',fontSize:18,cursor:'pointer'}}>✕</button>
+                    <div style={{display:'flex',gap:6,alignItems:'center'}}>
+                      <button onClick={function(){deletePole(selectedPole.id, selectedPole.name);}} title="Remove this pole"
+                        style={{background:'rgba(239,68,68,0.15)',border:'1px solid rgba(239,68,68,0.3)',color:'#f87171',width:36,height:36,borderRadius:'50%',fontSize:16,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>🗑️</button>
+                      <button onClick={function(){setShowLogForm(false); setFormQty({}); setFormNotes(''); setSelectedPole(null);}} style={{background:'rgba(255,255,255,0.1)',border:'none',color:'white',width:36,height:36,borderRadius:'50%',fontSize:18,cursor:'pointer'}}>✕</button>
+                    </div>
                   </div>
 
                   <div style={{padding:16}}>
@@ -4793,6 +4937,65 @@
               document.body
             )}
 
+            {/* ─── BULK SHIFT MODAL ─── */}
+            {showBulkShiftModal && ReactDOM.createPortal(
+              <div style={{position:'fixed',inset:0,zIndex:9000,background:'rgba(0,0,0,0.8)',display:'flex',alignItems:'center',justifyContent:'center',padding:20}} onClick={function(){setShowBulkShiftModal(null);}}>
+                <div onClick={function(e){e.stopPropagation();}} style={{background:'linear-gradient(135deg,#1a0f3c,#2d1b69)',borderRadius:20,border:'1px solid rgba(139,92,246,0.4)',padding:24,maxWidth:380,width:'100%',boxShadow:'0 20px 60px rgba(0,0,0,0.5)'}}>
+                  <div style={{fontSize:40,textAlign:'center',marginBottom:12}}>🧲</div>
+                  <div style={{fontSize:18,fontWeight:800,color:'white',textAlign:'center',marginBottom:8}}>Bulk Shift All Poles?</div>
+                  <div style={{fontSize:13,color:'#c4b5fd',textAlign:'center',marginBottom:16,lineHeight:1.5}}>
+                    You corrected <strong style={{color:'#fbbf24'}}>{showBulkShiftModal.poleName}</strong> by <strong style={{color:'#22c55e'}}>{showBulkShiftModal.offsetFt} ft</strong>.
+                    <br/>Apply this same offset to <strong style={{color:'#fbbf24'}}>{showBulkShiftModal.count}</strong> other uncorrected poles?
+                  </div>
+                  <div style={{background:'rgba(34,197,94,0.1)',border:'1px solid rgba(34,197,94,0.3)',borderRadius:12,padding:12,marginBottom:16}}>
+                    <div style={{fontSize:11,color:'#4ade80',textAlign:'center'}}>
+                      💡 <strong>This is useful when the entire construction print is offset</strong> — correct one pole, shift them all by the same distance.
+                    </div>
+                  </div>
+                  <div style={{display:'flex',gap:10}}>
+                    <button onClick={function(){setShowBulkShiftModal(null);}}
+                      style={{flex:1,padding:'14px 12px',borderRadius:12,border:'1px solid rgba(255,255,255,0.15)',background:'rgba(255,255,255,0.05)',color:'white',fontSize:14,fontWeight:700,cursor:'pointer'}}>
+                      ✕ Skip
+                    </button>
+                    <button onClick={function(){bulkShiftPoles(showBulkShiftModal.deltaLat, showBulkShiftModal.deltaLon, showBulkShiftModal.routeId);}}
+                      style={{flex:2,padding:'14px 12px',borderRadius:12,border:'none',background:'linear-gradient(135deg,#059669,#10b981)',color:'white',fontSize:14,fontWeight:800,cursor:'pointer',boxShadow:'0 4px 15px rgba(16,185,129,0.4)'}}>
+                      🧲 Shift {showBulkShiftModal.count} Poles
+                    </button>
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )}
+
+            {/* ─── DELETED POLES RESTORE SECTION ─── */}
+            {tab === 'list' && Object.keys(poleDeletes).length > 0 && (
+              <div style={{padding:'0 16px 16px'}}>
+                <details style={{background:'rgba(239,68,68,0.05)',border:'1px solid rgba(239,68,68,0.15)',borderRadius:12,overflow:'hidden'}}>
+                  <summary style={{padding:'12px 16px',cursor:'pointer',fontSize:13,fontWeight:700,color:'#f87171',display:'flex',alignItems:'center',gap:8}}>
+                    🗑️ Removed Poles ({Object.keys(poleDeletes).length}) — tap to restore
+                  </summary>
+                  <div style={{padding:'8px 16px 16px'}}>
+                    {Object.entries(poleDeletes).map(function(entry) {
+                      var poleId = entry[0];
+                      var data = entry[1];
+                      return (
+                        <div key={poleId} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 12px',background:'rgba(30,20,60,0.4)',borderRadius:10,marginBottom:6,border:'1px solid rgba(239,68,68,0.1)'}}>
+                          <div>
+                            <div style={{fontSize:13,fontWeight:600,color:'#e2e8f0'}}>{data.originalName || poleId}</div>
+                            <div style={{fontSize:10,color:'#94a3b8'}}>Removed by {data.deletedByName} • {data.deletedAt ? new Date(data.deletedAt).toLocaleDateString() : ''}</div>
+                          </div>
+                          <button onClick={function(){restorePole(poleId);}}
+                            style={{padding:'8px 16px',borderRadius:10,border:'none',background:'linear-gradient(135deg,#059669,#10b981)',color:'white',fontSize:12,fontWeight:700,cursor:'pointer',boxShadow:'0 2px 8px rgba(16,185,129,0.3)'}}>
+                            ↩️ Restore
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
+              </div>
+            )}
+
             {/* ─── AS-BUILT TAB ─── */}
             {tab === 'asbuilt' && (
               <div style={{padding:16}}>
@@ -4906,6 +5109,9 @@
                                   <button onClick={function(e){e.stopPropagation();setEditingPoleId(site.id);setEditPoleValue(site.name);}}
                                     title="Edit pole number"
                                     style={{background:'rgba(139,92,246,0.15)',border:'1px solid rgba(139,92,246,0.3)',borderRadius:6,width:24,height:24,cursor:'pointer',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,padding:0}}>✏️</button>
+                                  <button onClick={function(e){e.stopPropagation();deletePole(site.id, site.name);}}
+                                    title="Remove this pole"
+                                    style={{background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:6,width:24,height:24,cursor:'pointer',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,padding:0}}>🗑️</button>
                                   {site.originalName && <span style={{fontSize:9,color:'#a78bfa',opacity:0.7}}>(was: {site.originalName})</span>}
                                 </React.Fragment>
                               )}
@@ -6869,7 +7075,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v64</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v65</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
