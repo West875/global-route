@@ -4878,12 +4878,12 @@
                             <div style={{fontSize:11,fontWeight:700,color:'#fbbf24',marginBottom:8,textAlign:'center'}}>SELECT MAKE READY TYPE</div>
                             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
                               {[
-                                {code:'MR1',desc:'Drop',rate:'$17.00'},
-                                {code:'MR2',desc:'In-Line',rate:'$22.95'},
-                                {code:'MR3',desc:'Corner / Dead End',rate:'$29.75'},
-                                {code:'MR4',desc:'Move Terminal',rate:'$28.90'},
-                                {code:'MR5',desc:'Move Extension Arm',rate:'$34.00'},
-                                {code:'MR6',desc:'Riser',rate:'$42.50'}
+                                {code:'MR1',desc:'Drop'},
+                                {code:'MR2',desc:'In-Line'},
+                                {code:'MR3',desc:'Corner / Dead End'},
+                                {code:'MR4',desc:'Move Terminal'},
+                                {code:'MR5',desc:'Move Extension Arm'},
+                                {code:'MR6',desc:'Riser'}
                               ].map(function(mr) {
                                 return React.createElement('button', {
                                   key: mr.code,
@@ -4891,8 +4891,7 @@
                                   style: {padding:'10px 8px',borderRadius:10,border:'1px solid rgba(245,158,11,0.3)',background:'linear-gradient(135deg,#451a03,#78350f)',color:'white',cursor:'pointer',textAlign:'center'}
                                 },
                                   React.createElement('div', {style:{fontSize:13,fontWeight:800,color:'#fbbf24'}}, mr.code),
-                                  React.createElement('div', {style:{fontSize:11,color:'#d4a574',marginTop:2}}, mr.desc),
-                                  React.createElement('div', {style:{fontSize:10,color:'#92400e',marginTop:1}}, mr.rate)
+                                  React.createElement('div', {style:{fontSize:11,color:'#d4a574',marginTop:2}}, mr.desc)
                                 );
                               })}
                             </div>
@@ -5563,28 +5562,28 @@
                       <div style={{fontSize:22}}>⚓</div>
                       <div style={{fontSize:20,fontWeight:900,color:'#fbbf24'}}>{(function(){ var c=0; Object.values(fiberEquipment).forEach(function(eq){if(eq.screwAnchor)c++;}); return c; })()}</div>
                       <div style={{fontSize:9,color:'#94a3b8'}}>Screw Anchors</div>
-                      <div style={{fontSize:8,color:'#64748b'}}>AE5 • $60.35/ea</div>
+                      {isAdmin && <div style={{fontSize:8,color:'#64748b'}}>AE5 • $60.35/ea</div>}
                       {isAdmin && <div style={{fontSize:11,color:'#fbbf24',fontWeight:700,marginTop:3}}>${((function(){ var c=0; Object.values(fiberEquipment).forEach(function(eq){if(eq.screwAnchor)c++;}); return c; })() * 60.35).toLocaleString()}</div>}
                     </div>
                     <div style={{textAlign:'center',background:'rgba(0,0,0,0.2)',borderRadius:10,padding:10}}>
                       <div style={{fontSize:22}}>📎</div>
                       <div style={{fontSize:20,fontWeight:900,color:'#60a5fa'}}>{(function(){ var c=0; Object.values(fiberEquipment).forEach(function(eq){if(eq.downGuy)c++;}); return c; })()}</div>
                       <div style={{fontSize:9,color:'#94a3b8'}}>Down Guys</div>
-                      <div style={{fontSize:8,color:'#64748b'}}>AE4 • $15.30/ea</div>
+                      {isAdmin && <div style={{fontSize:8,color:'#64748b'}}>AE4 • $15.30/ea</div>}
                       {isAdmin && <div style={{fontSize:11,color:'#60a5fa',fontWeight:700,marginTop:3}}>${((function(){ var c=0; Object.values(fiberEquipment).forEach(function(eq){if(eq.downGuy)c++;}); return c; })() * 15.30).toLocaleString()}</div>}
                     </div>
                     <div style={{textAlign:'center',background:'rgba(0,0,0,0.2)',borderRadius:10,padding:10}}>
                       <div style={{fontSize:22}}>❄️</div>
                       <div style={{fontSize:20,fontWeight:900,color:'#06b6d4'}}>{allSnowshoes.length}</div>
                       <div style={{fontSize:9,color:'#94a3b8'}}>Snowshoes</div>
-                      <div style={{fontSize:8,color:'#64748b'}}>AE6 • $28.90/ea</div>
+                      {isAdmin && <div style={{fontSize:8,color:'#64748b'}}>AE6 • $28.90/ea</div>}
                       {isAdmin && <div style={{fontSize:11,color:'#06b6d4',fontWeight:700,marginTop:3}}>${(allSnowshoes.length * 28.90).toLocaleString()}</div>}
                     </div>
                     <div style={{textAlign:'center',background:'rgba(0,0,0,0.2)',borderRadius:10,padding:10}}>
                       <div style={{fontSize:22}}>🌳</div>
                       <div style={{fontSize:20,fontWeight:900,color:'#3b82f6'}}>{allTreeTrims.length}</div>
                       <div style={{fontSize:9,color:'#94a3b8'}}>Tree Trims</div>
-                      <div style={{fontSize:8,color:'#64748b'}}>AE19 • $1.232/ft</div>
+                      {isAdmin && <div style={{fontSize:8,color:'#64748b'}}>AE19 • $1.232/ft</div>}
                       <div style={{fontSize:8,color:'#60a5fa',marginTop:2}}>{allTreeTrims.reduce(function(s,t){return s+t.footage;},0).toLocaleString()} ft total</div>
                       {isAdmin && <div style={{fontSize:11,color:'#3b82f6',fontWeight:700,marginTop:3}}>${(allTreeTrims.reduce(function(s,t){return s+t.footage;},0) * 1.232).toFixed(2)}</div>}
                     </div>
