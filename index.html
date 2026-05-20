@@ -200,6 +200,8 @@
     @keyframes flagGlow { 0%,100% { text-shadow: 0 0 4px #f9731680; } 50% { text-shadow: 0 0 14px #f97316, 0 0 28px #f9731688; } }
     @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
     @keyframes subtleFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+    @keyframes compassSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    @keyframes compassPulse { 0%,100% { filter: drop-shadow(0 0 8px #d4a01680); } 50% { filter: drop-shadow(0 0 20px #d4a016cc) drop-shadow(0 0 40px #d4a01666); } }
 
     /* ── MAP ── */
     #map-container { height: 100%; width: 100%; }
@@ -5702,10 +5704,25 @@
 
       if (authLoading) {
         return (
-          <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-            <div className="bg-primary/10 rounded-full p-6"><GlobeIcon size={48} className="text-primary" /></div>
-            <span className="loading loading-spinner loading-lg text-primary"></span>
-            <p className="text-sm opacity-60">Loading Global Route...</p>
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',gap:16,background:'linear-gradient(180deg,#0f0a1e 0%,#1a1035 100%)'}}>
+            <div style={{animation:'compassPulse 2s ease-in-out infinite'}}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 100 100" style={{animation:'compassSpin 3s linear infinite'}}>
+                <circle cx="50" cy="50" r="46" fill="none" stroke="#d4a016" strokeWidth="2" opacity="0.3"/>
+                <circle cx="50" cy="50" r="38" fill="none" stroke="#d4a016" strokeWidth="1" opacity="0.15"/>
+                <polygon points="50,4 54,42 50,38 46,42" fill="#d4a016"/>
+                <polygon points="50,96 54,58 50,62 46,58" fill="#b8860b"/>
+                <polygon points="4,50 42,46 38,50 42,54" fill="#b8860b"/>
+                <polygon points="96,50 58,46 62,50 58,54" fill="#b8860b"/>
+                <polygon points="17,17 44,42 40,40 42,44" fill="#d4a01699"/>
+                <polygon points="83,17 58,42 60,40 56,44" fill="#d4a01699"/>
+                <polygon points="17,83 42,58 40,60 44,56" fill="#d4a01699"/>
+                <polygon points="83,83 58,58 60,60 56,56" fill="#d4a01699"/>
+                <circle cx="50" cy="50" r="4" fill="#d4a016"/>
+                <circle cx="50" cy="50" r="2" fill="#1a1035"/>
+              </svg>
+            </div>
+            <p style={{fontFamily:"'Playfair Display',serif",fontSize:18,color:'#d4a016',letterSpacing:2,fontWeight:700,margin:0}}>GLOBAL ROUTE</p>
+            <p style={{fontSize:12,color:'rgba(255,255,255,0.4)',margin:0}}>Loading...</p>
           </div>
         );
       }
@@ -5734,10 +5751,28 @@
       // Wait for profile check
       if (!profileChecked) {
         return (
-          <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-            <div className="bg-primary/10 rounded-full p-6"><GlobeIcon size={48} className="text-primary" /></div>
-            <span className="loading loading-spinner loading-lg text-primary"></span>
-            <p className="text-sm opacity-60">Loading profile...</p>
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',gap:16,background:'linear-gradient(180deg,#0f0a1e 0%,#1a1035 100%)'}}>
+            <div style={{animation:'compassPulse 2s ease-in-out infinite'}}>
+              <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 100 100" style={{animation:'compassSpin 3s linear infinite'}}>
+                <circle cx="50" cy="50" r="46" fill="none" stroke="#d4a016" strokeWidth="2" opacity="0.3"/>
+                <circle cx="50" cy="50" r="38" fill="none" stroke="#d4a016" strokeWidth="1" opacity="0.15"/>
+                {/* 8-point compass star */}
+                <polygon points="50,4 54,42 50,38 46,42" fill="#d4a016"/>
+                <polygon points="50,96 54,58 50,62 46,58" fill="#b8860b"/>
+                <polygon points="4,50 42,46 38,50 42,54" fill="#b8860b"/>
+                <polygon points="96,50 58,46 62,50 58,54" fill="#b8860b"/>
+                {/* Diagonal points */}
+                <polygon points="17,17 44,42 40,40 42,44" fill="#d4a01699"/>
+                <polygon points="83,17 58,42 60,40 56,44" fill="#d4a01699"/>
+                <polygon points="17,83 42,58 40,60 44,56" fill="#d4a01699"/>
+                <polygon points="83,83 58,58 60,60 56,56" fill="#d4a01699"/>
+                {/* Center dot */}
+                <circle cx="50" cy="50" r="4" fill="#d4a016"/>
+                <circle cx="50" cy="50" r="2" fill="#1a1035"/>
+              </svg>
+            </div>
+            <p style={{fontFamily:"'Playfair Display',serif",fontSize:18,color:'#d4a016',letterSpacing:2,fontWeight:700,margin:0}}>GLOBAL ROUTE</p>
+            <p style={{fontSize:12,color:'rgba(255,255,255,0.4)',margin:0}}>Loading profile...</p>
           </div>
         );
       }
@@ -6627,13 +6662,22 @@
             <div className="flex flex-col items-center justify-center min-h-screen gap-4 p-8 text-center">
               <div className="relative">
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="w-24 h-24 rounded-full border-2 border-primary/30 pulse-ring"></div>
+                  <div className="w-24 h-24 rounded-full" style={{border:'2px solid rgba(212,160,22,0.3)',animation:'pulseRing 2s ease-out infinite'}}></div>
                 </div>
-                <div className="relative z-10 bg-primary/10 rounded-full p-6"><MapPinIcon size={48} className="text-primary" /></div>
+                <div className="relative z-10" style={{background:'rgba(212,160,22,0.1)',borderRadius:'50%',padding:24}}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 100 100" style={{animation:'compassSpin 3s linear infinite'}}>
+                    <circle cx="50" cy="50" r="46" fill="none" stroke="#d4a016" strokeWidth="2" opacity="0.3"/>
+                    <polygon points="50,4 54,42 50,38 46,42" fill="#d4a016"/>
+                    <polygon points="50,96 54,58 50,62 46,58" fill="#b8860b"/>
+                    <polygon points="4,50 42,46 38,50 42,54" fill="#b8860b"/>
+                    <polygon points="96,50 58,46 62,50 58,54" fill="#b8860b"/>
+                    <circle cx="50" cy="50" r="4" fill="#d4a016"/>
+                    <circle cx="50" cy="50" r="2" fill="#1a1035"/>
+                  </svg>
+                </div>
               </div>
-              <span className="loading loading-spinner loading-lg text-primary"></span>
-              <p className="opacity-70 text-lg font-semibold">Finding your location…</p>
-              <p className="text-xs opacity-40">Allow location access when your browser asks</p>
+              <p style={{color:'#d4a016',fontSize:18,fontWeight:600,opacity:0.9}}>Finding your location…</p>
+              <p style={{fontSize:12,color:'rgba(255,255,255,0.4)'}}>Allow location access when your browser asks</p>
             </div>
           );
         }
@@ -6693,7 +6737,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v60</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v61</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
