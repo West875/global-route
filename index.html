@@ -2919,7 +2919,13 @@
         if (!fiberSitesLayer.current) return;
         fiberSitesLayer.current.clearLayers();
         allFiberSites.forEach(function(site) {
-          var hasWork = asBuiltData[site.id] && asBuiltData[site.id].entries && Object.keys(asBuiltData[site.id].entries).length > 0;
+          var hasAsBuilt = asBuiltData[site.id] && asBuiltData[site.id].entries && Object.keys(asBuiltData[site.id].entries).length > 0;
+          var equip = fiberEquipment[site.id] || {};
+          var hasEquip = equip.screwAnchor || equip.downGuy || equip.makeReady;
+          var hasSpanWork = Object.keys(spanStages).some(function(k) {
+            return k.indexOf(site.id) !== -1 && spanStages[k].stage && spanStages[k].stage !== 'none' && spanStages[k].stage !== '';
+          });
+          var hasWork = hasAsBuilt || hasEquip || hasSpanWork;
           var pType = site.poleType || 'distribution';
           // Color coding: green=done, red=pending, blue=transmission, gold=key location
           var color = hasWork ? '#22c55e' : (pType === 'transmission' ? '#3b82f6' : (pType === 'key' ? '#f59e0b' : '#ef4444'));
@@ -3024,7 +3030,7 @@
           var bounds = L.latLngBounds(allFiberSites.map(function(s) { return [s.lat, s.lon]; }));
           fiberMapInstance.current.fitBounds(bounds, { padding: [30, 30] });
         }
-      }, [allFiberSites, asBuiltData, fiberEnroutes, tab]);
+      }, [allFiberSites, asBuiltData, fiberEnroutes, fiberEquipment, spanStages, tab]);
 
       // ── Draw color-coded span lines + equipment markers on map ──
       useEffect(function() {
@@ -4013,7 +4019,8 @@
         // Draw pole markers
         allFiberSites.forEach(function(s) {
           var x = toX(s.lon), y = toY(s.lat);
-          var hasWork = !!asBuiltData[s.id];
+          var eq = fiberEquipment[s.id] || {};
+          var hasWork = !!asBuiltData[s.id] || eq.screwAnchor || eq.downGuy || eq.makeReady || Object.keys(spanStages).some(function(k) { return k.indexOf(s.id) !== -1 && spanStages[k].stage && spanStages[k].stage !== 'none' && spanStages[k].stage !== ''; });
           ctx.beginPath();
           ctx.arc(x, y, s.poleType === 'transmission' ? 6 : 5, 0, Math.PI * 2);
           ctx.fillStyle = hasWork ? '#22c55e' : s.poleType === 'transmission' ? '#3b82f6' : '#ef4444';
@@ -5451,7 +5458,12 @@
                 {allFiberSites.map(function(site) {
                   var status = getPoleStatus(site.id);
                   var poleData = asBuiltData[site.id];
-                  var hasWork = status.count > 0;
+                  var eqp = fiberEquipment[site.id] || {};
+                  var hasEqp = eqp.screwAnchor || eqp.downGuy || eqp.makeReady;
+                  var hasSpan = Object.keys(spanStages).some(function(k) {
+                    return k.indexOf(site.id) !== -1 && spanStages[k].stage && spanStages[k].stage !== 'none' && spanStages[k].stage !== '';
+                  });
+                  var hasWork = status.count > 0 || hasEqp || hasSpan;
                   return (
                     <div key={site.id} style={{background:'rgba(30,20,60,0.6)',borderRadius:12,padding:14,marginBottom:10,border:'1px solid ' + (hasWork ? 'rgba(34,197,94,0.3)' : 'rgba(139,92,246,0.15)'),cursor:'pointer'}}
                       onClick={function(){ setSelectedPole(site); setShowLogForm(true); setShowMakeReadyPicker(false); }}>
@@ -7457,7 +7469,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v70.5</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v70.6</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
