@@ -2231,15 +2231,55 @@
           );
         });
         geoPromise.then(function(geo) {
-          var doc = {
-            photoData: pendingFile,
-            authorId: userId,
-            authorName: userName,
-            authorPhoto: avatarURL || null,
-            caption: caption.trim(),
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-          };
-          if (geo) { doc.lat = geo.lat; doc.lon = geo.lon; }
+          // ── Add timestamp watermark to photo ──
+          return new Promise(function(resolve) {
+            var img = new Image();
+            img.onload = function() {
+              var canvas = document.createElement('canvas');
+              canvas.width = img.width; canvas.height = img.height;
+              var ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0);
+
+              var w = img.width, h = img.height;
+              var now = new Date();
+              var dateStr = (now.getMonth()+1) + '/' + now.getDate() + '/' + now.getFullYear();
+              var timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+              var line1 = dateStr + ' ' + timeStr + '  •  ' + userName;
+              var line2 = '📍 ' + (site.name || site.id);
+              if (geo) { line2 += '  •  ' + geo.lat.toFixed(6) + ', ' + geo.lon.toFixed(6); }
+
+              var fontSize = Math.max(14, Math.round(w * 0.028));
+              ctx.font = 'bold ' + fontSize + 'px Inter, Arial, sans-serif';
+              var pad = Math.round(fontSize * 0.6);
+              var bgH = fontSize * 2.8 + pad;
+              var bgY = h - bgH;
+
+              ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+              ctx.fillRect(0, bgY, w, bgH);
+              ctx.fillStyle = '#F59E0B';
+              ctx.fillRect(0, bgY, w, 3);
+              ctx.fillStyle = '#FFFFFF';
+              ctx.font = 'bold ' + fontSize + 'px Inter, Arial, sans-serif';
+              ctx.fillText(line1, pad, bgY + fontSize + pad * 0.5);
+              ctx.font = '' + Math.round(fontSize * 0.85) + 'px Inter, Arial, sans-serif';
+              ctx.fillStyle = '#FCD34D';
+              ctx.fillText(line2, pad, bgY + fontSize * 2.2 + pad * 0.5);
+
+              var watermarked = canvas.toDataURL('image/jpeg', 0.65);
+              var doc = {
+                photoData: watermarked,
+                authorId: userId,
+                authorName: userName,
+                authorPhoto: avatarURL || null,
+                caption: caption.trim(),
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+              };
+              if (geo) { doc.lat = geo.lat; doc.lon = geo.lon; }
+              resolve(doc);
+            };
+            img.src = pendingFile;
+          });
+        }).then(function(doc) {
           return db.collection(collPath).add(doc);
         }).then(function() {
           setPendingFile(null); setPendingPreview(null); setCaption('');
@@ -7417,7 +7457,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v70.4</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v70.5</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
