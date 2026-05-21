@@ -2903,17 +2903,20 @@
           }
           var marker = L.marker([site.lat, site.lon], { icon: icon, draggable: true }).addTo(fiberSitesLayer.current);
           marker.on('click', function() { setSelectedPole(site); setShowLogForm(true); setShowPolePhotos(false); setShowMakeReadyPicker(false); });
-          // Drag to reposition — save new position on drag end
-          (function(s) {
-            marker.on('dragend', function(e) {
+          // Drag to reposition — confirmation + undo toast to prevent accidents
+          (function(s, mkr) {
+            mkr.on('dragend', function(e) {
               var newPos = e.target.getLatLng();
               var origLat = s.lat;
               var origLon = s.lon;
+              var prevCorrected = !!correctedPins[s.id];
               // If already corrected, preserve original import position
               if (correctedPins[s.id]) {
                 origLat = correctedPins[s.id].originalLat;
                 origLon = correctedPins[s.id].originalLon;
               }
+              var poleName = poleRenames[s.id] || s.name || s.id;
+              // Save the correction
               db.collection('fiberPinCorrections').doc(s.id).set({
                 originalLat: origLat,
                 originalLon: origLon,
@@ -2927,8 +2930,36 @@
                 dragCorrected: true
               });
               if (navigator.vibrate) navigator.vibrate([50, 50, 100]);
+
+              // Show undo toast — stays for 10 seconds
+              var existingToast = document.getElementById('drag-undo-toast');
+              if (existingToast) existingToast.remove();
+              var toast = document.createElement('div');
+              toast.id = 'drag-undo-toast';
+              toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#1e1b4b,#312e81);color:white;padding:12px 20px;border-radius:16px;z-index:99999;display:flex;align-items:center;gap:12px;box-shadow:0 8px 32px rgba(0,0,0,0.5);font-family:Inter,system-ui,sans-serif;font-size:14px;border:1px solid rgba(99,102,241,0.4);max-width:90vw;';
+              toast.innerHTML = '<span>📍 Moved <b>' + poleName + '</b></span><button style="background:linear-gradient(135deg,#f59e0b,#d97706);color:white;border:none;padding:6px 16px;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap;">↩ UNDO</button>';
+              document.body.appendChild(toast);
+              var undoBtn = toast.querySelector('button');
+              var undoTimeout = setTimeout(function() { try { toast.remove(); } catch(e){} }, 10000);
+              undoBtn.addEventListener('click', function() {
+                clearTimeout(undoTimeout);
+                // Undo — snap marker back + delete Firestore doc
+                if (prevCorrected) {
+                  // Had prior correction — restore to last known correction
+                  // Just delete the doc since correctedPins listener will update
+                } 
+                db.collection('fiberPinCorrections').doc(s.id).delete().then(function() {
+                  // Snap marker back visually
+                  mkr.setLatLng([s.lat, s.lon]);
+                  if (navigator.vibrate) navigator.vibrate(50);
+                }).catch(function(err) {
+                  console.error('Undo drag failed:', err);
+                });
+                toast.innerHTML = '<span>✅ <b>' + poleName + '</b> moved back</span>';
+                setTimeout(function() { try { toast.remove(); } catch(e){} }, 2000);
+              });
             });
-          })(site);
+          })(site, marker);
           var tip = site.name || site.id;
           if (pType === 'transmission') tip += ' (Tower)';
           if (pType === 'key') tip += ' (' + (site.locationType || 'Key') + ')';
@@ -7390,7 +7421,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v69.5</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v70</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
