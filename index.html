@@ -3043,16 +3043,7 @@
             L.polyline(left, { color: '#eab308', weight: 4, opacity: 1.0 }).addTo(fiberSpanLinesLayer.current);
             L.polyline(right, { color: '#22c55e', weight: 4, opacity: 1.0 }).addTo(fiberSpanLinesLayer.current);
           }
-          // Direction arrow at midpoint showing crew direction
-          var midLat = (p1[0] + p2[0]) / 2;
-          var midLon = (p1[1] + p2[1]) / 2;
-          var angle = Math.atan2(p2[1] - p1[1], p2[0] - p1[0]) * 180 / Math.PI;
-          var arrowIcon = L.divIcon({
-            className: '',
-            html: '<div style="transform:rotate(' + (90 - angle) + 'deg);font-size:14px;color:' + (stage === 'lashed' || stage === 'complete' ? '#22c55e' : '#eab308') + ';text-shadow:0 1px 4px rgba(0,0,0,0.8);font-weight:900;">▼</div>',
-            iconSize: [14, 14], iconAnchor: [7, 7]
-          });
-          L.marker([midLat, midLon], { icon: arrowIcon, interactive: false }).addTo(fiberSpanLinesLayer.current);
+          // Direction arrows removed — crew works back and forth to tension spans
         });
 
         // Draw screw anchor + down guy icons at poles
@@ -3965,17 +3956,7 @@
           }
           ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
           ctx.setLineDash([]);
-          // Draw direction arrow
-          if (stage !== 'none') {
-            var mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-            var angle = Math.atan2(y2 - y1, x2 - x1);
-            ctx.save();
-            ctx.translate(mx, my);
-            ctx.rotate(angle);
-            ctx.fillStyle = ctx.strokeStyle;
-            ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(-4, -4); ctx.lineTo(-4, 4); ctx.closePath(); ctx.fill();
-            ctx.restore();
-          }
+          // Direction arrows removed — crew works back and forth
         });
         // Draw pole markers
         allFiberSites.forEach(function(s) {
