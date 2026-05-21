@@ -3610,8 +3610,8 @@
             }, { merge: true });
           }
           
-          // If going back to "none", remove auto entry
-          if (stage === 'none') {
+          // If going back to none/strand/cable, remove any existing AE2 auto entry
+          if (stage === 'none' || stage === 'strand' || stage === 'cable') {
             var existing2 = asBuiltData[fromPole.id] || {};
             var entries2 = Object.assign({}, existing2.entries || {});
             if (entries2[autoKey]) {
@@ -7385,7 +7385,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v69.3</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v69.4</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
