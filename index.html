@@ -2511,6 +2511,7 @@
       const fiberSpanLinesLayer = useRef(null);
       const fiberEquipLayer = useRef(null);
       const [fiberEquipment, setFiberEquipment] = useState({});
+      const [fiberTicMarks, setFiberTicMarks] = useState({});
       const [fiberEnroutes, setFiberEnroutes] = useState({});
       const fiberEnrouteLayerRef = useRef(null);
       const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -2847,6 +2848,15 @@
         });
       }, []);
 
+      // Load tic marks from Firestore
+      useEffect(function() {
+        return db.collection('fiberTicMarks').onSnapshot(function(snap) {
+          var data = {};
+          snap.docs.forEach(function(doc) { data[doc.id] = doc.data(); });
+          setFiberTicMarks(data);
+        });
+      }, []);
+
       // Load photos for selected pole
       useEffect(function() {
         if (!selectedPole) { setPolePhotos({}); return; }
@@ -3045,6 +3055,9 @@
           if (pType === 'key') tip += ' (' + (site.locationType || 'Key') + ')';
           if (hasWork) tip += ' ✅';
           if (site.pinCorrected) tip += ' 📍';
+          var ticData = fiberTicMarks[site.id];
+          if (ticData && ticData.poleTic != null) tip += ' 📏' + ticData.poleTic;
+          if (ticData && ticData.isSplicePoint) tip += ' 🔗';
 
           marker.bindTooltip(tip, { direction: 'top', offset: [0, -40] });
         });
@@ -3052,7 +3065,7 @@
           var bounds = L.latLngBounds(allFiberSites.map(function(s) { return [s.lat, s.lon]; }));
           fiberMapInstance.current.fitBounds(bounds, { padding: [30, 30] });
         }
-      }, [allFiberSites, asBuiltData, fiberEnroutes, fiberEquipment, spanStages, tab]);
+      }, [allFiberSites, asBuiltData, fiberEnroutes, fiberEquipment, spanStages, fiberTicMarks, tab]);
 
       // ── Draw color-coded span lines + equipment markers on map ──
       useEffect(function() {
@@ -3856,6 +3869,18 @@
             if (navigator.vibrate) navigator.vibrate(100);
           }
         } catch(e) { alert('🗑️ Delete failed: ' + e.message); }
+      }
+
+      // ── Save Tic Mark at pole ──
+      async function saveTicMark(poleId, data) {
+        try {
+          await db.collection('fiberTicMarks').doc(poleId).set(Object.assign({}, data, {
+            updatedBy: user.uid,
+            updatedByName: user.displayName || user.email.split('@')[0],
+            updatedAt: new Date().toISOString()
+          }), { merge: true });
+          if (navigator.vibrate) navigator.vibrate(30);
+        } catch(e) { console.error('Tic mark save failed:', e); }
       }
 
       // ── Generate End-of-Day Report (HTML with map + as-built) ──
@@ -5068,6 +5093,78 @@
                       </div>
                     )}
 
+                    {/* ─── 📏 TIC MARKS ─── */}
+                    {selectedPole && selectedPole.poleType === 'distribution' && (function() {
+                      var tm = fiberTicMarks[selectedPole.id] || {};
+                      var isSplice = !!tm.isSplicePoint;
+                      // Check if first or last pole in current route
+                      var routePoles = allFiberSites.filter(function(s){ return s.poleType === 'distribution'; });
+                      var isFirstOrLast = routePoles.length > 0 && (routePoles[0].id === selectedPole.id || routePoles[routePoles.length - 1].id === selectedPole.id);
+                      var showTail = isSplice || isFirstOrLast;
+                      return (
+                        <div style={{marginBottom:14,background:'rgba(30,40,60,0.5)',borderRadius:12,border:'1px solid rgba(251,191,36,0.25)',padding:12}}>
+                          <div style={{fontSize:12,fontWeight:700,color:'#fbbf24',marginBottom:8,display:'flex',alignItems:'center',gap:6}}>
+                            📏 TIC MARKS
+                            {isFirstOrLast && <span style={{fontSize:9,background:'rgba(139,92,246,0.3)',color:'#c4b5fd',padding:'1px 6px',borderRadius:4,fontWeight:600}}>{routePoles[0].id === selectedPole.id ? 'START' : 'END'} POLE</span>}
+                            {isSplice && <span style={{fontSize:9,background:'rgba(245,158,11,0.3)',color:'#fcd34d',padding:'1px 6px',borderRadius:4,fontWeight:600}}>🔗 SPLICE</span>}
+                          </div>
+                          {/* Pole Tic Mark */}
+                          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+                            <div style={{fontSize:11,color:'#93c5fd',fontWeight:600,width:60,flexShrink:0}}>Pole:</div>
+                            <input
+                              type="number"
+                              inputMode="numeric"
+                              placeholder="Tic mark #"
+                              defaultValue={tm.poleTic || ''}
+                              onBlur={function(e) {
+                                var val = e.target.value.trim();
+                                if (val === '' && !tm.poleTic) return;
+                                saveTicMark(selectedPole.id, { poleTic: val ? Number(val) : null });
+                              }}
+                              onKeyDown={function(e){ if(e.key==='Enter') e.target.blur(); }}
+                              style={{flex:1,background:'rgba(139,92,246,0.15)',border:'1px solid rgba(139,92,246,0.3)',borderRadius:8,padding:'8px 12px',color:'white',fontSize:15,fontWeight:700,outline:'none',minWidth:0}}
+                            />
+                            {tm.poleTic != null && <span style={{fontSize:10,color:'#4ade80',fontWeight:600}}>✓</span>}
+                          </div>
+                          {/* Tail Tic Mark — visible for splice points + first/last */}
+                          {showTail && (
+                            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+                              <div style={{fontSize:11,color:'#f59e0b',fontWeight:600,width:60,flexShrink:0}}>Tail:</div>
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                placeholder="Tail tic mark #"
+                                defaultValue={tm.tailTic || ''}
+                                onBlur={function(e) {
+                                  var val = e.target.value.trim();
+                                  if (val === '' && !tm.tailTic) return;
+                                  saveTicMark(selectedPole.id, { tailTic: val ? Number(val) : null });
+                                }}
+                                onKeyDown={function(e){ if(e.key==='Enter') e.target.blur(); }}
+                                style={{flex:1,background:'rgba(245,158,11,0.1)',border:'1px solid rgba(245,158,11,0.3)',borderRadius:8,padding:'8px 12px',color:'white',fontSize:15,fontWeight:700,outline:'none',minWidth:0}}
+                              />
+                              {tm.tailTic != null && <span style={{fontSize:10,color:'#4ade80',fontWeight:600}}>✓</span>}
+                            </div>
+                          )}
+                          {/* Splice Point toggle */}
+                          {!isFirstOrLast && (
+                            <button onClick={function() {
+                              saveTicMark(selectedPole.id, { isSplicePoint: !isSplice });
+                            }}
+                              style={{background: isSplice ? 'linear-gradient(135deg,#92400e,#d97706)' : 'rgba(255,255,255,0.05)', border: isSplice ? '1px solid #fbbf24' : '1px solid rgba(255,255,255,0.15)', borderRadius:8, padding:'6px 14px', color: isSplice ? '#fef3c7' : '#94a3b8', fontSize:11, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:6, width:'100%', justifyContent:'center'}}>
+                              🔗 {isSplice ? 'SPLICE POINT ✓ (tap to remove)' : 'Mark as Splice Point'}
+                            </button>
+                          )}
+                          {/* Who/when */}
+                          {tm.updatedByName && (
+                            <div style={{fontSize:9,color:'#64748b',marginTop:6,textAlign:'right'}}>
+                              Updated by {tm.updatedByName} • {tm.updatedAt ? new Date(tm.updatedAt).toLocaleString() : ''}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+
                     {/* ─── SPAN MEASUREMENTS + WORK STAGES ─── */}
                     {selectedPole && selectedPole.poleType === 'distribution' && spanData[selectedPole.id] && (
                       <div style={{marginBottom:14,background:'rgba(30,40,60,0.5)',borderRadius:12,border:'1px solid rgba(59,130,246,0.2)',padding:12}}>
@@ -5450,6 +5547,13 @@
                             <div style={{fontSize:11,color:'#64748b'}}>{site.address || site.description || ''}</div>
                             {site.poleType === 'distribution' && spanData[site.id] && spanData[site.id][0] && (
                               <div style={{fontSize:10,color:'#93c5fd',marginTop:2}}>↔ {spanData[site.id][0].name}: {spanData[site.id][0].dist} ft</div>
+                            )}
+                            {fiberTicMarks[site.id] && fiberTicMarks[site.id].poleTic != null && (
+                              <div style={{fontSize:10,color:'#fbbf24',marginTop:2,display:'flex',alignItems:'center',gap:4}}>
+                                📏 Tic: {fiberTicMarks[site.id].poleTic}
+                                {fiberTicMarks[site.id].tailTic != null && <span style={{color:'#f59e0b'}}>| Tail: {fiberTicMarks[site.id].tailTic}</span>}
+                                {fiberTicMarks[site.id].isSplicePoint && <span style={{color:'#fcd34d',fontSize:9}}>🔗</span>}
+                              </div>
                             )}
                           </div>
                         </div>
@@ -7404,7 +7508,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v70.9</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v71</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
