@@ -2996,8 +2996,11 @@
         allFiberSites.forEach(function(s) { siteMap[s.id] = s; });
 
         // ── GUIDE LINES: thin gray dashed for nearest-neighbor route (unworked spans only) ──
+        // Only show guide lines for nearby poles (under 1500ft) to prevent cross-map zigzag
         if (spanData._routeSpans) {
           spanData._routeSpans.forEach(function(span) {
+            // Skip long-distance guide lines — they zigzag across different route sections
+            if (span.dist && span.dist > 1500) return;
             var spanId = span.from.id + '__' + span.to.id;
             var reverseId = span.to.id + '__' + span.from.id;
             var stageData = spanStages[spanId] || spanStages[reverseId];
@@ -7421,7 +7424,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v70</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v70.1</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
