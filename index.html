@@ -2661,6 +2661,18 @@
               seen[id] = true;
             });
           }
+          // Also merge in "Field Additions" poles so crew-added poles show on same map
+          importedRoutes.forEach(function(r) {
+            if (r.name === 'Field Additions' && r.poles) {
+              r.poles.forEach(function(p) {
+                var id = r.id + '-' + p.id;
+                if (!seen[id]) {
+                  merged.push({ id: id, name: p.name, lat: p.lat, lon: p.lon, poleType: p.poleType || 'distribution', routeId: r.id, fieldAddition: true });
+                  seen[id] = true;
+                }
+              });
+            }
+          });
         } else {
           // Use imported route from Firestore
           var route = importedRoutes.find(function(r) { return r.id === activeRouteId; });
@@ -4652,7 +4664,7 @@
               <select value={activeRouteId} onChange={function(e){setActiveRouteId(e.target.value);}}
                 style={{flex:1,background:'rgba(139,92,246,0.15)',border:'1px solid rgba(139,92,246,0.3)',borderRadius:8,color:'white',padding:'6px 10px',fontSize:12,fontWeight:600,minWidth:0}}>
                 <option value="olt57">OLT-57 (Built-in)</option>
-                {importedRoutes.map(function(r) {
+                {importedRoutes.filter(function(r) { return r.name !== 'Field Additions'; }).map(function(r) {
                   return <option key={r.id} value={r.id}>📂 {r.name} ({r.poleCount} poles)</option>;
                 })}
               </select>
@@ -4685,10 +4697,10 @@
                   style={{width:'100%',padding:'14px',borderRadius:12,border:'2px solid rgba(139,92,246,0.4)',background:'linear-gradient(135deg,#4c1d95,#7c3aed)',color:'white',fontSize:15,fontWeight:700,cursor:'pointer',marginBottom:16}}>
                   {importingRoute ? '⏳ Importing...' : '📂 Choose KML / KMZ File'}
                 </button>
-                {importedRoutes.length > 0 && (
+                {importedRoutes.filter(function(r) { return r.name !== 'Field Additions'; }).length > 0 && (
                   <div>
                     <div style={{fontSize:12,fontWeight:700,color:'#a78bfa',marginBottom:8}}>IMPORTED ROUTES</div>
-                    {importedRoutes.map(function(r) {
+                    {importedRoutes.filter(function(r) { return r.name !== 'Field Additions'; }).map(function(r) {
                       return <div key={r.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'8px 12px',background:'rgba(139,92,246,0.1)',borderRadius:8,marginBottom:6,border:'1px solid rgba(139,92,246,0.15)'}}>
                         <div>
                           <div style={{color:'white',fontSize:13,fontWeight:600}}>{r.name}</div>
@@ -7405,7 +7417,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v70.2</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v70.3</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
