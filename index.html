@@ -2916,12 +2916,18 @@
           if (!user) return;
           var clickLat = e.latlng.lat;
           var clickLon = e.latlng.lng;
-          // Check if tap is near an existing pole (within ~30m) — if so, ignore (marker handles it)
-          var tooClose = allFiberSites.some(function(s) {
-            var dLat = (s.lat - clickLat) * 111320;
-            var dLon = (s.lon - clickLon) * 111320 * Math.cos(clickLat * Math.PI / 180);
-            return Math.sqrt(dLat * dLat + dLon * dLon) < 30;
-          });
+          // Check if tap is near an existing marker (within ~30m) — use map layer (not stale closure)
+          var tooClose = false;
+          if (fiberSitesLayer.current) {
+            fiberSitesLayer.current.eachLayer(function(layer) {
+              if (layer.getLatLng) {
+                var ll = layer.getLatLng();
+                var dLat = (ll.lat - clickLat) * 111320;
+                var dLon = (ll.lng - clickLon) * 111320 * Math.cos(clickLat * Math.PI / 180);
+                if (Math.sqrt(dLat * dLat + dLon * dLon) < 30) tooClose = true;
+              }
+            });
+          }
           if (tooClose) return;
           // Show add pole prompt
           var poleName = prompt('📍 No pole here.\n\nAdd a new pole at this location?\n\nEnter pole ID/name:');
@@ -7508,7 +7514,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v71</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v71.1</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
