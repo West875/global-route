@@ -2665,7 +2665,7 @@
           importedRoutes.forEach(function(r) {
             if (r.name === 'Field Additions' && r.poles) {
               r.poles.forEach(function(p) {
-                var id = r.id + '-' + p.id;
+                var id = r.id + '-' + p.id.replace(/\//g, '_');
                 if (!seen[id]) {
                   merged.push({ id: id, name: p.name, lat: p.lat, lon: p.lon, poleType: p.poleType || 'distribution', routeId: r.id, fieldAddition: true });
                   seen[id] = true;
@@ -2678,7 +2678,7 @@
           var route = importedRoutes.find(function(r) { return r.id === activeRouteId; });
           if (route && route.poles) {
             route.poles.forEach(function(p) {
-              var id = route.id + '-' + p.id;
+              var id = route.id + '-' + p.id.replace(/\//g, '_');
               merged.push({ id: id, name: p.name, lat: p.lat, lon: p.lon, poleType: p.poleType || 'distribution', routeId: route.id });
               seen[id] = true;
             });
@@ -7417,7 +7417,7 @@
               <NavIcon size={16} className="text-primary shrink-0" />
               <span style={{fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{remainingCount} remaining</span>
               <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:500}}>({visited.size} you • {teamCompletedCount} team)</span>
-              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v70.3</span>
+              <span style={{fontSize:9,color:'var(--text-muted)',opacity:0.4}}>v70.4</span>
             </div>
             <div className="flex gap-2 flex-wrap">
               <button className="btn btn-sm btn-outline btn-warning gap-1" onClick={function() { setShowKMZManager(true); }} title="Import KMZ">
