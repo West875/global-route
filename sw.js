@@ -1,4 +1,4 @@
-const CACHE_NAME = 'global-route-v96';
+const CACHE_NAME = 'global-route-v97';
 
 // Only cache external CDN libraries — NEVER cache index.html
 self.addEventListener('install', (e) => {
