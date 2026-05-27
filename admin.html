@@ -1504,7 +1504,7 @@
       h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;">';
       
       // As-Built Report card
-      h += '<div class="stat-box" style="text-align:center;cursor:pointer;" onclick="alert('As-Built PDF generation is handled by the nightly report system. Check your email at 8:30 PM ET.')">';
+      h += '<div class="stat-box" style="text-align:center;cursor:pointer;" onclick="alert(&quot;As-Built PDF generation is handled by the nightly report system. Check your email at 8:30 PM ET.&quot;)">';
       h += '<div style="font-size:40px;margin-bottom:8px;">🗺️</div>';
       h += '<div style="font-weight:bold;font-size:1rem;margin-bottom:4px;">As-Built PDF</div>';
       h += '<div style="font-size:0.78rem;color:#a6adbb;">Multi-page map report with pole details, crew photos, span lines. Sent nightly at 8:30 PM ET.</div>';
@@ -1544,7 +1544,7 @@
           var d = byDate[dk];
           var crewNames = Object.keys(d.crew).map(function(k){return d.crew[k];});
           var ex = S.expandedId === 'rep_' + dk;
-          h += '<div class="card-item purple" onclick="toggle('rep_' + dk.replace(/[^a-zA-Z0-9]/g,'') + '')">';
+          h += '<div class="card-item purple" onclick="toggle(\'rep_' + dk.replace(/[^a-zA-Z0-9]/g,'') + '\')">';
           h += '<div style="display:flex;align-items:center;justify-content:space-between;">';
           h += '<div><div style="font-weight:600;">📅 ' + dk + '</div>';
           h += '<div style="font-size:0.78rem;color:#a6adbb;">' + d.entries.length + ' poles • ' + crewNames.length + ' crew</div></div>';
