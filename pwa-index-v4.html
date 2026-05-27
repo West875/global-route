@@ -3113,8 +3113,20 @@
         }
 
         // ── CREW WORK LINES: colored lines follow ACTUAL crew direction (from Firestore) ──
+        // Dedup: A→B and B→A = same span, keep higher stage, draw once
+        var stageRank = { none: 0, strand: 1, cable: 2, lashed: 3, complete: 4 };
+        var dedupedSpans = {};
         Object.keys(spanStages).forEach(function(spanId) {
-          var stageData = spanStages[spanId];
+          var sd = spanStages[spanId];
+          if (!sd.stage || sd.stage === 'none') return;
+          var pair = [sd.fromId, sd.toId].sort().join('__');
+          var rank = stageRank[sd.stage] || 0;
+          if (!dedupedSpans[pair] || rank > (stageRank[dedupedSpans[pair].stage] || 0)) {
+            dedupedSpans[pair] = sd;
+          }
+        });
+        Object.keys(dedupedSpans).forEach(function(pairKey) {
+          var stageData = dedupedSpans[pairKey];
           var stage = stageData.stage;
           if (!stage || stage === 'none') return;
           // Look up actual pole positions
