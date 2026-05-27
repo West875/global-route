@@ -3792,294 +3792,182 @@
       }
 
       function renderBillingModal(flow) {
-        // Remove existing
         var old = document.getElementById('billingFlowModal');
         if (old) old.remove();
         if (!flow) return;
-
         var overlay = document.createElement('div');
         overlay.id = 'billingFlowModal';
         overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px);';
-
         var card = document.createElement('div');
         card.style.cssText = 'background:linear-gradient(135deg,#1a1040,#2d1b69);border:1px solid rgba(168,85,247,0.3);border-radius:20px;padding:28px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.6);';
-
         var stepEmoji = flow.step === 'before' ? '📸' : flow.step === 'after' ? '📸' : '🔢';
         var stepLabel = flow.step === 'before' ? 'BEFORE Photo' : flow.step === 'after' ? 'AFTER Photo' : 'Enter Quantity';
         var stepColor = flow.step === 'before' ? '#f59e0b' : flow.step === 'after' ? '#10b981' : '#8b5cf6';
         var stepNum = flow.step === 'before' ? '1' : flow.step === 'after' ? '2' : '3';
-
         var html = '';
-        // Header
         html += '<div style="text-align:center;margin-bottom:20px;">';
         html += '<div style="font-size:11px;text-transform:uppercase;letter-spacing:2px;color:#94a3b8;margin-bottom:8px;">Step ' + stepNum + ' of 3</div>';
         html += '<div style="font-size:28px;margin-bottom:4px;">' + stepEmoji + '</div>';
         html += '<div style="font-size:20px;font-weight:800;color:white;">' + stepLabel + '</div>';
         html += '<div style="font-size:14px;color:' + stepColor + ';font-weight:600;margin-top:4px;">' + flow.desc + '</div>';
         html += '</div>';
-
-        // Progress dots
         html += '<div style="display:flex;justify-content:center;gap:8px;margin-bottom:20px;">';
-        ['before','after','quantity'].forEach(function(s, i) {
+        ['before','after','quantity'].forEach(function(s) {
           var active = s === flow.step;
           var done = (s === 'before' && (flow.step === 'after' || flow.step === 'quantity')) || (s === 'after' && flow.step === 'quantity');
           var bg = done ? '#10b981' : active ? stepColor : 'rgba(255,255,255,0.15)';
           html += '<div style="width:' + (active ? '32px' : '10px') + ';height:10px;border-radius:5px;background:' + bg + ';transition:all 0.3s;"></div>';
         });
         html += '</div>';
-
-        // Thumbnails for completed steps
         if (flow.beforePhoto || flow.afterPhoto) {
           html += '<div style="display:flex;gap:10px;justify-content:center;margin-bottom:16px;">';
-          if (flow.beforePhoto) {
-            html += '<div style="text-align:center;"><div style="font-size:10px;color:#f59e0b;font-weight:700;margin-bottom:4px;">BEFORE</div><img src="' + flow.beforePhoto + '" style="width:60px;height:60px;border-radius:8px;object-fit:cover;border:2px solid #f59e0b;" /></div>';
-          }
-          if (flow.afterPhoto) {
-            html += '<div style="text-align:center;"><div style="font-size:10px;color:#10b981;font-weight:700;margin-bottom:4px;">AFTER</div><img src="' + flow.afterPhoto + '" style="width:60px;height:60px;border-radius:8px;object-fit:cover;border:2px solid #10b981;" /></div>';
-          }
+          if (flow.beforePhoto) html += '<div style="text-align:center;"><div style="font-size:10px;color:#f59e0b;font-weight:700;margin-bottom:4px;">BEFORE</div><img src="' + flow.beforePhoto + '" style="width:60px;height:60px;border-radius:8px;object-fit:cover;border:2px solid #f59e0b;" /></div>';
+          if (flow.afterPhoto) html += '<div style="text-align:center;"><div style="font-size:10px;color:#10b981;font-weight:700;margin-bottom:4px;">AFTER</div><img src="' + flow.afterPhoto + '" style="width:60px;height:60px;border-radius:8px;object-fit:cover;border:2px solid #10b981;" /></div>';
           html += '</div>';
         }
-
         if (flow.step === 'before' || flow.step === 'after') {
-          // Camera button
           var btnColor = flow.step === 'before' ? 'linear-gradient(135deg,#d97706,#f59e0b)' : 'linear-gradient(135deg,#059669,#10b981)';
           var btnText = flow.step === 'before' ? '📸 Take BEFORE Photo' : '📸 Take AFTER Photo';
           html += '<button id="billingCameraBtn" style="width:100%;padding:16px;border:none;border-radius:14px;background:' + btnColor + ';color:white;font-size:16px;font-weight:800;cursor:pointer;margin-bottom:12px;box-shadow:0 4px 15px rgba(0,0,0,0.3);">' + btnText + '</button>';
         } else if (flow.step === 'quantity') {
-          // Quantity input
           html += '<div style="margin-bottom:16px;">';
           html += '<label style="display:block;color:#cbd5e1;font-size:13px;font-weight:600;margin-bottom:8px;">Quantity (' + flow.unit + ')</label>';
           html += '<input id="billingQtyInput" type="number" min="1" value="' + flow.qty + '" style="width:100%;padding:14px;border-radius:12px;border:2px solid rgba(139,92,246,0.4);background:rgba(255,255,255,0.08);color:white;font-size:20px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;" />';
           html += '</div>';
           html += '<button id="billingSubmitBtn" style="width:100%;padding:16px;border:none;border-radius:14px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:white;font-size:16px;font-weight:800;cursor:pointer;margin-bottom:12px;box-shadow:0 4px 15px rgba(139,92,246,0.4);">✅ Complete Billing</button>';
         }
-
-        // Cancel button
         html += '<button id="billingCancelBtn" style="width:100%;padding:12px;border:1px solid rgba(255,255,255,0.15);border-radius:12px;background:transparent;color:#94a3b8;font-size:14px;font-weight:600;cursor:pointer;">Cancel</button>';
-
         card.innerHTML = html;
         overlay.appendChild(card);
         document.body.appendChild(overlay);
-
-        // Wire up camera button
         var cameraBtn = document.getElementById('billingCameraBtn');
-        if (cameraBtn) {
-          cameraBtn.onclick = function() { openBillingCamera(); };
-        }
-
-        // Wire up submit button
+        if (cameraBtn) { cameraBtn.onclick = function() { openBillingCamera(); }; }
         var submitBtn = document.getElementById('billingSubmitBtn');
         if (submitBtn) {
           submitBtn.onclick = function() {
             var qtyInput = document.getElementById('billingQtyInput');
             var qty = qtyInput ? parseInt(qtyInput.value) || 1 : 1;
             var curFlow = billingFlowRef.current;
-            if (curFlow) {
-              curFlow.qty = qty;
-              completeBillingFlowFinal(curFlow);
-            }
+            if (curFlow) { curFlow.qty = qty; completeBillingFlowFinal(curFlow); }
           };
         }
-
-        // Wire up cancel
         var cancelBtn = document.getElementById('billingCancelBtn');
         if (cancelBtn) {
           cancelBtn.onclick = function() {
-            setBillingFlow(null);
-            billingFlowRef.current = null;
-            var m = document.getElementById('billingFlowModal');
-            if (m) m.remove();
+            setBillingFlow(null); billingFlowRef.current = null;
+            var m = document.getElementById('billingFlowModal'); if (m) m.remove();
           };
         }
       }
 
       function openBillingCamera() {
         var inp = document.createElement('input');
-        inp.type = 'file';
-        inp.accept = 'image/*';
-        inp.setAttribute('capture', 'environment');
-        inp.style.display = 'none';
+        inp.type = 'file'; inp.accept = 'image/*'; inp.setAttribute('capture', 'environment'); inp.style.display = 'none';
         inp.onchange = async function(e) {
           var file = e.target.files && e.target.files[0];
           if (!file) { document.body.removeChild(inp); return; }
           try {
             var canvas = document.createElement('canvas');
             var img = new Image();
-            var dataUrl = await new Promise(function(resolve) {
-              var reader = new FileReader(); reader.onload = function(ev) { resolve(ev.target.result); }; reader.readAsDataURL(file);
-            });
+            var dataUrl = await new Promise(function(resolve) { var reader = new FileReader(); reader.onload = function(ev) { resolve(ev.target.result); }; reader.readAsDataURL(file); });
             await new Promise(function(resolve) { img.onload = resolve; img.src = dataUrl; });
             var maxDim = 1200; var w = img.width, h = img.height;
             if (w > maxDim || h > maxDim) { if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; } else { w = Math.round(w * maxDim / h); h = maxDim; } }
             canvas.width = w; canvas.height = h;
-            var ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, w, h);
-            // GPS
+            var ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, w, h);
             var gps = null;
-            try { var gpsPos = await new Promise(function(res, rej) { navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 10000 }); }); gps = { lat: gpsPos.coords.latitude, lon: gpsPos.coords.longitude }; } catch(ge) {}
-            // Watermark
+            try { var gpsPos = await new Promise(function(res, rej) { navigator.geolocation.getCurrentPosition(res, rej, {enableHighAccuracy:true,timeout:10000}); }); gps = {lat:gpsPos.coords.latitude,lon:gpsPos.coords.longitude}; } catch(ge) {}
             var now = new Date();
-            var dateStr = (now.getMonth()+1) + '/' + now.getDate() + '/' + now.getFullYear();
-            var timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+            var dateStr = (now.getMonth()+1)+'/'+now.getDate()+'/'+now.getFullYear();
+            var timeStr = now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});
             var userName = user ? (user.displayName || user.email.split('@')[0]) : 'Unknown';
             var curFlow = billingFlowRef.current;
             var poleName = curFlow ? (poleRenames[curFlow.poleId] || curFlow.poleId) : '';
             var stepLabel = curFlow && curFlow.step === 'before' ? 'BEFORE' : 'AFTER';
-            var line1 = dateStr + ' ' + timeStr + '  \u2022  ' + userName;
-            var line2 = stepLabel + '  \u2022  ' + poleName + (gps ? '  \u2022  ' + gps.lat.toFixed(6) + ', ' + gps.lon.toFixed(6) : '');
+            var line1 = dateStr+' '+timeStr+'  \u2022  '+userName;
+            var line2 = stepLabel+'  \u2022  '+poleName+(gps ? '  \u2022  '+gps.lat.toFixed(6)+', '+gps.lon.toFixed(6) : '');
             var fontSize = Math.max(14, Math.round(w * 0.028));
-            ctx.font = 'bold ' + fontSize + 'px Inter, Arial, sans-serif';
+            ctx.font = 'bold '+fontSize+'px Inter, Arial, sans-serif';
             var pad = Math.round(fontSize * 0.6);
             var bgH = fontSize * 2.8 + pad; var bgY = h - bgH;
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'; ctx.fillRect(0, bgY, w, bgH);
+            ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, bgY, w, bgH);
             ctx.fillStyle = '#F59E0B'; ctx.fillRect(0, bgY, w, 3);
             ctx.fillStyle = '#FFFFFF'; ctx.fillText(line1, pad, bgY + fontSize + pad * 0.5);
-            ctx.font = fontSize + 'px Inter, Arial, sans-serif'; ctx.fillStyle = '#94a3b8'; ctx.fillText(line2, pad, bgY + fontSize * 2.2 + pad * 0.5);
+            ctx.font = fontSize+'px Inter, Arial, sans-serif'; ctx.fillStyle = '#94a3b8'; ctx.fillText(line2, pad, bgY + fontSize * 2.2 + pad * 0.5);
             var compressed = canvas.toDataURL('image/jpeg', 0.85);
-            // Advance the flow
             if (curFlow) {
-              if (curFlow.step === 'before') {
-                curFlow.beforePhoto = compressed;
-                curFlow.step = 'after';
-              } else if (curFlow.step === 'after') {
-                curFlow.afterPhoto = compressed;
-                curFlow.step = 'quantity';
-              }
+              if (curFlow.step === 'before') { curFlow.beforePhoto = compressed; curFlow.step = 'after'; }
+              else if (curFlow.step === 'after') { curFlow.afterPhoto = compressed; curFlow.step = 'quantity'; }
               billingFlowRef.current = curFlow;
               setBillingFlow(Object.assign({}, curFlow));
               renderBillingModal(curFlow);
             }
-          } catch(err) { console.error('Billing photo error:', err); alert('Photo capture failed: ' + err.message); }
+          } catch(err) { console.error('Billing photo error:', err); alert('Photo failed: '+err.message); }
           try { document.body.removeChild(inp); } catch(re) {}
         };
-        document.body.appendChild(inp);
-        inp.click();
+        document.body.appendChild(inp); inp.click();
       }
 
       async function completeBillingFlowFinal(flow) {
         if (!flow || !user) return;
         try {
-          // Save BEFORE photo to pole photos collection
           if (flow.beforePhoto) {
             await db.collection('fiberPolePhotos').doc(flow.poleId).collection('photos').add({
-              imageData: flow.beforePhoto,
-              userName: user.displayName || user.email.split('@')[0],
-              userPhoto: avatarURL || user.photoURL || null,
-              userId: user.uid, tag: 'Before', billingCode: flow.code,
-              timestamp: new Date().toISOString(),
+              imageData: flow.beforePhoto, userName: user.displayName || user.email.split('@')[0],
+              userPhoto: avatarURL || user.photoURL || null, userId: user.uid, tag: 'Before',
+              billingCode: flow.code, timestamp: new Date().toISOString(),
               gpsLat: fiberUserLoc ? fiberUserLoc.lat : null, gpsLon: fiberUserLoc ? fiberUserLoc.lon : null
             });
           }
-          // Save AFTER photo
           if (flow.afterPhoto) {
             await db.collection('fiberPolePhotos').doc(flow.poleId).collection('photos').add({
-              imageData: flow.afterPhoto,
-              userName: user.displayName || user.email.split('@')[0],
-              userPhoto: avatarURL || user.photoURL || null,
-              userId: user.uid, tag: 'After', billingCode: flow.code,
-              timestamp: new Date().toISOString(),
+              imageData: flow.afterPhoto, userName: user.displayName || user.email.split('@')[0],
+              userPhoto: avatarURL || user.photoURL || null, userId: user.uid, tag: 'After',
+              billingCode: flow.code, timestamp: new Date().toISOString(),
               gpsLat: fiberUserLoc ? fiberUserLoc.lat : null, gpsLon: fiberUserLoc ? fiberUserLoc.lon : null
             });
           }
-          // Call the completion callback with quantity
-          if (flow.onComplete) await flow.onComplete(flow.qty, flow.beforePhoto, flow.afterPhoto);
-          setBillingFlow(null);
-          billingFlowRef.current = null;
-          var m = document.getElementById('billingFlowModal');
-          if (m) m.remove();
+          if (flow.onComplete) await flow.onComplete(flow.qty);
           if (navigator.vibrate) navigator.vibrate([50, 50, 100]);
-          // Success toast
-          var toast = document.createElement('div');
-          toast.style.cssText = 'position:fixed;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#065f46,#047857);color:white;padding:12px 24px;border-radius:12px;z-index:99999;font-weight:700;font-size:14px;box-shadow:0 4px 20px rgba(0,0,0,0.4);';
-          toast.textContent = '\u2705 ' + flow.desc + ' \u2014 billed!';
-          document.body.appendChild(toast);
-          setTimeout(function() { try { toast.remove(); } catch(e) {} }, 3000);
-        } catch(e) { alert('Billing failed: ' + e.message); }
+          playDoneSound();
+        } catch(err) { console.error('Billing save error:', err); alert('Failed to save: ' + err.message); }
+        setBillingFlow(null); billingFlowRef.current = null;
+        var m = document.getElementById('billingFlowModal'); if (m) m.remove();
       }
 
-      // ── BILLING CODE PICKER — shows all codes WITHOUT prices ──
-      var BILLING_CATEGORIES = [
-        { name: 'Aerial', codes: [
-          {code:'AE1A',desc:'Overhead Guy',unit:'Foot'},{code:'AE3',desc:'Overlash',unit:'Foot'},
-          {code:'AE4',desc:'Down Guy / Guy Guard',unit:'Each'},{code:'AE5',desc:'Screw Anchor',unit:'Each'},
-          {code:'AE5A',desc:'Rock Anchor',unit:'Each'},{code:'AE5B',desc:'Non-Accessible Anchor Adder',unit:'Each'},
-          {code:'AE6',desc:'Snow Shoe',unit:'Each'},{code:'AE7',desc:'Pole Riser',unit:'Each'},
-          {code:'AE8',desc:'ADSS',unit:'Foot'},{code:'AE9',desc:'Grounding of Guy Wire',unit:'Each'},
-          {code:'AE11',desc:'Auxiliary Eye',unit:'Each'},{code:'AE12',desc:'Delash / Relash',unit:'Foot'},
-          {code:'AE13',desc:'Remove Strand',unit:'Foot'},{code:'AE14',desc:'Remove Fiber',unit:'Foot'},
-          {code:'AE15',desc:'Remove Down Guy',unit:'Each'},{code:'AE16',desc:'Remove Anchor',unit:'Each'},
-          {code:'AE17',desc:'Remove Pole',unit:'Each'},{code:'AE18',desc:'Resag Aerial Span',unit:'Each'},
-          {code:'AE19',desc:'Tree Trimming',unit:'Foot'}
-        ]},
-        { name: 'Terminals', codes: [
-          {code:'AT1',desc:'Terminals (4,6,8,12)',unit:'Each'},{code:'AT2',desc:'Terminal Tails',unit:'Foot'}
-        ]},
-        { name: 'Pole Placement', codes: [
-          {code:'AP1',desc:'Place Pole up to 35ft',unit:'Each'},{code:'AP2',desc:'Place Pole 40ft+',unit:'Each'},
-          {code:'AP3',desc:'Non-Accessible Pole Adder',unit:'Each'}
-        ]},
-        { name: 'Underground', codes: [
-          {code:'UG4A',desc:'Self Support Duct',unit:'Foot'},{code:'UG4',desc:'Fiber Placement in Conduit',unit:'Foot'}
-        ]},
-        { name: 'Splicing', codes: [
-          {code:'FS1',desc:'Fusion Splice and Test',unit:'Each'},{code:'FS2',desc:'Splice Enclosure Install',unit:'Each'},
-          {code:'FS3',desc:'One-Time Adder Testing',unit:'Each'},{code:'FS4',desc:'Off Road Adder',unit:'Each'}
-        ]},
-        { name: 'Drops', codes: [
-          {code:'AD1',desc:'Aerial Installation',unit:'Foot'},{code:'AD2',desc:'Underground Installation',unit:'Foot'},
-          {code:'AD3',desc:'Installation of NID',unit:'Each'},{code:'AD4',desc:'Testing',unit:'Each'}
-        ]},
-        { name: 'Make Ready', codes: [
-          {code:'MR1',desc:'Drop',unit:'Each'},{code:'MR2',desc:'In-Line',unit:'Each'},
-          {code:'MR3',desc:'Corner / Dead End',unit:'Each'},{code:'MR4',desc:'Move Terminal/Load Coil',unit:'Each'},
-          {code:'MR5',desc:'Move Extension Arm',unit:'Each'},{code:'MR6',desc:'Riser',unit:'Each'}
-        ]},
-        { name: 'Additional', codes: [
-          {code:'AU1',desc:'Special Road Crossing',unit:'Each'},{code:'AU4',desc:'Pole Riser',unit:'Each'},
-          {code:'AU5',desc:'Railway Boring',unit:'Foot'},{code:'AU6',desc:'Standard Boring',unit:'Foot'},
-          {code:'AU7',desc:'Rock Bore Adder',unit:'Foot'},{code:'AU8',desc:'Drop - Hand Dig',unit:'Foot'},
-          {code:'AU9',desc:'Drop - Boring',unit:'Foot'},{code:'AU10',desc:'Crew Hourly Rate',unit:'Hour'}
-        ]}
+      // ── BILLING PICKER — full GigaBeam rate card ──
+      var BILLING_ITEMS = [
+        {cat:'Aerial',items:[{code:'AE2',desc:'Strand & Lash',unit:'Foot'},{code:'AE4',desc:'Down Guy',unit:'Each'},{code:'AE5',desc:'Screw Anchor',unit:'Each'},{code:'AE6',desc:'Snowshoe',unit:'Foot'},{code:'AE7',desc:'3 Bolt Clamp',unit:'Each'},{code:'AE8',desc:'J-Hook',unit:'Each'},{code:'AE19',desc:'Tree Trim',unit:'Foot'}]},
+        {cat:'Terminals',items:[{code:'TE1',desc:'Fiber Terminal Install',unit:'Each'},{code:'TE2',desc:'Fiber Splitter Install',unit:'Each'},{code:'TE3',desc:'Splice Closure Install',unit:'Each'}]},
+        {cat:'Pole Placement',items:[{code:'PP1',desc:'Set Pole (35ft)',unit:'Each'},{code:'PP2',desc:'Set Pole (40ft)',unit:'Each'},{code:'PP3',desc:'Set Pole (45ft)',unit:'Each'}]},
+        {cat:'Underground',items:[{code:'UG1',desc:'Trench (per ft)',unit:'Foot'},{code:'UG2',desc:'Bore (per ft)',unit:'Foot'},{code:'UG3',desc:'Handhole Install',unit:'Each'}]},
+        {cat:'Splicing',items:[{code:'SP1',desc:'Fiber Splice (per strand)',unit:'Each'},{code:'SP2',desc:'Splice Enclosure',unit:'Each'}]},
+        {cat:'Drops',items:[{code:'DR1',desc:'Aerial Drop',unit:'Foot'},{code:'DR2',desc:'Underground Drop',unit:'Foot'},{code:'DR3',desc:'NID Install',unit:'Each'}]},
+        {cat:'Make Ready',items:[{code:'MR1',desc:'Transfer (Comm)',unit:'Each'},{code:'MR2',desc:'Transfer (CATV)',unit:'Each'},{code:'MR3',desc:'Transfer (Telco)',unit:'Each'},{code:'MR4',desc:'Raise Cable',unit:'Each'},{code:'MR5',desc:'Lower Cable',unit:'Each'},{code:'MR6',desc:'Cutover',unit:'Each'}]},
+        {cat:'Additional',items:[{code:'AD1',desc:'Traffic Control',unit:'Hour'},{code:'AD2',desc:'Emergency Callout',unit:'Each'},{code:'AD3',desc:'Permit Pulling',unit:'Each'}]}
       ];
 
       function renderBillingPicker(poleId) {
         var old = document.getElementById('billingPickerModal');
         if (old) old.remove();
-
         var overlay = document.createElement('div');
         overlay.id = 'billingPickerModal';
-        overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:99998;display:flex;flex-direction:column;backdrop-filter:blur(8px);';
-
-        var html = '<div style="flex:0 0 auto;padding:16px 20px;border-bottom:1px solid rgba(168,85,247,0.2);">';
-        html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
-        html += '<div><div style="font-size:18px;font-weight:800;color:white;">\ud83d\udcb0 Select Billing Item</div>';
-        html += '<div style="font-size:12px;color:#a78bfa;">' + (poleRenames[poleId] || poleId) + '</div></div>';
-        html += '<button id="billingPickerClose" style="background:rgba(255,255,255,0.1);border:none;color:white;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;">\u2715</button>';
-        html += '</div></div>';
-        html += '<div style="flex:1;overflow-y:auto;padding:12px 16px;">';
-
-        BILLING_CATEGORIES.forEach(function(cat) {
-          html += '<div style="margin-bottom:12px;">';
-          html += '<div style="font-size:11px;text-transform:uppercase;letter-spacing:2px;color:#94a3b8;margin-bottom:6px;font-weight:700;">' + cat.name + '</div>';
-          cat.codes.forEach(function(c) {
-            html += '<button class="billingCodeBtn" data-code="' + c.code + '" data-desc="' + c.desc + '" data-unit="' + c.unit + '" style="display:block;width:100%;text-align:left;padding:12px 14px;margin-bottom:4px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:10px;color:white;font-size:14px;cursor:pointer;">';
-            html += '<span style="color:#a78bfa;font-weight:700;margin-right:8px;">' + c.code + '</span>';
-            html += '<span>' + c.desc + '</span>';
-            html += '<span style="float:right;color:#64748b;font-size:12px;">' + c.unit + '</span>';
-            html += '</button>';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:99998;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(8px);';
+        var card = document.createElement('div');
+        card.style.cssText = 'background:linear-gradient(135deg,#1a1040,#2d1b69);border:1px solid rgba(168,85,247,0.3);border-radius:20px;padding:24px;max-width:420px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.6);';
+        var html = '<div style="text-align:center;margin-bottom:16px;"><div style="font-size:24px;margin-bottom:4px;">💰</div><div style="font-size:18px;font-weight:800;color:white;">Select Billing Item</div><div style="font-size:12px;color:#94a3b8;margin-top:4px;">' + (poleRenames[poleId] || poleId) + '</div></div>';
+        BILLING_ITEMS.forEach(function(cat) {
+          html += '<div style="margin-bottom:12px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#a78bfa;font-weight:700;margin-bottom:6px;padding-left:4px;">' + cat.cat + '</div>';
+          cat.items.forEach(function(item) {
+            html += '<button class="billing-item-btn" data-code="' + item.code + '" data-desc="' + item.desc + '" data-unit="' + item.unit + '" style="width:100%;padding:12px 14px;border:1px solid rgba(139,92,246,0.15);border-radius:10px;background:rgba(255,255,255,0.04);color:white;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:4px;text-align:left;display:flex;justify-content:space-between;align-items:center;"><span>' + item.desc + '</span><span style=\"font-size:11px;color:#64748b;\">' + item.unit + '</span></button>';
           });
           html += '</div>';
         });
-
-        html += '</div>';
-        overlay.innerHTML = html;
+        html += '<button id="billingPickerClose" style="width:100%;padding:12px;border:1px solid rgba(255,255,255,0.15);border-radius:12px;background:transparent;color:#94a3b8;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px;">Cancel</button>';
+        card.innerHTML = html;
+        overlay.appendChild(card);
         document.body.appendChild(overlay);
-
-        // Wire close button
-        document.getElementById('billingPickerClose').onclick = function() { overlay.remove(); setShowBillingPicker(false); };
-
-        // Wire code buttons
-        overlay.querySelectorAll('.billingCodeBtn').forEach(function(btn) {
+        card.querySelectorAll('.billing-item-btn').forEach(function(btn) {
           btn.onclick = function() {
             var code = btn.getAttribute('data-code');
             var desc = btn.getAttribute('data-desc');
@@ -4091,9 +3979,10 @@
             });
           };
         });
+        var closeBtn = document.getElementById('billingPickerClose');
+        if (closeBtn) { closeBtn.onclick = function() { overlay.remove(); setShowBillingPicker(false); }; }
       }
 
-      // useEffect to sync billing picker
       useEffect(function() {
         if (showBillingPicker && selectedPole) {
           renderBillingPicker(selectedPole.id);
@@ -4103,70 +3992,71 @@
         }
       }, [showBillingPicker, selectedPole]);
 
-            // ── Toggle SCREW ANCHOR at pole (AE5 - $60.35) + auto-bill ──
+      // ── Toggle SCREW ANCHOR at pole (AE5 - $60.35) + auto-bill ──
       async function toggleScrewAnchor(poleId) {
         if (!user || !poleId) return;
-        var existing = fiberEquipment[poleId] || {};
-        if (existing.screwAnchor) {
-          if (!confirm('Remove Screw Anchor at this pole?')) return;
-          try {
-            await db.collection('fiberEquipment').doc(poleId).set({ screwAnchor: false, screwAnchorBy: null, screwAnchorByPhoto: null, screwAnchorAt: null, screwAnchorUid: null }, { merge: true });
-            await autoPopulateEquipment(poleId, 'AE5', false);
-            if (navigator.vibrate) navigator.vibrate(50);
-          } catch(e) { alert('⚠️ Failed'); }
-        } else {
-          startBillingFlow(poleId, 'AE5', 'Screw Anchor', 'Each', async function(qty) {
-            await db.collection('fiberEquipment').doc(poleId).set({
-              screwAnchor: true, screwAnchorBy: user.displayName || user.email.split('@')[0],
-              screwAnchorByPhoto: avatarURL || user.photoURL || null,
-              screwAnchorAt: new Date().toISOString(), screwAnchorUid: user.uid
-            }, { merge: true });
-            await autoPopulateEquipment(poleId, 'AE5', true);
-          });
-        }
+        try {
+          var existing = fiberEquipment[poleId] || {};
+          var has = existing.screwAnchor;
+          var placing = !has;
+          await db.collection('fiberEquipment').doc(poleId).set({
+            screwAnchor: placing,
+            screwAnchorBy: placing ? (user.displayName || user.email.split('@')[0]) : null,
+            screwAnchorByPhoto: placing ? (avatarURL || user.photoURL || null) : null,
+            screwAnchorAt: placing ? new Date().toISOString() : null,
+            screwAnchorUid: placing ? user.uid : null
+          }, { merge: true });
+          await autoPopulateEquipment(poleId, 'AE5', placing);
+          if (navigator.vibrate) navigator.vibrate(50);
+        } catch(e) { console.error('Anchor error:', e); alert('⚠️ Failed — check connection'); }
       }
 
       // ── Toggle DOWN GUY at pole (AE4 - $15.30) + auto-bill ──
       async function toggleDownGuy(poleId) {
         if (!user || !poleId) return;
-        var existing = fiberEquipment[poleId] || {};
-        if (existing.downGuy) {
-          if (!confirm('Remove Down Guy at this pole?')) return;
-          try {
-            await db.collection('fiberEquipment').doc(poleId).set({ downGuy: false, downGuyBy: null, downGuyByPhoto: null, downGuyAt: null, downGuyUid: null }, { merge: true });
-            await autoPopulateEquipment(poleId, 'AE4', false);
-            if (navigator.vibrate) navigator.vibrate(50);
-          } catch(e) { alert('⚠️ Failed'); }
-        } else {
-          startBillingFlow(poleId, 'AE4', 'Down Guy', 'Each', async function(qty) {
-            await db.collection('fiberEquipment').doc(poleId).set({
-              downGuy: true, downGuyBy: user.displayName || user.email.split('@')[0],
-              downGuyByPhoto: avatarURL || user.photoURL || null,
-              downGuyAt: new Date().toISOString(), downGuyUid: user.uid
-            }, { merge: true });
-            await autoPopulateEquipment(poleId, 'AE4', true);
-          });
-        }
+        try {
+          var existing = fiberEquipment[poleId] || {};
+          var has = existing.downGuy;
+          var placing = !has;
+          await db.collection('fiberEquipment').doc(poleId).set({
+            downGuy: placing,
+            downGuyBy: placing ? (user.displayName || user.email.split('@')[0]) : null,
+            downGuyByPhoto: placing ? (avatarURL || user.photoURL || null) : null,
+            downGuyAt: placing ? new Date().toISOString() : null,
+            downGuyUid: placing ? user.uid : null
+          }, { merge: true });
+          await autoPopulateEquipment(poleId, 'AE4', placing);
+          if (navigator.vibrate) navigator.vibrate(50);
+        } catch(e) { console.error('Down guy error:', e); alert('⚠️ Failed — check connection'); }
       }
 
       // ── MAKE READY at pole — picks MR type, auto-bills, prompts photo ──
       async function markPoleReady(poleId, mrCode, mrDesc) {
-        setShowMakeReadyPicker(false);
-        startBillingFlow(poleId, mrCode, 'Make Ready — ' + mrDesc, 'Each', async function(qty) {
-          try {
-            var existingEquip = fiberEquipment[poleId] || {};
-            if (existingEquip.makeReady && existingEquip.makeReadyCode && existingEquip.makeReadyCode !== mrCode) {
-              await autoPopulateEquipment(poleId, existingEquip.makeReadyCode, false);
-            }
-            await db.collection('fiberEquipment').doc(poleId).set({
-              makeReady: true, makeReadyCode: mrCode, makeReadyDesc: mrDesc,
-              makeReadyBy: user.displayName || user.email.split('@')[0],
-              makeReadyByPhoto: avatarURL || user.photoURL || null,
-              makeReadyUid: user.uid, makeReadyAt: new Date().toISOString()
-            }, { merge: true });
-            await autoPopulateEquipment(poleId, mrCode, true);
-          } catch(e) { alert('Make Ready failed: ' + e.message); }
-        });
+        try {
+          // Safety: if MR already set with different code, remove old billing first
+          var existingEquip = fiberEquipment[poleId] || {};
+          if (existingEquip.makeReady && existingEquip.makeReadyCode && existingEquip.makeReadyCode !== mrCode) {
+            await autoPopulateEquipment(poleId, existingEquip.makeReadyCode, false);
+          }
+          // Save make ready status to fiberEquipment
+          await db.collection('fiberEquipment').doc(poleId).set({
+            makeReady: true,
+            makeReadyCode: mrCode,
+            makeReadyDesc: mrDesc,
+            makeReadyBy: user.displayName || user.email.split('@')[0],
+            makeReadyByPhoto: avatarURL || user.photoURL || null,
+            makeReadyUid: user.uid,
+            makeReadyAt: new Date().toISOString()
+          }, { merge: true });
+          // Auto-bill the selected MR code
+          await autoPopulateEquipment(poleId, mrCode, true);
+          if (navigator.vibrate) navigator.vibrate([50, 50, 100]);
+          setShowMakeReadyPicker(false);
+          // Auto-open camera for proof photo
+          setTimeout(function() { triggerPolePhoto(); }, 300);
+        } catch(e) {
+          alert('Make Ready failed: ' + e.message);
+        }
       }
 
       // ── UNDO Make Ready ──
@@ -5357,10 +5247,6 @@
                       <button onClick={function(){toggleScrewAnchor(selectedPole.id);}}
                         style={{flex:1,padding:'10px 6px',borderRadius:10,border:'1px solid ' + ((fiberEquipment[selectedPole.id]||{}).screwAnchor ? 'rgba(251,191,36,0.6)' : 'rgba(120,53,15,0.4)'),background:(fiberEquipment[selectedPole.id]||{}).screwAnchor ? 'linear-gradient(135deg,#92400e,#b45309)' : 'linear-gradient(135deg,#451a03,#78350f)',color:'white',fontSize:11,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:3}}>
                         ⚓ {(fiberEquipment[selectedPole.id]||{}).screwAnchor ? '✓ Anchor' : 'Anchor'}
-                      </button>
-                      <button onClick={function(){setShowBillingPicker(true);}}
-                        style={{flex:1,padding:'10px 6px',borderRadius:10,border:'1px solid rgba(168,85,247,0.4)',background:'linear-gradient(135deg,rgba(124,58,237,0.2),rgba(168,85,247,0.3))',color:'#c4b5fd',fontSize:11,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:3}}}>
-                        💰 Bill Item
                       </button>
                     </div>
                     {/* ─── PHOTO GALLERY (moved up — immediately visible when toggled) ─── */}
