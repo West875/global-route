@@ -4243,8 +4243,21 @@
             }, { merge: true });
           }
           if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
+          // Select nearest pole so photo goes to correct pole
+          if (nearestPole) {
+            var poleSite = allFiberSites.find(function(s){ return s.id === nearestPole.id; });
+            if (poleSite) setSelectedPole(poleSite);
+          }
+          // Show success toast
+          var toast = document.createElement('div');
+          toast.innerHTML = '❄️ Snowshoe placed! Opening camera...';
+          toast.style.cssText = 'position:fixed;bottom:120px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#0e7490,#06b6d4);color:#fff;padding:10px 20px;border-radius:12px;font-weight:700;font-size:14px;z-index:99999;box-shadow:0 4px 20px rgba(6,182,212,0.5);';
+          document.body.appendChild(toast);
+          setTimeout(function(){ try{ document.body.removeChild(toast); }catch(e){} }, 2500);
+          // Auto-open camera for proof photo
+          setTimeout(function() { triggerPolePhoto(); }, 500);
         } catch(e) {
-          alert('Could not get GPS location: ' + e.message);
+          alert('Could not place snowshoe: ' + e.message);
         }
         setPlacingSnowshoe(null);
       }
