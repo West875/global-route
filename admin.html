@@ -12,6 +12,8 @@
   <title>Global Route - Admin</title>
   <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
@@ -94,6 +96,16 @@
     .err-banner b { color: #f87272; }
     .err-banner .msg { font-size: 0.78rem; color: #f87272; }
     
+    
+    /* Live Map */
+    #admin-live-map { height: 500px; border-radius: 12px; border: 1px solid #2a323c; margin-bottom: 16px; z-index: 1; }
+    .crew-marker { display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 3px solid #22c55e; background: #191e24; box-shadow: 0 0 12px rgba(34,197,94,0.5); }
+    .billing-bar { height: 24px; border-radius: 4px; transition: width 0.5s; }
+    .revenue-card { background: linear-gradient(135deg, #191e24, #1f2937); border: 1px solid #2a323c; border-radius: 12px; padding: 20px; text-align: center; }
+    .revenue-card .amount { font-size: 2rem; font-weight: 800; background: linear-gradient(135deg, #22c55e, #10b981); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .audit-entry { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid #2a323c; }
+    .audit-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+
     /* Loading skeleton */
     .skel { background: linear-gradient(90deg, #2a323c 25%, #3a424c 50%, #2a323c 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 8px; height: 60px; margin-bottom: 8px; }
     @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
@@ -168,6 +180,7 @@
       users: [], completions: [], sites: [], notes: {}, kmzFiles: [],
       fiberAsBuilt: [], fiberEnroute: [], fiberRoutes: [], fiberTreeTrims: [],
       editingSite: null, showAddSite: false,
+      fiberEquipment: [], fiberTicMarks: [], fiberSpanStages: [], fiberPinCorrections: [], fiberPresence: [], fiberPolePhotos: [],
       dataReady: false
     };
     var dataErrors = [];
@@ -302,6 +315,40 @@
         snap.forEach(function(d) { arr.push(Object.assign({id: d.id}, d.data())); });
         set({fiberTreeTrims: arr});
       }, function(e) { logErr('fiberTreeTrims', e); });
+      // Fiber Equipment
+      db.collection('fiberEquipment').onSnapshot(function(snap) {
+        var arr = [];
+        snap.forEach(function(d) { arr.push(Object.assign({id: d.id}, d.data())); });
+        set({fiberEquipment: arr});
+      }, function(e) { logErr('fiberEquipment', e); });
+
+      // Fiber Tic Marks
+      db.collection('fiberTicMarks').onSnapshot(function(snap) {
+        var arr = [];
+        snap.forEach(function(d) { arr.push(Object.assign({id: d.id}, d.data())); });
+        set({fiberTicMarks: arr});
+      }, function(e) { logErr('fiberTicMarks', e); });
+
+      // Fiber Span Stages
+      db.collection('fiberSpanStages').onSnapshot(function(snap) {
+        var arr = [];
+        snap.forEach(function(d) { arr.push(Object.assign({id: d.id}, d.data())); });
+        set({fiberSpanStages: arr});
+      }, function(e) { logErr('fiberSpanStages', e); });
+
+      // Fiber Pin Corrections
+      db.collection('fiberPinCorrections').onSnapshot(function(snap) {
+        var arr = [];
+        snap.forEach(function(d) { arr.push(Object.assign({id: d.id}, d.data())); });
+        set({fiberPinCorrections: arr});
+      }, function(e) { logErr('fiberPinCorrections', e); });
+
+      // Fiber Presence (live crew locations)
+      db.collection('fiberPresence').onSnapshot(function(snap) {
+        var arr = [];
+        snap.forEach(function(d) { arr.push(Object.assign({id: d.id}, d.data())); });
+        set({fiberPresence: arr});
+      }, function(e) { logErr('fiberPresence', e); });
 
       // Notes — batch all 29 listeners, single setState after all first loads
       var notesBySite = {};
@@ -454,7 +501,11 @@
       {id:'notes',icon:'📝',label:'Notes'},
       {id:'kmz',icon:'📁',label:'KMZ'},
       {id:'fiber',icon:'⚡',label:'Fiber'},
-      {id:'roles',icon:'🔒',label:'Roles'}
+      {id:'roles',icon:'🔒',label:'Roles'},
+      {id:'livemap',icon:'🗺️',label:'Live Map'},
+      {id:'billing',icon:'💰',label:'Billing'},
+      {id:'reports',icon:'📄',label:'Reports'},
+      {id:'audit',icon:'📋',label:'Audit Log'}
     ];
 
     function renderShell() {
@@ -491,6 +542,10 @@
         case 'kmz': content = rKmz(); break;
         case 'fiber': content = rFiber(); break;
         case 'roles': content = rRoles(); break;
+        case 'livemap': content = rLiveMap(); break;
+        case 'billing': content = rBilling(); break;
+        case 'reports': content = rReports(); break;
+        case 'audit': content = rAudit(); break;
       }
 
       var errHtml = '';
@@ -1139,6 +1194,535 @@
           '<button class="btn btn-primary btn-xs" onclick="toggleRole(\''+u.id+'\',\'user\')">Make Admin</button></div>';
       });
       if (regs.length===0) h += '<p style="color:#a6adbb;">No regular users yet.</p>';
+      h += '</div>';
+      return h;
+    }
+
+
+    // ═══ GigaBeam Rate Card ═══
+    var RATES = {
+      AE1: {desc:'Strand',rate:0}, AE2:{desc:'Strand & Lash',rate:0.8925},
+      AE4:{desc:'Down Guy',rate:15.30}, AE5:{desc:'Screw Anchor',rate:60.35},
+      AE6:{desc:'Snowshoe',rate:28.90}, AE19:{desc:'Tree Trimming',rate:1.232},
+      MR1:{desc:'Transfer Telco',rate:36.82}, MR2:{desc:'In-Line',rate:91.46},
+      MR3:{desc:'Rearrange',rate:97.34}, MR4:{desc:'Overlash Ext',rate:72.50},
+      MR5:{desc:'Move Ext Arm',rate:109.76}, MR6:{desc:'Add Guy/Anchor',rate:97.34},
+      FS1:{desc:'Single Fusion Splice',rate:17.58}, FS2:{desc:'Mass Splice 12',rate:99.04},
+      FS3:{desc:'Mass Splice 24',rate:181.80}, FS4:{desc:'Mass Splice 48',rate:313.22}
+    };
+
+    // ═══ LIVE MAP ═══
+    var _adminMap = null;
+    var _mapMarkers = [];
+
+    function rLiveMap() {
+      var presence = S.fiberPresence || [];
+      var enroute = S.fiberEnroute || [];
+      var now = Date.now();
+      var recent = presence.filter(function(p) {
+        var t = p.timestamp ? (p.timestamp.toDate ? p.timestamp.toDate().getTime() : +new Date(p.timestamp)) : 0;
+        return (now - t) < 3600000; // last hour
+      });
+
+      var h = '<h2 style="font-size:1.3rem;font-weight:bold;margin-bottom:16px;">🗺️ Live Crew Map</h2>';
+
+      // Stats
+      h += '<div class="stats-grid">';
+      h += sBox('📡','Online Now', recent.length, '#22c55e');
+      h += sBox('🚗','En-Route', enroute.length, '#f59e0b');
+      h += sBox('⚡','Poles Logged', S.fiberAsBuilt.length, '#570df8');
+      h += sBox('👥','Total Crew', S.users.length, '#3abff8');
+      h += '</div>';
+
+      h += '<div id="admin-live-map"></div>';
+
+      // Crew status list
+      h += '<div class="stat-box">';
+      h += '<h3 style="font-weight:bold;margin-bottom:12px;">👥 Crew Status</h3>';
+      
+      S.users.forEach(function(u) {
+        var pr = presence.find(function(p) { return p.id === u.id; });
+        var er = enroute.find(function(e) { return e.userId === u.id; });
+        var t = pr && pr.timestamp ? (pr.timestamp.toDate ? pr.timestamp.toDate().getTime() : +new Date(pr.timestamp)) : 0;
+        var online = (now - t) < 3600000;
+        var status = er ? '🚗 En-route to ' + (er.poleId || er.id || '—') : (online ? '🟢 Online' : '⚫ Offline');
+        var statusColor = er ? '#f59e0b' : (online ? '#22c55e' : '#6b7280');
+
+        h += '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #2a323c;">';
+        h += av(u, 'sm');
+        h += '<div style="flex:1;min-width:0;">';
+        h += '<div style="font-weight:500;">' + (u.displayName || u.email || 'Unknown') + '</div>';
+        h += '<div style="font-size:0.78rem;color:' + statusColor + ';">' + status + '</div>';
+        h += '</div>';
+        if (pr && pr.lat) {
+          h += '<div style="font-size:0.7rem;color:#a6adbb;">📍 ' + Number(pr.lat).toFixed(4) + ', ' + Number(pr.lon || pr.lng).toFixed(4) + '</div>';
+        }
+        h += '</div>';
+      });
+      h += '</div>';
+
+      // Init map after render
+      setTimeout(initAdminMap, 100);
+      return h;
+    }
+
+    function initAdminMap() {
+      var el = document.getElementById('admin-live-map');
+      if (!el) return;
+      if (_adminMap) { _adminMap.remove(); _adminMap = null; }
+      
+      _adminMap = L.map('admin-live-map').setView([37.278, -80.41], 15);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap', maxZoom: 19
+      }).addTo(_adminMap);
+
+      var bounds = [];
+      var presence = S.fiberPresence || [];
+      var enroute = S.fiberEnroute || [];
+      var now = Date.now();
+
+      // Add crew presence markers
+      presence.forEach(function(p) {
+        if (!p.lat) return;
+        var lat = Number(p.lat), lon = Number(p.lon || p.lng);
+        if (isNaN(lat) || isNaN(lon)) return;
+        var u = S.users.find(function(x) { return x.id === p.id; });
+        var name = u ? (u.displayName || u.email) : (p.displayName || 'Unknown');
+        var photo = u ? (u.photoURL || u.selfieURL) : p.photoURL;
+        var t = p.timestamp ? (p.timestamp.toDate ? p.timestamp.toDate().getTime() : +new Date(p.timestamp)) : 0;
+        var online = (now - t) < 3600000;
+        if (!online) return;
+        
+        var iconHtml = photo 
+          ? '<div class="crew-marker" style="width:40px;height:40px;"><img src="'+photo+'" style="width:34px;height:34px;border-radius:50%;object-fit:cover;" /></div>'
+          : '<div class="crew-marker" style="width:40px;height:40px;font-size:16px;font-weight:bold;color:#22c55e;">'+initials(name)+'</div>';
+        
+        var icon = L.divIcon({ html: iconHtml, className: '', iconSize: [40, 40], iconAnchor: [20, 20] });
+        L.marker([lat, lon], {icon: icon}).addTo(_adminMap).bindPopup('<b>'+name+'</b><br>Last seen: '+fmtTime(p.timestamp));
+        bounds.push([lat, lon]);
+      });
+
+      // Add en-route markers
+      enroute.forEach(function(er) {
+        // show as orange markers if we have coords
+        var u = S.users.find(function(x) { return x.id === er.userId; });
+        var name = u ? (u.displayName || u.email) : (er.userName || 'Unknown');
+        var poleLabel = er.poleId || er.id || '?';
+        // Can't show on map without pole coords unless we look them up
+      });
+
+      if (bounds.length > 0) {
+        _adminMap.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+      }
+    }
+
+    // ═══ BILLING DASHBOARD ═══
+    function rBilling() {
+      var ab = S.fiberAsBuilt || [];
+      var h = '<h2 style="font-size:1.3rem;font-weight:bold;margin-bottom:16px;">💰 Billing Dashboard</h2>';
+
+      // Parse all billing entries
+      var allBilling = {};
+      var crewRevenue = {};
+      var totalRevenue = 0;
+
+      ab.forEach(function(entry) {
+        var uid = entry.userId || entry.completedBy || 'unknown';
+        var u = S.users.find(function(x) { return x.id === uid; });
+        var name = u ? (u.displayName || u.email) : (entry.userName || entry.completedByName || 'Unknown');
+        if (!crewRevenue[uid]) crewRevenue[uid] = { name: name, user: u, total: 0, codes: {} };
+
+        // Parse billing from entries map
+        var entries = entry.entries || {};
+        for (var key in entries) {
+          var e = entries[key];
+          if (!e || !e.codes) continue;
+          for (var code in e.codes) {
+            var qty = Number(e.codes[code]) || 0;
+            var rate = RATES[code] ? RATES[code].rate : 0;
+            var rev = 0;
+            if (code === 'AE2' || code === 'AE19') { rev = qty * rate; }
+            else { rev = qty * rate; }
+            
+            if (!allBilling[code]) allBilling[code] = { qty: 0, rev: 0 };
+            allBilling[code].qty += qty;
+            allBilling[code].rev += rev;
+            totalRevenue += rev;
+            crewRevenue[uid].total += rev;
+            if (!crewRevenue[uid].codes[code]) crewRevenue[uid].codes[code] = 0;
+            crewRevenue[uid].codes[code] += qty;
+          }
+        }
+
+        // Also check legacy billingCodes array
+        if (entry.billingCodes) {
+          (entry.billingCodes || []).forEach(function(bc) {
+            var code = bc.code;
+            var qty = Number(bc.qty) || 1;
+            var rate = RATES[code] ? RATES[code].rate : 0;
+            var rev = qty * rate;
+            if (!allBilling[code]) allBilling[code] = { qty: 0, rev: 0 };
+            allBilling[code].qty += qty;
+            allBilling[code].rev += rev;
+          });
+        }
+      });
+
+      // Tic mark footage for AE2 override
+      var ticMarks = S.fiberTicMarks || [];
+      var ticVals = [];
+      ticMarks.forEach(function(t) {
+        var v = t.poleTic || t.ticMark;
+        if (v) try { ticVals.push(parseFloat(v)); } catch(e) {}
+      });
+      if (ticVals.length >= 2 && allBilling['AE2']) {
+        var ticFt = Math.abs(Math.max.apply(null, ticVals) - Math.min.apply(null, ticVals));
+        allBilling['AE2'].qty = Math.round(ticFt);
+        allBilling['AE2'].rev = Math.round(ticFt) * (RATES['AE2'] ? RATES['AE2'].rate : 0);
+        // Recalculate total
+        totalRevenue = 0;
+        for (var c in allBilling) totalRevenue += allBilling[c].rev;
+      }
+
+      // Revenue card
+      h += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:20px;">';
+      h += '<div class="revenue-card"><div style="font-size:0.8rem;color:#a6adbb;margin-bottom:4px;">💰 Total Revenue</div><div class="amount">$' + totalRevenue.toFixed(2) + '</div></div>';
+      h += '<div class="revenue-card"><div style="font-size:0.8rem;color:#a6adbb;margin-bottom:4px;">📏 Total Footage (Tic)</div><div class="amount" style="background:linear-gradient(135deg,#f59e0b,#eab308);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">' + (ticVals.length >= 2 ? Math.round(Math.abs(Math.max.apply(null,ticVals)-Math.min.apply(null,ticVals))) + ' ft' : '—') + '</div></div>';
+      h += '<div class="revenue-card"><div style="font-size:0.8rem;color:#a6adbb;margin-bottom:4px;">📋 Billing Codes Used</div><div class="amount" style="background:linear-gradient(135deg,#570df8,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">' + Object.keys(allBilling).length + '</div></div>';
+      h += '</div>';
+
+      // Billing breakdown table
+      h += '<div class="stat-box" style="margin-bottom:14px;">';
+      h += '<h3 style="font-weight:bold;margin-bottom:12px;">📊 Billing Code Breakdown</h3>';
+      h += '<table style="width:100%;border-collapse:collapse;">';
+      h += '<tr style="border-bottom:2px solid #2a323c;"><th style="text-align:left;padding:8px;color:#a6adbb;font-size:0.78rem;">CODE</th><th style="text-align:left;padding:8px;color:#a6adbb;font-size:0.78rem;">DESCRIPTION</th><th style="text-align:right;padding:8px;color:#a6adbb;font-size:0.78rem;">QTY</th><th style="text-align:right;padding:8px;color:#a6adbb;font-size:0.78rem;">RATE</th><th style="text-align:right;padding:8px;color:#a6adbb;font-size:0.78rem;">TOTAL</th></tr>';
+      
+      var sortedCodes = Object.keys(allBilling).filter(function(c){return c!=='AE1';}).sort();
+      sortedCodes.forEach(function(code, i) {
+        var b = allBilling[code];
+        var r = RATES[code] || {desc: code, rate: 0};
+        var bg = i % 2 === 0 ? '#191e24' : 'transparent';
+        var unit = (code === 'AE2' || code === 'AE19') ? 'ft' : 'ea';
+        h += '<tr style="background:' + bg + ';border-bottom:1px solid #2a323c;">';
+        h += '<td style="padding:8px;font-weight:600;color:#f59e0b;">' + code + '</td>';
+        h += '<td style="padding:8px;">' + r.desc + '</td>';
+        h += '<td style="padding:8px;text-align:right;">' + (Number.isInteger(b.qty) ? b.qty : b.qty.toFixed(1)) + ' ' + unit + '</td>';
+        h += '<td style="padding:8px;text-align:right;color:#a6adbb;">$' + r.rate.toFixed(2) + '/' + unit + '</td>';
+        h += '<td style="padding:8px;text-align:right;font-weight:bold;color:#22c55e;">$' + b.rev.toFixed(2) + '</td>';
+        h += '</tr>';
+      });
+      h += '<tr style="border-top:2px solid #570df8;background:#1f2937;"><td colspan="4" style="padding:10px;font-weight:bold;font-size:1.1rem;">GRAND TOTAL</td><td style="padding:10px;text-align:right;font-weight:bold;font-size:1.1rem;color:#22c55e;">$' + totalRevenue.toFixed(2) + '</td></tr>';
+      h += '</table></div>';
+
+      // Revenue by crew member
+      h += '<div class="stat-box">';
+      h += '<h3 style="font-weight:bold;margin-bottom:12px;">👷 Revenue by Crew Member</h3>';
+      var crewArr = Object.keys(crewRevenue).map(function(uid) {
+        return Object.assign({uid: uid}, crewRevenue[uid]);
+      }).sort(function(a,b) { return b.total - a.total; });
+      
+      var maxRev = crewArr.length > 0 ? crewArr[0].total : 1;
+      crewArr.forEach(function(c) {
+        var pct = maxRev > 0 ? (c.total / maxRev * 100) : 0;
+        h += '<div style="padding:10px 0;border-bottom:1px solid #2a323c;">';
+        h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">';
+        h += av(c.user || {displayName: c.name}, 'sm');
+        h += '<div style="flex:1;min-width:0;"><div style="font-weight:500;">' + c.name + '</div></div>';
+        h += '<div style="font-weight:bold;color:#22c55e;font-size:1.1rem;">$' + c.total.toFixed(2) + '</div></div>';
+        h += '<div style="background:#2a323c;border-radius:4px;height:24px;overflow:hidden;">';
+        h += '<div class="billing-bar" style="width:'+pct+'%;background:linear-gradient(90deg,#570df8,#818cf8);"></div></div>';
+        
+        // Code breakdown
+        var codes = Object.keys(c.codes).sort();
+        if (codes.length > 0) {
+          h += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">';
+          codes.forEach(function(code) {
+            if (code === 'AE1') return;
+            var r = RATES[code] || {desc: code};
+            h += '<span style="background:#2a323c;padding:2px 8px;border-radius:10px;font-size:0.72rem;">' + code + ': ' + c.codes[code] + '</span>';
+          });
+          h += '</div>';
+        }
+        h += '</div>';
+      });
+      
+      // Export button
+      h += '<div style="margin-top:16px;text-align:center;">';
+      h += '<button class="btn btn-primary btn-sm" onclick="exportBillingCSV()">📥 Export Billing CSV</button>';
+      h += '</div></div>';
+
+      return h;
+    }
+
+    function exportBillingCSV() {
+      var ab = S.fiberAsBuilt || [];
+      var rows = [['Pole','Crew Member','Code','Description','Qty','Rate','Total','Date']];
+      ab.forEach(function(entry) {
+        var uid = entry.userId || entry.completedBy || '';
+        var u = S.users.find(function(x){return x.id===uid;});
+        var name = u?(u.displayName||u.email):(entry.userName||'Unknown');
+        var pole = entry.poleId || entry.poleName || entry.id || '';
+        var ts = entry.timestamp?(entry.timestamp.toDate?entry.timestamp.toDate():new Date(entry.timestamp)):new Date();
+        var dateStr = ts.toLocaleDateString() + ' ' + ts.toLocaleTimeString();
+        var entries = entry.entries || {};
+        for (var key in entries) {
+          var e = entries[key];
+          if (!e || !e.codes) continue;
+          for (var code in e.codes) {
+            if (code === 'AE1') continue;
+            var qty = Number(e.codes[code]) || 0;
+            var r = RATES[code] || {desc:code,rate:0};
+            rows.push([pole, name, code, r.desc, qty, '$'+r.rate.toFixed(2), '$'+(qty*r.rate).toFixed(2), dateStr]);
+          }
+        }
+      });
+      var csv = rows.map(function(r){return r.map(function(c){return '"'+String(c).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
+      var blob = new Blob([csv], {type:'text/csv'});
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'billing-report-' + new Date().toISOString().slice(0,10) + '.csv';
+      a.click();
+    }
+
+    // ═══ REPORTS ═══
+    function rReports() {
+      var ab = S.fiberAsBuilt || [];
+      var h = '<h2 style="font-size:1.3rem;font-weight:bold;margin-bottom:16px;">📄 Reports Center</h2>';
+
+      // Quick stats
+      h += '<div class="stats-grid">';
+      h += sBox('⚡','Total Poles', ab.length, '#f59e0b');
+      var spans = S.fiberSpanStages || [];
+      var lashed = spans.filter(function(s){return s.stage==='lashed'||s.stage==='complete';}).length;
+      h += sBox('🟢','Lashed Spans', lashed, '#22c55e');
+      var stranded = spans.filter(function(s){return s.stage==='strand';}).length;
+      h += sBox('🟡','Strand Only', stranded, '#eab308');
+      h += sBox('📷','Total Photos', S.fiberPolePhotos.length || '—', '#f000b8');
+      h += '</div>';
+
+      // Report types
+      h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;">';
+      
+      // As-Built Report card
+      h += '<div class="stat-box" style="text-align:center;cursor:pointer;" onclick="alert('As-Built PDF generation is handled by the nightly report system. Check your email at 8:30 PM ET.')">';
+      h += '<div style="font-size:40px;margin-bottom:8px;">🗺️</div>';
+      h += '<div style="font-weight:bold;font-size:1rem;margin-bottom:4px;">As-Built PDF</div>';
+      h += '<div style="font-size:0.78rem;color:#a6adbb;">Multi-page map report with pole details, crew photos, span lines. Sent nightly at 8:30 PM ET.</div>';
+      h += '<div style="margin-top:10px;"><span class="bg-admin">📧 Auto-emailed</span></div></div>';
+
+      // Client Report card
+      h += '<div class="stat-box" style="text-align:center;cursor:pointer;" onclick="generateClientReport()">';
+      h += '<div style="font-size:40px;margin-bottom:8px;">📋</div>';
+      h += '<div style="font-weight:bold;font-size:1rem;margin-bottom:4px;">Client Summary</div>';
+      h += '<div style="font-size:0.78rem;color:#a6adbb;">Clean production summary with billing codes, quantities, and totals. Downloadable CSV.</div>';
+      h += '<div style="margin-top:10px;"><button class="btn btn-primary btn-xs">📥 Generate Now</button></div></div>';
+      h += '</div>';
+
+      // Daily activity log by date
+      h += '<div class="stat-box">';
+      h += '<h3 style="font-weight:bold;margin-bottom:12px;">📅 Daily Activity Log</h3>';
+      
+      var byDate = {};
+      ab.forEach(function(entry) {
+        var ts = entry.timestamp ? (entry.timestamp.toDate ? entry.timestamp.toDate() : new Date(entry.timestamp)) : new Date();
+        var dateKey = ts.toLocaleDateString('en-US', {weekday:'short', month:'short', day:'numeric'});
+        if (!byDate[dateKey]) byDate[dateKey] = {entries: [], crew: {}, date: ts};
+        byDate[dateKey].entries.push(entry);
+        var uid = entry.userId || entry.completedBy || '';
+        var u = S.users.find(function(x){return x.id===uid;});
+        byDate[dateKey].crew[uid] = u ? (u.displayName || u.email) : (entry.userName || 'Unknown');
+      });
+
+      var dateKeys = Object.keys(byDate).sort(function(a,b) {
+        return byDate[b].date - byDate[a].date;
+      });
+
+      if (dateKeys.length === 0) {
+        h += '<p style="color:#a6adbb;">No activity recorded yet.</p>';
+      } else {
+        dateKeys.forEach(function(dk) {
+          var d = byDate[dk];
+          var crewNames = Object.keys(d.crew).map(function(k){return d.crew[k];});
+          var ex = S.expandedId === 'rep_' + dk;
+          h += '<div class="card-item purple" onclick="toggle('rep_' + dk.replace(/[^a-zA-Z0-9]/g,'') + '')">';
+          h += '<div style="display:flex;align-items:center;justify-content:space-between;">';
+          h += '<div><div style="font-weight:600;">📅 ' + dk + '</div>';
+          h += '<div style="font-size:0.78rem;color:#a6adbb;">' + d.entries.length + ' poles • ' + crewNames.length + ' crew</div></div>';
+          h += '<span class="arrow' + (S.expandedId === 'rep_'+dk.replace(/[^a-zA-Z0-9]/g,'') ? ' open' : '') + '">▼</span></div>';
+          
+          h += '<div class="detail-panel' + (S.expandedId === 'rep_'+dk.replace(/[^a-zA-Z0-9]/g,'') ? ' open' : '') + '">';
+          if (S.expandedId === 'rep_'+dk.replace(/[^a-zA-Z0-9]/g,'')) {
+            h += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid #2a323c;" onclick="event.stopPropagation()">';
+            h += '<div style="font-size:0.82rem;color:#a6adbb;margin-bottom:6px;">Crew: ' + crewNames.join(', ') + '</div>';
+            d.entries.forEach(function(e) {
+              var u = S.users.find(function(x){return x.id===(e.userId||e.completedBy);});
+              var name = u?(u.displayName||u.email):(e.userName||'Unknown');
+              h += '<div style="display:flex;justify-content:space-between;padding:4px 8px;background:#1d232a;border-radius:6px;margin-bottom:3px;font-size:0.82rem;">';
+              h += '<span>📍 ' + (e.poleId || e.poleName || e.id || '?') + ' — <span style="color:#a6adbb;">' + name + '</span></span>';
+              h += '<span style="color:#a6adbb;font-size:0.72rem;">' + fmtTime(e.timestamp) + '</span></div>';
+            });
+            h += '</div>';
+          }
+          h += '</div></div>';
+        });
+      }
+      h += '</div>';
+
+      return h;
+    }
+
+    function generateClientReport() {
+      var ab = S.fiberAsBuilt || [];
+      var rows = [['Date','Pole','Crew Member','Work Performed','Code','Qty']];
+      ab.forEach(function(entry) {
+        var uid = entry.userId || entry.completedBy || '';
+        var u = S.users.find(function(x){return x.id===uid;});
+        var name = u?(u.displayName||u.email):(entry.userName||'Unknown');
+        var pole = entry.poleId || entry.poleName || entry.id || '';
+        var ts = entry.timestamp?(entry.timestamp.toDate?entry.timestamp.toDate():new Date(entry.timestamp)):new Date();
+        var entries = entry.entries || {};
+        for (var key in entries) {
+          var e = entries[key];
+          if (!e || !e.codes) continue;
+          for (var code in e.codes) {
+            if (code === 'AE1') continue;
+            var r = RATES[code] || {desc: code};
+            rows.push([ts.toLocaleDateString(), pole, name, r.desc, code, e.codes[code]]);
+          }
+        }
+      });
+      var csv = rows.map(function(r){return r.map(function(c){return '"'+String(c).replace(/"/g,'""')+'"';}).join(',');}).join('\n');
+      var blob = new Blob([csv], {type:'text/csv'});
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'client-report-' + new Date().toISOString().slice(0,10) + '.csv';
+      a.click();
+    }
+
+    // ═══ AUDIT LOG ═══
+    function rAudit() {
+      var h = '<h2 style="font-size:1.3rem;font-weight:bold;margin-bottom:16px;">📋 Audit Log</h2>';
+      h += '<p style="font-size:0.85rem;color:#a6adbb;margin-bottom:16px;">Complete timeline of all crew actions — real-time from Firestore.</p>';
+
+      // Build timeline from all data sources
+      var timeline = [];
+
+      // Completions (route sites)
+      (S.completions || []).forEach(function(c) {
+        var u = S.users.find(function(x){return x.id===(c.completedBy||c.userId);});
+        timeline.push({
+          type: 'completion', icon: '✅', color: '#22c55e',
+          user: u?(u.displayName||u.email):(c.completedByName||'Unknown'),
+          userObj: u,
+          desc: 'Completed site: ' + (c.siteId || c.id),
+          ts: c.completedAt || c.timestamp
+        });
+      });
+
+      // Fiber as-built
+      (S.fiberAsBuilt || []).forEach(function(e) {
+        var u = S.users.find(function(x){return x.id===(e.userId||e.completedBy);});
+        timeline.push({
+          type: 'fiber', icon: '⚡', color: '#f59e0b',
+          user: u?(u.displayName||u.email):(e.userName||'Unknown'),
+          userObj: u,
+          desc: 'Logged work at pole: ' + (e.poleId || e.poleName || e.id),
+          ts: e.timestamp || e.createdAt
+        });
+      });
+
+      // Tree trims
+      (S.fiberTreeTrims || []).forEach(function(t) {
+        var u = S.users.find(function(x){return x.id===t.userId;});
+        var ft = Math.round(t.footage || t.distance || 0);
+        timeline.push({
+          type: 'trim', icon: '🌳', color: '#22c55e',
+          user: u?(u.displayName||u.email):(t.userName||'Unknown'),
+          userObj: u,
+          desc: 'Tree trim: ' + ft + 'ft near ' + (t.nearestPole || t.poleId || '—'),
+          ts: t.timestamp || t.createdAt
+        });
+      });
+
+      // Equipment
+      (S.fiberEquipment || []).forEach(function(eq) {
+        var u = S.users.find(function(x){return x.id===eq.userId;});
+        var type = eq.anchor ? '⚓ Anchor' : eq.downGuy ? '📎 Down Guy' : eq.snowshoe ? '❄️ Snowshoe' : eq.makeReady ? '🏗️ Make Ready' : '🔧 Equipment';
+        timeline.push({
+          type: 'equipment', icon: '🔧', color: '#3abff8',
+          user: u?(u.displayName||u.email):(eq.userName||'Unknown'),
+          userObj: u,
+          desc: type + ' at ' + (eq.poleId || eq.id || '—'),
+          ts: eq.timestamp || eq.createdAt
+        });
+      });
+
+      // Pin corrections
+      (S.fiberPinCorrections || []).forEach(function(pc) {
+        var u = S.users.find(function(x){return x.id===pc.userId;});
+        timeline.push({
+          type: 'pin', icon: '📍', color: '#f000b8',
+          user: u?(u.displayName||u.email):(pc.userName||'Unknown'),
+          userObj: u,
+          desc: 'Corrected pin for: ' + (pc.id || '—'),
+          ts: pc.timestamp || pc.createdAt
+        });
+      });
+
+      // Sort by time descending
+      timeline.sort(function(a,b) {
+        var ta = a.ts ? (a.ts.toDate ? a.ts.toDate().getTime() : +new Date(a.ts)) : 0;
+        var tb = b.ts ? (b.ts.toDate ? b.ts.toDate().getTime() : +new Date(b.ts)) : 0;
+        return tb - ta;
+      });
+
+      // Stats
+      h += '<div class="stats-grid">';
+      h += sBox('📋','Total Actions', timeline.length, '#570df8');
+      h += sBox('✅','Completions', timeline.filter(function(t){return t.type==='completion';}).length, '#22c55e');
+      h += sBox('⚡','Fiber Logs', timeline.filter(function(t){return t.type==='fiber';}).length, '#f59e0b');
+      h += sBox('🔧','Equipment', timeline.filter(function(t){return t.type==='equipment';}).length, '#3abff8');
+      h += '</div>';
+
+      // Filter buttons
+      h += '<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">';
+      var filters = [
+        {type:'all',label:'All',icon:'📋'},
+        {type:'completion',label:'Sites',icon:'✅'},
+        {type:'fiber',label:'Fiber',icon:'⚡'},
+        {type:'trim',label:'Trims',icon:'🌳'},
+        {type:'equipment',label:'Equipment',icon:'🔧'},
+        {type:'pin',label:'Pin Fix',icon:'📍'}
+      ];
+      var activeFilter = S._auditFilter || 'all';
+      filters.forEach(function(f) {
+        var active = activeFilter === f.type;
+        h += '<button class="btn btn-sm '+(active?'btn-primary':'btn-ghost')+'" onclick="S._auditFilter=\''+f.type+'\';render();">'+f.icon+' '+f.label+'</button>';
+      });
+      h += '</div>';
+
+      // Timeline
+      h += '<div class="stat-box">';
+      var filtered = activeFilter === 'all' ? timeline : timeline.filter(function(t){return t.type===activeFilter;});
+      
+      if (filtered.length === 0) {
+        h += '<p style="color:#a6adbb;">No actions recorded yet.</p>';
+      } else {
+        filtered.slice(0, 50).forEach(function(item) {
+          h += '<div class="audit-entry">';
+          h += '<div class="audit-dot" style="background:'+item.color+';"></div>';
+          h += '<div style="flex:1;min-width:0;">';
+          h += '<div style="display:flex;align-items:center;gap:8px;">';
+          h += av(item.userObj || {displayName: item.user}, 'sm');
+          h += '<div style="flex:1;min-width:0;">';
+          h += '<div style="font-weight:500;font-size:0.9rem;">' + item.icon + ' ' + item.desc + '</div>';
+          h += '<div style="font-size:0.78rem;color:#a6adbb;">by ' + item.user + ' • ' + fmtTime(item.ts) + '</div>';
+          h += '</div></div></div></div>';
+        });
+        if (filtered.length > 50) {
+          h += '<div style="text-align:center;color:#a6adbb;font-size:0.78rem;padding:10px;">... and ' + (filtered.length - 50) + ' more actions</div>';
+        }
+      }
       h += '</div>';
       return h;
     }
