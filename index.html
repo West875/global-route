@@ -3010,11 +3010,44 @@
 
           marker.bindTooltip(tip, { direction: 'top', offset: [0, -40] });
         });
+        // ── Snowshoe ❄️ markers (drawn in same effect so they never vanish) ──
+        try {
+          var shoeMap = {};
+          allFiberSites.forEach(function(s) { shoeMap[s.id] = s; });
+          allSnowshoes.forEach(function(shoe) {
+            try {
+              var fromSite = shoeMap[shoe.spanFromId];
+              var toSite = shoeMap[shoe.spanToId];
+              if (!fromSite || !toSite) return;
+              var midLat = (fromSite.lat + toSite.lat) / 2;
+              var midLon = (fromSite.lon + toSite.lon) / 2;
+              var shoeLabel = (shoe.ticIn || '?') + ' → ' + (shoe.ticOut || '?');
+              var shoeIcon = L.divIcon({
+                className: '',
+                html: '<div style="position:relative;">' +
+                  '<div style="background:rgba(6,182,212,0.25);border-radius:50%;width:40px;height:40px;animation:pulse 1.5s infinite;position:absolute;top:-40px;left:-4px;"></div>' +
+                  '<div style="background:linear-gradient(135deg,#0e7490,#06b6d4);border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:2px solid #67e8f9;box-shadow:0 2px 10px rgba(6,182,212,0.7);font-size:14px;position:absolute;top:-34px;left:2px;">❄️</div>' +
+                  '<div style="position:absolute;top:-6px;left:-12px;font-size:7px;color:#67e8f9;font-weight:800;white-space:nowrap;background:rgba(0,0,0,0.7);padding:1px 4px;border-radius:3px;">' + shoeLabel + '</div>' +
+                '</div>',
+                iconSize: [32, 0], iconAnchor: [16, 0]
+              });
+              var shoeMarker = L.marker([midLat, midLon], { icon: shoeIcon, interactive: true, zIndexOffset: 700 }).addTo(fiberSitesLayer.current);
+              shoeMarker.bindTooltip('❄️ Snowshoe — Tic In: ' + (shoe.ticIn||'?') + ', Tic Out: ' + (shoe.ticOut||'?') + ' — ' + (shoe.placedBy || ''), { direction: 'top', offset: [0, -40] });
+              (function(shoeDoc) {
+                shoeMarker.on('click', function() {
+                  if (shoeDoc.placedByUid === user.uid && confirm('Remove this snowshoe?')) {
+                    removeSnowshoe(shoeDoc.id);
+                  }
+                });
+              })(shoe);
+            } catch(e) { console.error('Snowshoe marker error:', e); }
+          });
+        } catch(e) { console.error('Snowshoe render error:', e); }
         if (allFiberSites.length > 0 && fiberMapInstance.current) {
           var bounds = L.latLngBounds(allFiberSites.map(function(s) { return [s.lat, s.lon]; }));
           fiberMapInstance.current.fitBounds(bounds, { padding: [30, 30] });
         }
-      }, [allFiberSites, asBuiltData, fiberEnroutes, fiberEquipment, spanStages, fiberTicMarks, tab]);
+      }, [allFiberSites, asBuiltData, fiberEnroutes, fiberEquipment, spanStages, fiberTicMarks, allSnowshoes, tab]);
 
       // ── Draw color-coded span lines + equipment markers on map ──
       useEffect(function() {
@@ -3180,41 +3213,7 @@
         }
       }, [spanData, spanStages, fiberEquipment, allFiberSites, tab, allTreeTrims, trimStartPoint]);
 
-      // ── Snowshoe markers — INDEPENDENT useEffect (won't vanish if span code errors) ──
-      useEffect(function() {
-        if (!fiberSnowshoeLayer.current) return;
-        fiberSnowshoeLayer.current.clearLayers();
-        var siteMap = {};
-        allFiberSites.forEach(function(s) { siteMap[s.id] = s; });
-        allSnowshoes.forEach(function(shoe) {
-          try {
-            var fromSite = siteMap[shoe.spanFromId];
-            var toSite = siteMap[shoe.spanToId];
-            if (!fromSite || !toSite) return;
-            var midLat = (fromSite.lat + toSite.lat) / 2;
-            var midLon = (fromSite.lon + toSite.lon) / 2;
-            var label = (shoe.ticIn || '?') + ' → ' + (shoe.ticOut || '?');
-            var shoeIcon = L.divIcon({
-              className: '',
-              html: '<div style="position:relative;">' +
-                '<div style="background:rgba(6,182,212,0.25);border-radius:50%;width:40px;height:40px;animation:pulse 1.5s infinite;position:absolute;top:-40px;left:-4px;"></div>' +
-                '<div style="background:linear-gradient(135deg,#0e7490,#06b6d4);border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:2px solid #67e8f9;box-shadow:0 2px 10px rgba(6,182,212,0.7);font-size:14px;position:absolute;top:-34px;left:2px;">❄️</div>' +
-                '<div style="position:absolute;top:-6px;left:-12px;font-size:7px;color:#67e8f9;font-weight:800;white-space:nowrap;background:rgba(0,0,0,0.7);padding:1px 4px;border-radius:3px;">' + label + '</div>' +
-              '</div>',
-              iconSize: [32, 0], iconAnchor: [16, 0]
-            });
-            var shoeMarker = L.marker([midLat, midLon], { icon: shoeIcon, interactive: true }).addTo(fiberSnowshoeLayer.current);
-            shoeMarker.bindTooltip('❄️ Snowshoe — Tic In: ' + (shoe.ticIn||'?') + ', Tic Out: ' + (shoe.ticOut||'?') + ' — ' + (shoe.placedBy || ''), { direction: 'top', offset: [0, -40] });
-            (function(shoeDoc) {
-              shoeMarker.on('click', function() {
-                if (shoeDoc.placedByUid === user.uid && confirm('Remove this snowshoe?')) {
-                  removeSnowshoe(shoeDoc.id);
-                }
-              });
-            })(shoe);
-          } catch(e) { console.error('Snowshoe marker error:', e); }
-        });
-      }, [allSnowshoes, allFiberSites, tab]);
+      // Snowshoe markers moved into main pole markers useEffect below
 
       function toggleCat(cat) {
         setExpandedCats(function(prev) {
