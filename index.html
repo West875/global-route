@@ -3012,9 +3012,11 @@
         });
         // ── Snowshoe ❄️ markers (drawn in same effect so they never vanish) ──
         try {
+          console.log('[SNOWSHOE DEBUG] allSnowshoes:', allSnowshoes.length, 'allFiberSites:', allFiberSites.length, 'layer:', !!fiberSitesLayer.current);
           var shoeMap = {};
           allFiberSites.forEach(function(s) { shoeMap[s.id] = s; });
           allSnowshoes.forEach(function(shoe) {
+            console.log('[SNOWSHOE DEBUG] Processing shoe:', shoe.id, 'from:', shoe.spanFromId, 'to:', shoe.spanToId, 'fromMatch:', !!shoeMap[shoe.spanFromId], 'toMatch:', !!shoeMap[shoe.spanToId]);
             try {
               var fromSite = shoeMap[shoe.spanFromId];
               var toSite = shoeMap[shoe.spanToId];
