@@ -2759,15 +2759,17 @@
         });
       }, [sites, correctedPins, poleRenames, poleDeletes, activeRouteId, importedRoutes]);
 
+      // ── Haversine distance in feet (used by spans, tree trims, nearest pole) ──
+      function haversineFt(lat1, lon1, lat2, lon2) {
+        var R = 6371000;
+        var dLat = (lat2 - lat1) * Math.PI / 180;
+        var dLon = (lon2 - lon1) * Math.PI / 180;
+        var a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        return R * 2 * Math.asin(Math.sqrt(a)) * 3.28084;
+      }
+
       // ── Calculate span footage between consecutive poles using GPS ──
       var spanData = useMemo(function() {
-        function haversineFt(lat1, lon1, lat2, lon2) {
-          var R = 6371000;
-          var dLat = (lat2 - lat1) * Math.PI / 180;
-          var dLon = (lon2 - lon1) * Math.PI / 180;
-          var a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-          return R * 2 * Math.asin(Math.sqrt(a)) * 3.28084;
-        }
         var distPoles = allFiberSites.filter(function(s) { return s.poleType === 'distribution'; });
         var spans = {};
         distPoles.forEach(function(pole) {
