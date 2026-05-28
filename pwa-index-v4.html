@@ -1439,7 +1439,7 @@
     }
 
     // ── User Menu ──
-    function UserMenu({ user, avatarURL, onLogout, onChangePhoto, onDownloadReport, onShowFiberProduction }) {
+    function UserMenu({ user, avatarURL, onLogout, onChangePhoto, onDownloadReport, onShowFiberProduction, onRunEndOfDayReport }) {
       const [open, setOpen] = useState(false);
       const displayName = user.displayName || user.email.split('@')[0];
       const initial = displayName.charAt(0).toUpperCase();
@@ -1482,6 +1482,12 @@
                     onMouseOut={function(e){e.currentTarget.style.background='transparent';}}
                     onClick={function() { setOpen(false); onDownloadReport(); }}>
                     📥 Download Report
+                  </button>
+                  <button style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 14px',background:'transparent',border:'none',borderRadius:10,cursor:'pointer',color:'#fbbf24',fontSize:13,fontWeight:600,textAlign:'left'}}
+                    onMouseOver={function(e){e.currentTarget.style.background='rgba(251,191,36,0.1)';}}
+                    onMouseOut={function(e){e.currentTarget.style.background='transparent';}}
+                    onClick={function() { setOpen(false); onRunEndOfDayReport(); }}>
+                    📋 Run End of Day Report
                   </button>
                   <div style={{margin:'4px 14px',borderTop:'1px solid rgba(139,92,246,0.1)'}}></div>
                   <button style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 14px',background:'transparent',border:'none',borderRadius:10,cursor:'pointer',color:'white',fontSize:13,fontWeight:500,textAlign:'left'}}
@@ -3158,6 +3164,17 @@
             L.polyline(right, { color: '#22c55e', weight: 4, opacity: 1.0 }).addTo(fiberSpanLinesLayer.current);
           }
           // Direction arrows removed — crew works back and forth to tension spans
+          // ── Clickable hit area for snowshoe placement on span ──
+          var hitLine = L.polyline([p1, p2], { color: 'transparent', weight: 22, opacity: 0, interactive: true });
+          hitLine.addTo(fiberSpanLinesLayer.current);
+          (function(fId, tId, pt1, pt2) {
+            hitLine.on('click', function() {
+              setSnowshoeSpan({ fromId: fId, toId: tId, fromLat: pt1[0], fromLon: pt1[1], toLat: pt2[0], toLon: pt2[1] });
+              setSnowshoeTicIn('');
+              setSnowshoeTicOut('');
+              setShowSnowshoeModal(true);
+            });
+          })(stageData.fromId, stageData.toId, p1, p2);
         });
 
         // Draw screw anchor + down guy icons at poles
@@ -3187,19 +3204,32 @@
             L.marker([site.lat, site.lon], { icon: dgOnlyIcon, interactive: false }).addTo(fiberEquipLayer.current);
           }
         });
-        // ── Snowshoe markers — cyan pulsing glow at GPS coords ──
+        // ── Snowshoe markers — one icon at span midpoint ──
         allSnowshoes.forEach(function(shoe) {
+          var fromSite = siteMap[shoe.spanFromId];
+          var toSite = siteMap[shoe.spanToId];
+          if (!fromSite || !toSite) return;
+          var midLat = (fromSite.lat + toSite.lat) / 2;
+          var midLon = (fromSite.lon + toSite.lon) / 2;
+          var label = (shoe.ticIn || '?') + ' → ' + (shoe.ticOut || '?');
           var shoeIcon = L.divIcon({
             className: '',
             html: '<div style="position:relative;">' +
               '<div style="background:rgba(6,182,212,0.25);border-radius:50%;width:40px;height:40px;animation:pulse 1.5s infinite;position:absolute;top:-40px;left:-4px;"></div>' +
               '<div style="background:linear-gradient(135deg,#0e7490,#06b6d4);border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:2px solid #67e8f9;box-shadow:0 2px 10px rgba(6,182,212,0.7);font-size:14px;position:absolute;top:-34px;left:2px;">❄️</div>' +
-              '<div style="position:absolute;top:-8px;left:4px;font-size:7px;color:#67e8f9;font-weight:800;white-space:nowrap;">' + shoe.ticType.toUpperCase() + '</div>' +
+              '<div style="position:absolute;top:-6px;left:-12px;font-size:7px;color:#67e8f9;font-weight:800;white-space:nowrap;background:rgba(0,0,0,0.7);padding:1px 4px;border-radius:3px;">' + label + '</div>' +
             '</div>',
             iconSize: [32, 0], iconAnchor: [16, 0]
           });
-          var shoeMarker = L.marker([shoe.lat, shoe.lon], { icon: shoeIcon, interactive: true }).addTo(fiberEquipLayer.current);
-          shoeMarker.bindTooltip('❄️ Snowshoe (' + shoe.ticType.toUpperCase() + ') — ' + (shoe.placedBy || '') + ' ' + new Date(shoe.placedAt).toLocaleString(), { direction: 'top', offset: [0, -40] });
+          var shoeMarker = L.marker([midLat, midLon], { icon: shoeIcon, interactive: true }).addTo(fiberEquipLayer.current);
+          shoeMarker.bindTooltip('❄️ Snowshoe — Tic In: ' + (shoe.ticIn||'?') + ', Tic Out: ' + (shoe.ticOut||'?') + ' — ' + (shoe.placedBy || ''), { direction: 'top', offset: [0, -40] });
+          (function(shoeDoc) {
+            shoeMarker.on('click', function() {
+              if (shoeDoc.placedByUid === user.uid && confirm('Remove this snowshoe?')) {
+                removeSnowshoe(shoeDoc.id);
+              }
+            });
+          })(shoe);
         });
         // ── Tree Trimming markers + blue lines ──
         allTreeTrims.forEach(function(trim) {
@@ -3509,6 +3539,10 @@
       var [placingTrim, setPlacingTrim] = useState(null); // 'start' | 'stop' | null
       var [trimStartPoint, setTrimStartPoint] = useState(null); // {lat, lon, acc}
       var [placingSnowshoe, setPlacingSnowshoe] = useState(null); // null | 'in' | 'out'
+      var [showSnowshoeModal, setShowSnowshoeModal] = useState(false);
+      var [snowshoeSpan, setSnowshoeSpan] = useState(null);
+      var [snowshoeTicIn, setSnowshoeTicIn] = useState('');
+      var [snowshoeTicOut, setSnowshoeTicOut] = useState('');
       useEffect(function() {
         return db.collection('fiberSnowshoes').orderBy('placedAt','desc').onSnapshot(function(snap) {
           var shoes = [];
@@ -3928,7 +3962,7 @@
 
       // ── BILLING PICKER — full GigaBeam rate card ──
       var BILLING_ITEMS = [
-        {cat:'Aerial',items:[{code:'AE2',desc:'Strand & Lash',unit:'Foot'},{code:'AE4',desc:'Down Guy',unit:'Each'},{code:'AE5',desc:'Screw Anchor',unit:'Each'},{code:'AE6',desc:'Snowshoe',unit:'Foot'},{code:'AE7',desc:'3 Bolt Clamp',unit:'Each'},{code:'AE8',desc:'J-Hook',unit:'Each'},{code:'AE19',desc:'Tree Trim',unit:'Foot'}]},
+        {cat:'Aerial',items:[{code:'AE2',desc:'Strand & Lash',unit:'Foot'},{code:'AE4',desc:'Down Guy',unit:'Each'},{code:'AE5',desc:'Screw Anchor',unit:'Each'},{code:'AE6',desc:'Snowshoe',unit:'Each'},{code:'AE7',desc:'3 Bolt Clamp',unit:'Each'},{code:'AE8',desc:'J-Hook',unit:'Each'},{code:'AE19',desc:'Tree Trim',unit:'Foot'}]},
         {cat:'Terminals',items:[{code:'TE1',desc:'Fiber Terminal Install',unit:'Each'},{code:'TE2',desc:'Fiber Splitter Install',unit:'Each'},{code:'TE3',desc:'Splice Closure Install',unit:'Each'}]},
         {cat:'Pole Placement',items:[{code:'PP1',desc:'Set Pole (35ft)',unit:'Each'},{code:'PP2',desc:'Set Pole (40ft)',unit:'Each'},{code:'PP3',desc:'Set Pole (45ft)',unit:'Each'}]},
         {cat:'Underground',items:[{code:'UG1',desc:'Trench (per ft)',unit:'Foot'},{code:'UG2',desc:'Bore (per ft)',unit:'Foot'},{code:'UG3',desc:'Handhole Install',unit:'Each'}]},
@@ -4187,7 +4221,10 @@
         // Snowshoe log
         var snowshoeRows = [];
         allSnowshoes.forEach(function(shoe) {
-          snowshoeRows.push('<tr><td style="padding:5px 8px;border-bottom:1px solid #333;">❄️ ' + shoe.ticType.toUpperCase() + '</td><td style="padding:5px 8px;border-bottom:1px solid #333;color:#ccc;">📍 ' + shoe.lat.toFixed(5) + ', ' + shoe.lon.toFixed(5) + '</td><td style="padding:5px 8px;border-bottom:1px solid #333;color:#94a3b8;">' + (shoe.placedBy||'') + '</td><td style="padding:5px 8px;border-bottom:1px solid #333;color:#94a3b8;">' + new Date(shoe.placedAt).toLocaleString() + '</td></tr>');
+          var fromLabel = (shoe.spanFromId || shoe.fromId || '?').replace('olt57-','');
+          var toLabel = (shoe.spanToId || shoe.toId || '?').replace('olt57-','');
+          var ticLabel = (shoe.ticIn || '?') + ' → ' + (shoe.ticOut || '?');
+          snowshoeRows.push('<tr><td style="padding:5px 8px;border-bottom:1px solid #333;">❄️ ' + fromLabel + ' → ' + toLabel + '</td><td style="padding:5px 8px;border-bottom:1px solid #333;color:#ccc;">📏 Tic ' + ticLabel + '</td><td style="padding:5px 8px;border-bottom:1px solid #333;color:#94a3b8;">' + (shoe.placedBy||'') + '</td><td style="padding:5px 8px;border-bottom:1px solid #333;color:#94a3b8;">' + new Date(shoe.placedAt).toLocaleString() + '</td></tr>');
         });
         // Tree trim rows for report
         var treeTrimRows = [];
@@ -4416,70 +4453,45 @@
         if (navigator.vibrate) navigator.vibrate([50, 100, 50]);
       }
 
-      // ── Add snowshoe at CURRENT GPS location ──
-      async function addSnowshoeAtGPS(ticType) {
-        setPlacingSnowshoe(ticType);
+      // ── Add snowshoe to a specific span (tap span line on map) ──
+      async function addSnowshoeToSpan() {
+        if (!snowshoeSpan || !snowshoeTicIn || !snowshoeTicOut) { alert('Please enter both Tic In and Tic Out values.'); return; }
         try {
-          var pos = await new Promise(function(resolve, reject) {
-            navigator.geolocation.getCurrentPosition(
-              function(p) { resolve({ lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy }); },
-              function(e) { reject(e); },
-              { enableHighAccuracy: true, timeout: 15000 }
-            );
-          });
-          var docRef = await db.collection('fiberSnowshoes').add({
-            lat: pos.lat,
-            lon: pos.lon,
-            accuracy: pos.acc,
-            ticType: ticType,
+          var shoeDoc = await db.collection('fiberSnowshoes').add({
+            spanFromId: snowshoeSpan.fromId,
+            spanToId: snowshoeSpan.toId,
+            ticIn: snowshoeTicIn,
+            ticOut: snowshoeTicOut,
             placedBy: user.displayName || user.email.split('@')[0],
             placedByPhoto: avatarURL || user.photoURL || null,
             placedByUid: user.uid,
             placedAt: new Date().toISOString()
           });
-          // ── AUTO-BILL: AE6 Snow Shoe at nearest pole ──
-          var nearestPole = findNearestPoleId(pos.lat, pos.lon);
-          if (nearestPole) {
-            var today = new Date().toISOString().split('T')[0];
-            var autoKey = 'auto_AE6_' + docRef.id;
-            var existing = asBuiltData[nearestPole.id] || {};
-            var entries = Object.assign({}, existing.entries || {});
-            entries[autoKey] = {
-              userId: user.uid,
-              userName: user.displayName || user.email.split('@')[0],
-              userPhoto: avatarURL || user.photoURL || null,
-              date: today,
-              codes: { 'AE6': 1 },
-              notes: '⚡ Auto-billed: Snow Shoe (' + ticType.toUpperCase() + ') near ' + nearestPole.name,
-              auto: true,
-              snowshoeDocId: docRef.id,
-              updatedAt: new Date().toISOString()
-            };
-            await db.collection('fiberAsBuilt').doc(nearestPole.id).set({
-              siteId: nearestPole.id, siteName: nearestPole.name,
-              lat: nearestPole.lat, lon: nearestPole.lon,
-              entries: entries,
-              lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-            }, { merge: true });
-          }
+          // ── Auto-bill AE6 (Each) on the fromPole ──
+          var billPoleId = snowshoeSpan.fromId;
+          var autoKey = 'auto_AE6_' + shoeDoc.id;
+          var entryUpdate = {};
+          entryUpdate['entries.' + autoKey] = {
+            code: 'AE6', desc: 'Snow Shoe', unit: 'Each', qty: 1,
+            addedBy: user.displayName || user.email.split('@')[0],
+            addedByUid: user.uid,
+            addedAt: new Date().toISOString()
+          };
+          await db.collection('fiberAsBuilt').doc(billPoleId).set(entryUpdate, {merge: true});
+          setShowSnowshoeModal(false);
+          setSnowshoeTicIn('');
+          setSnowshoeTicOut('');
+          setSnowshoeSpan(null);
           if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
-          // Select nearest pole so photo goes to correct pole
-          if (nearestPole) {
-            var poleSite = allFiberSites.find(function(s){ return s.id === nearestPole.id; });
-            if (poleSite) setSelectedPole(poleSite);
-          }
           // Show success toast
           var toast = document.createElement('div');
-          toast.innerHTML = '❄️ Snowshoe placed! Opening camera...';
+          toast.innerHTML = '❄️ Snowshoe added to span!';
           toast.style.cssText = 'position:fixed;bottom:120px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#0e7490,#06b6d4);color:#fff;padding:10px 20px;border-radius:12px;font-weight:700;font-size:14px;z-index:99999;box-shadow:0 4px 20px rgba(6,182,212,0.5);';
           document.body.appendChild(toast);
           setTimeout(function(){ try{ document.body.removeChild(toast); }catch(e){} }, 2500);
-          // Auto-open camera for proof photo
-          setTimeout(function() { triggerPolePhoto(); }, 500);
         } catch(e) {
-          alert('Could not place snowshoe: ' + e.message);
+          alert('Could not add snowshoe: ' + e.message);
         }
-        setPlacingSnowshoe(null);
       }
 
       // ── Add Pole at GPS Location ──
@@ -4696,20 +4708,28 @@
       // ── Remove snowshoe by doc ID ──
       async function removeSnowshoe(docId) {
         if (confirm('Remove this snowshoe?')) {
+          // Get the shoe data first to find which pole has the AE6 entry
+          var shoeSnap = await db.collection('fiberSnowshoes').doc(docId).get();
+          var shoeData = shoeSnap.exists ? shoeSnap.data() : null;
           await db.collection('fiberSnowshoes').doc(docId).delete();
-          // ── Also remove auto-billed AE6 entry from nearest pole ──
+          // ── Remove auto-billed AE6 entry ──
           var autoKey = 'auto_AE6_' + docId;
-          var allPoleIds = Object.keys(asBuiltData);
-          for (var pi = 0; pi < allPoleIds.length; pi++) {
-            var poleEntries = asBuiltData[allPoleIds[pi]].entries || {};
-            if (poleEntries[autoKey]) {
-              var updatedEntries = Object.assign({}, poleEntries);
-              delete updatedEntries[autoKey];
-              await db.collection('fiberAsBuilt').doc(allPoleIds[pi]).update({
-                entries: updatedEntries,
-                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-              });
-              break;
+          // Try the span fromId first (new format), then search all poles (legacy)
+          var billPole = shoeData && shoeData.spanFromId ? shoeData.spanFromId : null;
+          if (billPole && asBuiltData[billPole] && asBuiltData[billPole].entries && asBuiltData[billPole].entries[autoKey]) {
+            var updatedEntries = Object.assign({}, asBuiltData[billPole].entries);
+            delete updatedEntries[autoKey];
+            await db.collection('fiberAsBuilt').doc(billPole).update({ entries: updatedEntries, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() });
+          } else {
+            var allPoleIds = Object.keys(asBuiltData);
+            for (var pi = 0; pi < allPoleIds.length; pi++) {
+              var poleEntries = asBuiltData[allPoleIds[pi]].entries || {};
+              if (poleEntries[autoKey]) {
+                var updatedEntries2 = Object.assign({}, poleEntries);
+                delete updatedEntries2[autoKey];
+                await db.collection('fiberAsBuilt').doc(allPoleIds[pi]).update({ entries: updatedEntries2, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() });
+                break;
+              }
             }
           }
         }
@@ -5100,20 +5120,9 @@
                     style={{width:'100%',padding:'8px 0',borderRadius:10,border:'1px solid rgba(250,204,21,0.5)',background:'linear-gradient(135deg,#854d0e,#a16207)',color:'white',fontSize:11,fontWeight:800,cursor:'pointer',textAlign:'center',boxShadow:'0 2px 8px rgba(161,98,7,0.4)'}}>
                     📍 Add Pole at GPS
                   </button>
-                  {/* Snowshoe row */}
-                  <div style={{display:'flex',gap:4}}>
-                    <button onClick={function(){addSnowshoeAtGPS('in');}} disabled={placingSnowshoe !== null}
-                      style={{flex:1,padding:'7px 0',borderRadius:10,border:'1px solid rgba(6,182,212,0.5)',background:'linear-gradient(135deg,#0e7490,#06b6d4)',color:'white',fontSize:10,fontWeight:800,cursor:'pointer',textAlign:'center'}}>
-                      {placingSnowshoe === 'in' ? '⏳...' : '❄️ Tic IN'}
-                    </button>
-                    <button onClick={function(){addSnowshoeAtGPS('out');}} disabled={placingSnowshoe !== null}
-                      style={{flex:1,padding:'7px 0',borderRadius:10,border:'1px solid rgba(6,182,212,0.5)',background:'linear-gradient(135deg,#155e75,#0891b2)',color:'white',fontSize:10,fontWeight:800,cursor:'pointer',textAlign:'center'}}>
-                      {placingSnowshoe === 'out' ? '⏳...' : '❄️ Tic OUT'}
-                    </button>
-                  </div>
                   {/* Counts badge */}
                   <div style={{background:'rgba(15,10,30,0.9)',borderRadius:6,padding:'3px 6px',fontSize:8,color:'#67e8f9',textAlign:'center'}}>
-                    ❄️ {allSnowshoes.length} · 🌳 {allTreeTrims.length} • {allTreeTrims.reduce(function(s,t){return s+t.footage;},0)}ft
+                    ❄️ {allSnowshoes.length} · 🌳 {allTreeTrims.length} • {allTreeTrims.reduce(function(s,t){return s+t.footage;},0)}ft · Tap span for ❄️
                   </div>
                   {/* Trim row */}
                   <div style={{display:'flex',gap:4}}>
@@ -5469,36 +5478,23 @@
                                     {stageData.updatedByName} • {new Date(stageData.updatedAt).toLocaleString()}
                                   </div>
                                 )}
-                                {/* ─── SNOWSHOE CONTROLS — GPS-based ─── */}
+                                {/* ─── SNOWSHOE INFO — tap span on map to add ─── */}
                                 <div style={{padding:'4px 10px 8px',borderTop:'1px solid rgba(6,182,212,0.15)'}}>
                                   <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
                                     <span style={{fontSize:10,color:'#06b6d4',fontWeight:600}}>❄️ Snowshoes</span>
-                                    <button onClick={function(){ addSnowshoeAtGPS('in'); }} disabled={placingSnowshoe !== null}
-                                      style={{padding:'2px 8px',borderRadius:5,background:'linear-gradient(135deg,#0e7490,#06b6d4)',border:'none',color:'white',fontSize:9,fontWeight:700,cursor:'pointer'}}>
-                                      {placingSnowshoe === 'in' ? '⏳...' : '+ Tic IN'}
-                                    </button>
-                                    <button onClick={function(){ addSnowshoeAtGPS('out'); }} disabled={placingSnowshoe !== null}
-                                      style={{padding:'2px 8px',borderRadius:5,background:'linear-gradient(135deg,#155e75,#0891b2)',border:'none',color:'white',fontSize:9,fontWeight:700,cursor:'pointer'}}>
-                                      {placingSnowshoe === 'out' ? '⏳...' : '+ Tic OUT'}
-                                    </button>
+                                    <span style={{fontSize:9,color:'#475569'}}>Tap a span line on the map to add</span>
                                   </div>
-                                  <div style={{fontSize:9,color:'#67e8f9',marginBottom:4}}>📍 Uses your current GPS location</div>
-                                  {/* Show nearby snowshoes (within ~500ft of this pole) */}
+                                  {/* Show snowshoes connected to this pole */}
                                   {(function(){
-                                    var poleLat = selectedPole.lat;
-                                    var poleLon = selectedPole.lon;
-                                    var nearbyShoes = allSnowshoes.filter(function(shoe) {
-                                      var dLat = (shoe.lat - poleLat) * 111320;
-                                      var dLon = (shoe.lon - poleLon) * 111320 * Math.cos(poleLat * Math.PI / 180);
-                                      var dist = Math.sqrt(dLat * dLat + dLon * dLon);
-                                      return dist < 150; // ~500ft = 150m
+                                    var poleId = selectedPole.id;
+                                    var connectedShoes = allSnowshoes.filter(function(shoe) {
+                                      return shoe.spanFromId === poleId || shoe.spanToId === poleId;
                                     });
-                                    if (nearbyShoes.length === 0) return <div style={{fontSize:9,color:'#475569'}}>No snowshoes nearby</div>;
-                                    return nearbyShoes.map(function(shoe) {
+                                    if (connectedShoes.length === 0) return <div style={{fontSize:9,color:'#475569'}}>No snowshoes on connected spans</div>;
+                                    return connectedShoes.map(function(shoe) {
                                       return (
                                         <div key={shoe.id} style={{display:'flex',alignItems:'center',gap:6,padding:'3px 0',fontSize:10}}>
-                                          <span style={{color:'#06b6d4'}}>❄️ {shoe.ticType.toUpperCase()}</span>
-                                          <span style={{color:'#94a3b8',fontSize:9}}>📍 {shoe.lat.toFixed(5)}, {shoe.lon.toFixed(5)}</span>
+                                          <span style={{color:'#06b6d4'}}>❄️ {shoe.ticIn} → {shoe.ticOut}</span>
                                           <span style={{color:'#64748b',fontSize:9}}>• {shoe.placedBy}</span>
                                           {shoe.placedByUid === user.uid && (
                                             <button onClick={function(){removeSnowshoe(shoe.id);}} style={{marginLeft:'auto',background:'rgba(239,68,68,0.2)',border:'1px solid rgba(239,68,68,0.4)',color:'#f87171',borderRadius:4,padding:'1px 6px',fontSize:9,cursor:'pointer'}}>✕</button>
@@ -6198,6 +6194,40 @@
               </div>
             )}
           </div>
+          {/* Snowshoe Span Modal */}
+          {showSnowshoeModal && snowshoeSpan && (
+            <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.7)',zIndex:99999,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}
+              onClick={function(){ setShowSnowshoeModal(false); }}>
+              <div style={{background:'linear-gradient(135deg,#0c1825,#0f2233)',borderRadius:16,padding:24,maxWidth:320,width:'100%',textAlign:'center',boxShadow:'0 8px 32px rgba(6,182,212,0.3)',border:'1px solid rgba(6,182,212,0.3)'}}
+                onClick={function(e){e.stopPropagation();}}>
+                <div style={{fontSize:28,marginBottom:8}}>❄️</div>
+                <div style={{fontSize:16,fontWeight:800,color:'#67e8f9',marginBottom:4}}>Add Snowshoe to Span</div>
+                <div style={{fontSize:11,color:'#94a3b8',marginBottom:16}}>{snowshoeSpan.fromId} → {snowshoeSpan.toId}</div>
+                <div style={{marginBottom:12}}>
+                  <label style={{fontSize:11,color:'#67e8f9',fontWeight:600,display:'block',textAlign:'left',marginBottom:4}}>Tic IN (footage)</label>
+                  <input type="text" inputMode="numeric" value={snowshoeTicIn} onChange={function(e){setSnowshoeTicIn(e.target.value);}}
+                    placeholder="e.g. 1234"
+                    style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1px solid rgba(6,182,212,0.4)',background:'rgba(6,182,212,0.1)',color:'white',fontSize:16,fontWeight:700,boxSizing:'border-box'}} />
+                </div>
+                <div style={{marginBottom:16}}>
+                  <label style={{fontSize:11,color:'#67e8f9',fontWeight:600,display:'block',textAlign:'left',marginBottom:4}}>Tic OUT (footage)</label>
+                  <input type="text" inputMode="numeric" value={snowshoeTicOut} onChange={function(e){setSnowshoeTicOut(e.target.value);}}
+                    placeholder="e.g. 5678"
+                    style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1px solid rgba(6,182,212,0.4)',background:'rgba(6,182,212,0.1)',color:'white',fontSize:16,fontWeight:700,boxSizing:'border-box'}} />
+                </div>
+                <div style={{display:'flex',gap:8}}>
+                  <button onClick={function(){ setShowSnowshoeModal(false); }}
+                    style={{flex:1,padding:'10px 0',borderRadius:10,border:'1px solid rgba(148,163,184,0.3)',background:'transparent',color:'#94a3b8',fontSize:13,fontWeight:700,cursor:'pointer'}}>
+                    Cancel
+                  </button>
+                  <button onClick={addSnowshoeToSpan}
+                    style={{flex:1,padding:'10px 0',borderRadius:10,border:'none',background:'linear-gradient(135deg,#0e7490,#06b6d4)',color:'white',fontSize:13,fontWeight:800,cursor:'pointer',boxShadow:'0 4px 15px rgba(6,182,212,0.4)'}}>
+                    ❄️ Add Snowshoe
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>,
         document.body
       );
@@ -6830,6 +6860,8 @@
       const [view, setView] = useState('list');
       const [showKMZManager, setShowKMZManager] = useState(false);
       const [showFiberProduction, setShowFiberProduction] = useState(false);
+      const [showCrewReportPicker, setShowCrewReportPicker] = useState(false);
+      const [reportSending, setReportSending] = useState(false);
       const [importedFiles, setImportedFiles] = useState([]);
       const [importedSites, setImportedSites] = useState([]);
       const [sharedKMZFiles, setSharedKMZFiles] = useState([]);
@@ -7403,6 +7435,36 @@
           .catch(function(err) { console.error('Cancel en-route error:', err); });
       };
 
+      // ── Run End of Day Report (webhook → PDF email) ──
+      var REPORT_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_br33cymz1w3jdt0vcxx8?token=6395e525cd587171fa9d908c2df373b9';
+      var CREW_MEMBERS = [
+        { name: 'Jelani Carrion', userId: '1miHHuUBNRZA9Ydw3AhjOPCVqxp2', route: 'OLT-57' },
+        { name: 'Okeeno Lawrence', userId: 'JzR4GO3ZGPXb3ck84bEjiovXWg42', route: 'Route 1' }
+      ];
+      var handleRunEndOfDayReport = function(crew) {
+        setReportSending(true);
+        fetch(REPORT_WEBHOOK, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'end_of_day_report',
+            userId: crew.userId,
+            userName: crew.name,
+            route: crew.route,
+            requestedBy: user.email,
+            requestedAt: new Date().toISOString()
+          })
+        }).then(function() {
+          setReportSending(false);
+          setShowCrewReportPicker(false);
+          alert('📋 Report requested for ' + crew.name + '!\n\nCheck your email in ~2 minutes.');
+        }).catch(function(err) {
+          setReportSending(false);
+          console.error('Report webhook error:', err);
+          alert('❌ Could not request report. Check your connection.');
+        });
+      };
+
       // ── Download Team Production Report as CSV ──
       var handleDownloadReport = function() {
         var rows = [['Site ID', 'Site Name', 'Source', 'Status', 'Completed By', 'Completed At', 'Flagged By', 'Flagged At', 'En-route By']];
@@ -7757,7 +7819,7 @@
                   <div style={{fontSize:'0.5rem',letterSpacing:'0.3em',color:'rgba(212,175,55,0.5)',marginTop:'-1px',fontWeight:600}}>ROUTE • TRACK • MANAGE</div>
                 </div>
               </h1>
-              <UserMenu user={user} avatarURL={avatarURL} onLogout={onLogout} onChangePhoto={function() { setShowAvatarSetup(true); }} onDownloadReport={handleDownloadReport} onShowFiberProduction={function() { setShowFiberProduction(true); }} />
+              <UserMenu user={user} avatarURL={avatarURL} onLogout={onLogout} onChangePhoto={function() { setShowAvatarSetup(true); }} onDownloadReport={handleDownloadReport} onShowFiberProduction={function() { setShowFiberProduction(true); }} onRunEndOfDayReport={function() { setShowCrewReportPicker(true); }} />
             </div>
             <div style={{textAlign:'center',fontSize:'0.7rem',color:'rgba(168,163,184,0.7)',marginTop:6,fontWeight:500,letterSpacing:'0.02em'}}>
               {allSites.length} sites • {teamCompletedCount} completed • Nearest-First Routing
@@ -7872,6 +7934,46 @@
             </div>
           )}
 
+          {/* Crew Report Picker Modal */}
+          {showCrewReportPicker && (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{background:'rgba(0,0,0,0.7)',backdropFilter:'blur(8px)'}}>
+              <div style={{background:'linear-gradient(135deg,#1e1b4b,#312e81)',borderRadius:20,padding:24,maxWidth:360,width:'90%',border:'1px solid rgba(251,191,36,0.3)',boxShadow:'0 0 40px rgba(251,191,36,0.15)'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+                  <h3 style={{color:'#fbbf24',fontSize:18,fontWeight:700,margin:0}}>📋 End of Day Report</h3>
+                  <button onClick={function(){setShowCrewReportPicker(false);}} style={{background:'none',border:'none',color:'#94a3b8',fontSize:22,cursor:'pointer',padding:4}}>✕</button>
+                </div>
+                <p style={{color:'#c4b5fd',fontSize:13,marginBottom:16}}>Select crew member to generate their as-built PDF report:</p>
+                {CREW_MEMBERS.map(function(crew) {
+                  return React.createElement('button', {
+                    key: crew.userId,
+                    disabled: reportSending,
+                    onClick: function() { handleRunEndOfDayReport(crew); },
+                    style: {
+                      display:'flex',alignItems:'center',justifyContent:'space-between',
+                      width:'100%',padding:'14px 16px',marginBottom:8,
+                      background:'linear-gradient(135deg,rgba(139,92,246,0.15),rgba(251,191,36,0.1))',
+                      border:'1px solid rgba(251,191,36,0.2)',borderRadius:12,
+                      cursor: reportSending ? 'wait' : 'pointer',
+                      color:'white',fontSize:14,fontWeight:600,textAlign:'left',
+                      opacity: reportSending ? 0.6 : 1,
+                      transition:'all 0.2s'
+                    },
+                    onMouseOver: function(e) { if (!reportSending) e.currentTarget.style.background='linear-gradient(135deg,rgba(139,92,246,0.3),rgba(251,191,36,0.2))'; },
+                    onMouseOut: function(e) { e.currentTarget.style.background='linear-gradient(135deg,rgba(139,92,246,0.15),rgba(251,191,36,0.1))'; }
+                  },
+                    React.createElement('span', null, '👤 ' + crew.name),
+                    React.createElement('span', {style:{color:'#fbbf24',fontSize:12,fontWeight:500}}, crew.route)
+                  );
+                })}
+                {reportSending && (
+                  <div style={{textAlign:'center',color:'#fbbf24',fontSize:13,marginTop:8}}>
+                    ⏳ Requesting report...
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* KMZ Manager Modal */}
           {showKMZManager && (
             <KMZManager importedFiles={importedFiles} sharedFiles={sharedKMZFiles} onImport={handleKMZImport} onRemoveFile={handleRemoveFile} onClose={function() { setShowKMZManager(false); }} />
@@ -7907,6 +8009,8 @@
               </div>
             </div>
           )}
+
+
 
           {/* En-Route Confirmation Modal */}
           {enrouteConfirm && (
