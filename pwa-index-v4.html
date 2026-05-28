@@ -4464,7 +4464,7 @@
             placedBy: user.displayName || user.email.split('@')[0],
             placedByPhoto: avatarURL || user.photoURL || null,
             placedByUid: user.uid,
-            placedAt: new Date().toISOString()
+            placedAt: firebase.firestore.FieldValue.serverTimestamp()
           });
           // ── Auto-bill AE6 (Each) on the fromPole ──
           var billPoleId = snowshoeSpan.fromId;
@@ -4931,7 +4931,7 @@
         });
         // Snowshoes
         allSnowshoes.forEach(function(shoe) {
-          var row = ['Snowshoe (' + shoe.ticType.toUpperCase() + ')', shoe.lat.toFixed(6) + ' / ' + shoe.lon.toFixed(6), shoe.placedBy || '', shoe.placedAt || '', shoe.lat, shoe.lon, 'AE6', 'Snow Shoe', 'Each', 1];
+          var row = ['Snowshoe (' + (shoe.spanFromId||'?') + ' → ' + (shoe.spanToId||'?') + ')', 'Tic ' + (shoe.ticIn||'?') + ' → ' + (shoe.ticOut||'?'), shoe.placedBy || '', shoe.placedAt ? new Date(shoe.placedAt.seconds ? shoe.placedAt.seconds*1000 : shoe.placedAt).toLocaleString() : '', '', '', 'AE6', 'Snow Shoe', 'Each', 1];
           if (isAdmin) row.push(30, 30);
           rows.push(row);
         });
