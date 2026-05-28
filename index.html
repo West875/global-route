@@ -4454,7 +4454,7 @@
       async function addSnowshoeToSpan() {
         if (!snowshoeSpan || !snowshoeTicIn || !snowshoeTicOut) { alert('Please enter both Tic In and Tic Out values.'); return; }
         try {
-          await db.collection('fiberSnowshoes').add({
+          var shoeDoc = await db.collection('fiberSnowshoes').add({
             spanFromId: snowshoeSpan.fromId,
             spanToId: snowshoeSpan.toId,
             ticIn: snowshoeTicIn,
@@ -4464,6 +4464,20 @@
             placedByUid: user.uid,
             placedAt: new Date().toISOString()
           });
+          // ── Auto-bill AE6 on the fromPole ──
+          var footage = Math.abs(parseFloat(snowshoeTicOut) - parseFloat(snowshoeTicIn));
+          if (footage > 0) {
+            var billPoleId = snowshoeSpan.fromId;
+            var autoKey = 'auto_AE6_' + shoeDoc.id;
+            var entryUpdate = {};
+            entryUpdate['entries.' + autoKey] = {
+              code: 'AE6', desc: 'Snow Shoe', unit: 'Foot', qty: Math.round(footage),
+              addedBy: user.displayName || user.email.split('@')[0],
+              addedByUid: user.uid,
+              addedAt: new Date().toISOString()
+            };
+            await db.collection('fiberAsBuilt').doc(billPoleId).set(entryUpdate, {merge: true});
+          }
           setShowSnowshoeModal(false);
           setSnowshoeTicIn('');
           setSnowshoeTicOut('');
@@ -4694,20 +4708,28 @@
       // ── Remove snowshoe by doc ID ──
       async function removeSnowshoe(docId) {
         if (confirm('Remove this snowshoe?')) {
+          // Get the shoe data first to find which pole has the AE6 entry
+          var shoeSnap = await db.collection('fiberSnowshoes').doc(docId).get();
+          var shoeData = shoeSnap.exists ? shoeSnap.data() : null;
           await db.collection('fiberSnowshoes').doc(docId).delete();
-          // ── Also remove auto-billed AE6 entry from nearest pole ──
+          // ── Remove auto-billed AE6 entry ──
           var autoKey = 'auto_AE6_' + docId;
-          var allPoleIds = Object.keys(asBuiltData);
-          for (var pi = 0; pi < allPoleIds.length; pi++) {
-            var poleEntries = asBuiltData[allPoleIds[pi]].entries || {};
-            if (poleEntries[autoKey]) {
-              var updatedEntries = Object.assign({}, poleEntries);
-              delete updatedEntries[autoKey];
-              await db.collection('fiberAsBuilt').doc(allPoleIds[pi]).update({
-                entries: updatedEntries,
-                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-              });
-              break;
+          // Try the span fromId first (new format), then search all poles (legacy)
+          var billPole = shoeData && shoeData.spanFromId ? shoeData.spanFromId : null;
+          if (billPole && asBuiltData[billPole] && asBuiltData[billPole].entries && asBuiltData[billPole].entries[autoKey]) {
+            var updatedEntries = Object.assign({}, asBuiltData[billPole].entries);
+            delete updatedEntries[autoKey];
+            await db.collection('fiberAsBuilt').doc(billPole).update({ entries: updatedEntries, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() });
+          } else {
+            var allPoleIds = Object.keys(asBuiltData);
+            for (var pi = 0; pi < allPoleIds.length; pi++) {
+              var poleEntries = asBuiltData[allPoleIds[pi]].entries || {};
+              if (poleEntries[autoKey]) {
+                var updatedEntries2 = Object.assign({}, poleEntries);
+                delete updatedEntries2[autoKey];
+                await db.collection('fiberAsBuilt').doc(allPoleIds[pi]).update({ entries: updatedEntries2, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() });
+                break;
+              }
             }
           }
         }
