@@ -1439,7 +1439,7 @@
     }
 
     // ── User Menu ──
-    function UserMenu({ user, avatarURL, onLogout, onChangePhoto, onDownloadReport, onShowFiberProduction }) {
+    function UserMenu({ user, avatarURL, onLogout, onChangePhoto, onDownloadReport, onShowFiberProduction, onRunEndOfDayReport }) {
       const [open, setOpen] = useState(false);
       const displayName = user.displayName || user.email.split('@')[0];
       const initial = displayName.charAt(0).toUpperCase();
@@ -1482,6 +1482,12 @@
                     onMouseOut={function(e){e.currentTarget.style.background='transparent';}}
                     onClick={function() { setOpen(false); onDownloadReport(); }}>
                     📥 Download Report
+                  </button>
+                  <button style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 14px',background:'transparent',border:'none',borderRadius:10,cursor:'pointer',color:'#fbbf24',fontSize:13,fontWeight:600,textAlign:'left'}}
+                    onMouseOver={function(e){e.currentTarget.style.background='rgba(251,191,36,0.1)';}}
+                    onMouseOut={function(e){e.currentTarget.style.background='transparent';}}
+                    onClick={function() { setOpen(false); onRunEndOfDayReport(); }}>
+                    📋 Run End of Day Report
                   </button>
                   <div style={{margin:'4px 14px',borderTop:'1px solid rgba(139,92,246,0.1)'}}></div>
                   <button style={{display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 14px',background:'transparent',border:'none',borderRadius:10,cursor:'pointer',color:'white',fontSize:13,fontWeight:500,textAlign:'left'}}
@@ -2469,6 +2475,9 @@
       const [uploadingPhoto, setUploadingPhoto] = useState(false);
       const [correctingPin, setCorrectingPin] = useState(false);
       const [showMakeReadyPicker, setShowMakeReadyPicker] = useState(false);
+      const [billingFlow, setBillingFlow] = useState(null);
+      const [showBillingPicker, setShowBillingPicker] = useState(false);
+      const billingFlowRef = useRef(null);
       const [spanStages, setSpanStages] = useState({});
       const [poleNotes, setPoleNotes] = useState([]);
       const [showPoleNotes, setShowPoleNotes] = useState(false);
@@ -3113,8 +3122,20 @@
         }
 
         // ── CREW WORK LINES: colored lines follow ACTUAL crew direction (from Firestore) ──
+        // Dedup: A→B and B→A = same span, keep higher stage, draw once
+        var stageRank = { none: 0, strand: 1, cable: 2, lashed: 3, complete: 4 };
+        var dedupedSpans = {};
         Object.keys(spanStages).forEach(function(spanId) {
-          var stageData = spanStages[spanId];
+          var sd = spanStages[spanId];
+          if (!sd.stage || sd.stage === 'none') return;
+          var pair = [sd.fromId, sd.toId].sort().join('__');
+          var rank = stageRank[sd.stage] || 0;
+          if (!dedupedSpans[pair] || rank > (stageRank[dedupedSpans[pair].stage] || 0)) {
+            dedupedSpans[pair] = sd;
+          }
+        });
+        Object.keys(dedupedSpans).forEach(function(pairKey) {
+          var stageData = dedupedSpans[pairKey];
           var stage = stageData.stage;
           if (!stage || stage === 'none') return;
           // Look up actual pole positions
@@ -3172,6 +3193,20 @@
             L.marker([site.lat, site.lon], { icon: dgOnlyIcon, interactive: false }).addTo(fiberEquipLayer.current);
           }
         });
+        // ── Snowshoe markers — cyan pulsing glow at GPS coords ──
+        allSnowshoes.forEach(function(shoe) {
+          var shoeIcon = L.divIcon({
+            className: '',
+            html: '<div style="position:relative;">' +
+              '<div style="background:rgba(6,182,212,0.25);border-radius:50%;width:40px;height:40px;animation:pulse 1.5s infinite;position:absolute;top:-40px;left:-4px;"></div>' +
+              '<div style="background:linear-gradient(135deg,#0e7490,#06b6d4);border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:2px solid #67e8f9;box-shadow:0 2px 10px rgba(6,182,212,0.7);font-size:14px;position:absolute;top:-34px;left:2px;">❄️</div>' +
+              '<div style="position:absolute;top:-8px;left:4px;font-size:7px;color:#67e8f9;font-weight:800;white-space:nowrap;">' + shoe.ticType.toUpperCase() + '</div>' +
+            '</div>',
+            iconSize: [32, 0], iconAnchor: [16, 0]
+          });
+          var shoeMarker = L.marker([shoe.lat, shoe.lon], { icon: shoeIcon, interactive: true }).addTo(fiberEquipLayer.current);
+          shoeMarker.bindTooltip('❄️ Snowshoe (' + shoe.ticType.toUpperCase() + ') — ' + (shoe.placedBy || '') + ' ' + new Date(shoe.placedAt).toLocaleString(), { direction: 'top', offset: [0, -40] });
+        });
         // ── Tree Trimming markers + blue lines ──
         allTreeTrims.forEach(function(trim) {
           // Blue line connecting start to stop
@@ -3211,7 +3246,7 @@
           });
           L.marker([trimStartPoint.lat, trimStartPoint.lon], { icon: pulseIcon, interactive: false }).addTo(fiberEquipLayer.current);
         }
-      }, [spanData, spanStages, fiberEquipment, allFiberSites, tab, allTreeTrims, trimStartPoint]);
+      }, [spanData, spanStages, fiberEquipment, allFiberSites, tab, allTreeTrims, trimStartPoint, allSnowshoes]);
 
       function toggleCat(cat) {
         setExpandedCats(function(prev) {
@@ -3740,6 +3775,220 @@
         return nearest;
       }
 
+
+      // ═══════════════════════════════════════════════════════════════
+      // BILLING FLOW — Before/After Photos + Quantity for ALL codes
+      // ═══════════════════════════════════════════════════════════════
+      billingFlowRef.current = billingFlow;
+
+      function startBillingFlow(poleId, code, desc, unit, onComplete) {
+        var flow = { poleId: poleId, code: code, desc: desc, unit: unit, step: 'before', beforePhoto: null, afterPhoto: null, qty: 1, onComplete: onComplete };
+        setBillingFlow(flow);
+        billingFlowRef.current = flow;
+        renderBillingModal(flow);
+      }
+
+      function renderBillingModal(flow) {
+        var old = document.getElementById('billingFlowModal');
+        if (old) old.remove();
+        if (!flow) return;
+        var overlay = document.createElement('div');
+        overlay.id = 'billingFlowModal';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px);';
+        var card = document.createElement('div');
+        card.style.cssText = 'background:linear-gradient(135deg,#1a1040,#2d1b69);border:1px solid rgba(168,85,247,0.3);border-radius:20px;padding:28px;max-width:380px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.6);';
+        var stepEmoji = flow.step === 'before' ? '📸' : flow.step === 'after' ? '📸' : '🔢';
+        var stepLabel = flow.step === 'before' ? 'BEFORE Photo' : flow.step === 'after' ? 'AFTER Photo' : 'Enter Quantity';
+        var stepColor = flow.step === 'before' ? '#f59e0b' : flow.step === 'after' ? '#10b981' : '#8b5cf6';
+        var stepNum = flow.step === 'before' ? '1' : flow.step === 'after' ? '2' : '3';
+        var html = '';
+        html += '<div style="text-align:center;margin-bottom:20px;">';
+        html += '<div style="font-size:11px;text-transform:uppercase;letter-spacing:2px;color:#94a3b8;margin-bottom:8px;">Step ' + stepNum + ' of 3</div>';
+        html += '<div style="font-size:28px;margin-bottom:4px;">' + stepEmoji + '</div>';
+        html += '<div style="font-size:20px;font-weight:800;color:white;">' + stepLabel + '</div>';
+        html += '<div style="font-size:14px;color:' + stepColor + ';font-weight:600;margin-top:4px;">' + flow.desc + '</div>';
+        html += '</div>';
+        html += '<div style="display:flex;justify-content:center;gap:8px;margin-bottom:20px;">';
+        ['before','after','quantity'].forEach(function(s) {
+          var active = s === flow.step;
+          var done = (s === 'before' && (flow.step === 'after' || flow.step === 'quantity')) || (s === 'after' && flow.step === 'quantity');
+          var bg = done ? '#10b981' : active ? stepColor : 'rgba(255,255,255,0.15)';
+          html += '<div style="width:' + (active ? '32px' : '10px') + ';height:10px;border-radius:5px;background:' + bg + ';transition:all 0.3s;"></div>';
+        });
+        html += '</div>';
+        if (flow.beforePhoto || flow.afterPhoto) {
+          html += '<div style="display:flex;gap:10px;justify-content:center;margin-bottom:16px;">';
+          if (flow.beforePhoto) html += '<div style="text-align:center;"><div style="font-size:10px;color:#f59e0b;font-weight:700;margin-bottom:4px;">BEFORE</div><img src="' + flow.beforePhoto + '" style="width:60px;height:60px;border-radius:8px;object-fit:cover;border:2px solid #f59e0b;" /></div>';
+          if (flow.afterPhoto) html += '<div style="text-align:center;"><div style="font-size:10px;color:#10b981;font-weight:700;margin-bottom:4px;">AFTER</div><img src="' + flow.afterPhoto + '" style="width:60px;height:60px;border-radius:8px;object-fit:cover;border:2px solid #10b981;" /></div>';
+          html += '</div>';
+        }
+        if (flow.step === 'before' || flow.step === 'after') {
+          var btnColor = flow.step === 'before' ? 'linear-gradient(135deg,#d97706,#f59e0b)' : 'linear-gradient(135deg,#059669,#10b981)';
+          var btnText = flow.step === 'before' ? '📸 Take BEFORE Photo' : '📸 Take AFTER Photo';
+          html += '<button id="billingCameraBtn" style="width:100%;padding:16px;border:none;border-radius:14px;background:' + btnColor + ';color:white;font-size:16px;font-weight:800;cursor:pointer;margin-bottom:12px;box-shadow:0 4px 15px rgba(0,0,0,0.3);">' + btnText + '</button>';
+        } else if (flow.step === 'quantity') {
+          html += '<div style="margin-bottom:16px;">';
+          html += '<label style="display:block;color:#cbd5e1;font-size:13px;font-weight:600;margin-bottom:8px;">Quantity (' + flow.unit + ')</label>';
+          html += '<input id="billingQtyInput" type="number" min="1" value="' + flow.qty + '" style="width:100%;padding:14px;border-radius:12px;border:2px solid rgba(139,92,246,0.4);background:rgba(255,255,255,0.08);color:white;font-size:20px;font-weight:700;text-align:center;outline:none;box-sizing:border-box;" />';
+          html += '</div>';
+          html += '<button id="billingSubmitBtn" style="width:100%;padding:16px;border:none;border-radius:14px;background:linear-gradient(135deg,#7c3aed,#a855f7);color:white;font-size:16px;font-weight:800;cursor:pointer;margin-bottom:12px;box-shadow:0 4px 15px rgba(139,92,246,0.4);">✅ Complete Billing</button>';
+        }
+        html += '<button id="billingCancelBtn" style="width:100%;padding:12px;border:1px solid rgba(255,255,255,0.15);border-radius:12px;background:transparent;color:#94a3b8;font-size:14px;font-weight:600;cursor:pointer;">Cancel</button>';
+        card.innerHTML = html;
+        overlay.appendChild(card);
+        document.body.appendChild(overlay);
+        var cameraBtn = document.getElementById('billingCameraBtn');
+        if (cameraBtn) { cameraBtn.onclick = function() { openBillingCamera(); }; }
+        var submitBtn = document.getElementById('billingSubmitBtn');
+        if (submitBtn) {
+          submitBtn.onclick = function() {
+            var qtyInput = document.getElementById('billingQtyInput');
+            var qty = qtyInput ? parseInt(qtyInput.value) || 1 : 1;
+            var curFlow = billingFlowRef.current;
+            if (curFlow) { curFlow.qty = qty; completeBillingFlowFinal(curFlow); }
+          };
+        }
+        var cancelBtn = document.getElementById('billingCancelBtn');
+        if (cancelBtn) {
+          cancelBtn.onclick = function() {
+            setBillingFlow(null); billingFlowRef.current = null;
+            var m = document.getElementById('billingFlowModal'); if (m) m.remove();
+          };
+        }
+      }
+
+      function openBillingCamera() {
+        var inp = document.createElement('input');
+        inp.type = 'file'; inp.accept = 'image/*'; inp.setAttribute('capture', 'environment'); inp.style.display = 'none';
+        inp.onchange = async function(e) {
+          var file = e.target.files && e.target.files[0];
+          if (!file) { document.body.removeChild(inp); return; }
+          try {
+            var canvas = document.createElement('canvas');
+            var img = new Image();
+            var dataUrl = await new Promise(function(resolve) { var reader = new FileReader(); reader.onload = function(ev) { resolve(ev.target.result); }; reader.readAsDataURL(file); });
+            await new Promise(function(resolve) { img.onload = resolve; img.src = dataUrl; });
+            var maxDim = 1200; var w = img.width, h = img.height;
+            if (w > maxDim || h > maxDim) { if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; } else { w = Math.round(w * maxDim / h); h = maxDim; } }
+            canvas.width = w; canvas.height = h;
+            var ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, w, h);
+            var gps = null;
+            try { var gpsPos = await new Promise(function(res, rej) { navigator.geolocation.getCurrentPosition(res, rej, {enableHighAccuracy:true,timeout:10000}); }); gps = {lat:gpsPos.coords.latitude,lon:gpsPos.coords.longitude}; } catch(ge) {}
+            var now = new Date();
+            var dateStr = (now.getMonth()+1)+'/'+now.getDate()+'/'+now.getFullYear();
+            var timeStr = now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:true});
+            var userName = user ? (user.displayName || user.email.split('@')[0]) : 'Unknown';
+            var curFlow = billingFlowRef.current;
+            var poleName = curFlow ? (poleRenames[curFlow.poleId] || curFlow.poleId) : '';
+            var stepLabel = curFlow && curFlow.step === 'before' ? 'BEFORE' : 'AFTER';
+            var line1 = dateStr+' '+timeStr+'  \u2022  '+userName;
+            var line2 = stepLabel+'  \u2022  '+poleName+(gps ? '  \u2022  '+gps.lat.toFixed(6)+', '+gps.lon.toFixed(6) : '');
+            var fontSize = Math.max(14, Math.round(w * 0.028));
+            ctx.font = 'bold '+fontSize+'px Inter, Arial, sans-serif';
+            var pad = Math.round(fontSize * 0.6);
+            var bgH = fontSize * 2.8 + pad; var bgY = h - bgH;
+            ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, bgY, w, bgH);
+            ctx.fillStyle = '#F59E0B'; ctx.fillRect(0, bgY, w, 3);
+            ctx.fillStyle = '#FFFFFF'; ctx.fillText(line1, pad, bgY + fontSize + pad * 0.5);
+            ctx.font = fontSize+'px Inter, Arial, sans-serif'; ctx.fillStyle = '#94a3b8'; ctx.fillText(line2, pad, bgY + fontSize * 2.2 + pad * 0.5);
+            var compressed = canvas.toDataURL('image/jpeg', 0.85);
+            if (curFlow) {
+              if (curFlow.step === 'before') { curFlow.beforePhoto = compressed; curFlow.step = 'after'; }
+              else if (curFlow.step === 'after') { curFlow.afterPhoto = compressed; curFlow.step = 'quantity'; }
+              billingFlowRef.current = curFlow;
+              setBillingFlow(Object.assign({}, curFlow));
+              renderBillingModal(curFlow);
+            }
+          } catch(err) { console.error('Billing photo error:', err); alert('Photo failed: '+err.message); }
+          try { document.body.removeChild(inp); } catch(re) {}
+        };
+        document.body.appendChild(inp); inp.click();
+      }
+
+      async function completeBillingFlowFinal(flow) {
+        if (!flow || !user) return;
+        try {
+          if (flow.beforePhoto) {
+            await db.collection('fiberPolePhotos').doc(flow.poleId).collection('photos').add({
+              imageData: flow.beforePhoto, userName: user.displayName || user.email.split('@')[0],
+              userPhoto: avatarURL || user.photoURL || null, userId: user.uid, tag: 'Before',
+              billingCode: flow.code, timestamp: new Date().toISOString(),
+              gpsLat: fiberUserLoc ? fiberUserLoc.lat : null, gpsLon: fiberUserLoc ? fiberUserLoc.lon : null
+            });
+          }
+          if (flow.afterPhoto) {
+            await db.collection('fiberPolePhotos').doc(flow.poleId).collection('photos').add({
+              imageData: flow.afterPhoto, userName: user.displayName || user.email.split('@')[0],
+              userPhoto: avatarURL || user.photoURL || null, userId: user.uid, tag: 'After',
+              billingCode: flow.code, timestamp: new Date().toISOString(),
+              gpsLat: fiberUserLoc ? fiberUserLoc.lat : null, gpsLon: fiberUserLoc ? fiberUserLoc.lon : null
+            });
+          }
+          if (flow.onComplete) await flow.onComplete(flow.qty);
+          if (navigator.vibrate) navigator.vibrate([50, 50, 100]);
+          playDoneSound();
+        } catch(err) { console.error('Billing save error:', err); alert('Failed to save: ' + err.message); }
+        setBillingFlow(null); billingFlowRef.current = null;
+        var m = document.getElementById('billingFlowModal'); if (m) m.remove();
+      }
+
+      // ── BILLING PICKER — full GigaBeam rate card ──
+      var BILLING_ITEMS = [
+        {cat:'Aerial',items:[{code:'AE2',desc:'Strand & Lash',unit:'Foot'},{code:'AE4',desc:'Down Guy',unit:'Each'},{code:'AE5',desc:'Screw Anchor',unit:'Each'},{code:'AE6',desc:'Snowshoe',unit:'Foot'},{code:'AE7',desc:'3 Bolt Clamp',unit:'Each'},{code:'AE8',desc:'J-Hook',unit:'Each'},{code:'AE19',desc:'Tree Trim',unit:'Foot'}]},
+        {cat:'Terminals',items:[{code:'TE1',desc:'Fiber Terminal Install',unit:'Each'},{code:'TE2',desc:'Fiber Splitter Install',unit:'Each'},{code:'TE3',desc:'Splice Closure Install',unit:'Each'}]},
+        {cat:'Pole Placement',items:[{code:'PP1',desc:'Set Pole (35ft)',unit:'Each'},{code:'PP2',desc:'Set Pole (40ft)',unit:'Each'},{code:'PP3',desc:'Set Pole (45ft)',unit:'Each'}]},
+        {cat:'Underground',items:[{code:'UG1',desc:'Trench (per ft)',unit:'Foot'},{code:'UG2',desc:'Bore (per ft)',unit:'Foot'},{code:'UG3',desc:'Handhole Install',unit:'Each'}]},
+        {cat:'Splicing',items:[{code:'SP1',desc:'Fiber Splice (per strand)',unit:'Each'},{code:'SP2',desc:'Splice Enclosure',unit:'Each'}]},
+        {cat:'Drops',items:[{code:'DR1',desc:'Aerial Drop',unit:'Foot'},{code:'DR2',desc:'Underground Drop',unit:'Foot'},{code:'DR3',desc:'NID Install',unit:'Each'}]},
+        {cat:'Make Ready',items:[{code:'MR1',desc:'Transfer (Comm)',unit:'Each'},{code:'MR2',desc:'Transfer (CATV)',unit:'Each'},{code:'MR3',desc:'Transfer (Telco)',unit:'Each'},{code:'MR4',desc:'Raise Cable',unit:'Each'},{code:'MR5',desc:'Lower Cable',unit:'Each'},{code:'MR6',desc:'Cutover',unit:'Each'}]},
+        {cat:'Additional',items:[{code:'AD1',desc:'Traffic Control',unit:'Hour'},{code:'AD2',desc:'Emergency Callout',unit:'Each'},{code:'AD3',desc:'Permit Pulling',unit:'Each'}]}
+      ];
+
+      function renderBillingPicker(poleId) {
+        var old = document.getElementById('billingPickerModal');
+        if (old) old.remove();
+        var overlay = document.createElement('div');
+        overlay.id = 'billingPickerModal';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:99998;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(8px);';
+        var card = document.createElement('div');
+        card.style.cssText = 'background:linear-gradient(135deg,#1a1040,#2d1b69);border:1px solid rgba(168,85,247,0.3);border-radius:20px;padding:24px;max-width:420px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.6);';
+        var html = '<div style="text-align:center;margin-bottom:16px;"><div style="font-size:24px;margin-bottom:4px;">💰</div><div style="font-size:18px;font-weight:800;color:white;">Select Billing Item</div><div style="font-size:12px;color:#94a3b8;margin-top:4px;">' + (poleRenames[poleId] || poleId) + '</div></div>';
+        BILLING_ITEMS.forEach(function(cat) {
+          html += '<div style="margin-bottom:12px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:#a78bfa;font-weight:700;margin-bottom:6px;padding-left:4px;">' + cat.cat + '</div>';
+          cat.items.forEach(function(item) {
+            html += '<button class="billing-item-btn" data-code="' + item.code + '" data-desc="' + item.desc + '" data-unit="' + item.unit + '" style="width:100%;padding:12px 14px;border:1px solid rgba(139,92,246,0.15);border-radius:10px;background:rgba(255,255,255,0.04);color:white;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:4px;text-align:left;display:flex;justify-content:space-between;align-items:center;"><span>' + item.desc + '</span><span style=\"font-size:11px;color:#64748b;\">' + item.unit + '</span></button>';
+          });
+          html += '</div>';
+        });
+        html += '<button id="billingPickerClose" style="width:100%;padding:12px;border:1px solid rgba(255,255,255,0.15);border-radius:12px;background:transparent;color:#94a3b8;font-size:14px;font-weight:600;cursor:pointer;margin-top:8px;">Cancel</button>';
+        card.innerHTML = html;
+        overlay.appendChild(card);
+        document.body.appendChild(overlay);
+        card.querySelectorAll('.billing-item-btn').forEach(function(btn) {
+          btn.onclick = function() {
+            var code = btn.getAttribute('data-code');
+            var desc = btn.getAttribute('data-desc');
+            var unit = btn.getAttribute('data-unit');
+            overlay.remove();
+            setShowBillingPicker(false);
+            startBillingFlow(poleId, code, desc, unit, async function(qty) {
+              await autoPopulateEquipment(poleId, code, true, qty);
+            });
+          };
+        });
+        var closeBtn = document.getElementById('billingPickerClose');
+        if (closeBtn) { closeBtn.onclick = function() { overlay.remove(); setShowBillingPicker(false); }; }
+      }
+
+      useEffect(function() {
+        if (showBillingPicker && selectedPole) {
+          renderBillingPicker(selectedPole.id);
+        } else {
+          var old = document.getElementById('billingPickerModal');
+          if (old) old.remove();
+        }
+      }, [showBillingPicker, selectedPole]);
+
       // ── Toggle SCREW ANCHOR at pole (AE5 - $60.35) + auto-bill ──
       async function toggleScrewAnchor(poleId) {
         if (!user || !poleId) return;
@@ -4220,8 +4469,21 @@
             }, { merge: true });
           }
           if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
+          // Select nearest pole so photo goes to correct pole
+          if (nearestPole) {
+            var poleSite = allFiberSites.find(function(s){ return s.id === nearestPole.id; });
+            if (poleSite) setSelectedPole(poleSite);
+          }
+          // Show success toast
+          var toast = document.createElement('div');
+          toast.innerHTML = '❄️ Snowshoe placed! Opening camera...';
+          toast.style.cssText = 'position:fixed;bottom:120px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#0e7490,#06b6d4);color:#fff;padding:10px 20px;border-radius:12px;font-weight:700;font-size:14px;z-index:99999;box-shadow:0 4px 20px rgba(6,182,212,0.5);';
+          document.body.appendChild(toast);
+          setTimeout(function(){ try{ document.body.removeChild(toast); }catch(e){} }, 2500);
+          // Auto-open camera for proof photo
+          setTimeout(function() { triggerPolePhoto(); }, 500);
         } catch(e) {
-          alert('Could not get GPS location: ' + e.message);
+          alert('Could not place snowshoe: ' + e.message);
         }
         setPlacingSnowshoe(null);
       }
@@ -6574,6 +6836,8 @@
       const [view, setView] = useState('list');
       const [showKMZManager, setShowKMZManager] = useState(false);
       const [showFiberProduction, setShowFiberProduction] = useState(false);
+      const [showCrewReportPicker, setShowCrewReportPicker] = useState(false);
+      const [reportSending, setReportSending] = useState(false);
       const [importedFiles, setImportedFiles] = useState([]);
       const [importedSites, setImportedSites] = useState([]);
       const [sharedKMZFiles, setSharedKMZFiles] = useState([]);
@@ -7147,6 +7411,36 @@
           .catch(function(err) { console.error('Cancel en-route error:', err); });
       };
 
+      // ── Run End of Day Report (webhook → PDF email) ──
+      var REPORT_WEBHOOK = 'https://webhooks.tasklet.ai/v1/public/webhook/a_br33cymz1w3jdt0vcxx8?token=6395e525cd587171fa9d908c2df373b9';
+      var CREW_MEMBERS = [
+        { name: 'Jelani Carrion', userId: '1miHHuUBNRZA9Ydw3AhjOPCVqxp2', route: 'OLT-57' },
+        { name: 'Okeeno Lawrence', userId: 'JzR4GO3ZGPXb3ck84bEjiovXWg42', route: 'Route 1' }
+      ];
+      var handleRunEndOfDayReport = function(crew) {
+        setReportSending(true);
+        fetch(REPORT_WEBHOOK, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'end_of_day_report',
+            userId: crew.userId,
+            userName: crew.name,
+            route: crew.route,
+            requestedBy: user.email,
+            requestedAt: new Date().toISOString()
+          })
+        }).then(function() {
+          setReportSending(false);
+          setShowCrewReportPicker(false);
+          alert('📋 Report requested for ' + crew.name + '!\n\nCheck your email in ~2 minutes.');
+        }).catch(function(err) {
+          setReportSending(false);
+          console.error('Report webhook error:', err);
+          alert('❌ Could not request report. Check your connection.');
+        });
+      };
+
       // ── Download Team Production Report as CSV ──
       var handleDownloadReport = function() {
         var rows = [['Site ID', 'Site Name', 'Source', 'Status', 'Completed By', 'Completed At', 'Flagged By', 'Flagged At', 'En-route By']];
@@ -7501,7 +7795,7 @@
                   <div style={{fontSize:'0.5rem',letterSpacing:'0.3em',color:'rgba(212,175,55,0.5)',marginTop:'-1px',fontWeight:600}}>ROUTE • TRACK • MANAGE</div>
                 </div>
               </h1>
-              <UserMenu user={user} avatarURL={avatarURL} onLogout={onLogout} onChangePhoto={function() { setShowAvatarSetup(true); }} onDownloadReport={handleDownloadReport} onShowFiberProduction={function() { setShowFiberProduction(true); }} />
+              <UserMenu user={user} avatarURL={avatarURL} onLogout={onLogout} onChangePhoto={function() { setShowAvatarSetup(true); }} onDownloadReport={handleDownloadReport} onShowFiberProduction={function() { setShowFiberProduction(true); }} onRunEndOfDayReport={function() { setShowCrewReportPicker(true); }} />
             </div>
             <div style={{textAlign:'center',fontSize:'0.7rem',color:'rgba(168,163,184,0.7)',marginTop:6,fontWeight:500,letterSpacing:'0.02em'}}>
               {allSites.length} sites • {teamCompletedCount} completed • Nearest-First Routing
@@ -7613,6 +7907,46 @@
               <div className="flex items-center gap-2"><div style={{width:10,height:10,borderRadius:'50%',background:'#ef4444',border:'2px solid white'}}></div> Out of Scope</div>
               <div className="flex items-center gap-2"><div style={{width:10,height:10,borderRadius:'50%',background:'#f59e0b',border:'2px solid white'}}></div> Imported</div>
               <div className="flex items-center gap-2"><div style={{width:10,height:10,borderRadius:'50%',background:'#6b7280',border:'2px solid white'}}></div> Completed</div>
+            </div>
+          )}
+
+          {/* Crew Report Picker Modal */}
+          {showCrewReportPicker && (
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{background:'rgba(0,0,0,0.7)',backdropFilter:'blur(8px)'}}>
+              <div style={{background:'linear-gradient(135deg,#1e1b4b,#312e81)',borderRadius:20,padding:24,maxWidth:360,width:'90%',border:'1px solid rgba(251,191,36,0.3)',boxShadow:'0 0 40px rgba(251,191,36,0.15)'}}>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+                  <h3 style={{color:'#fbbf24',fontSize:18,fontWeight:700,margin:0}}>📋 End of Day Report</h3>
+                  <button onClick={function(){setShowCrewReportPicker(false);}} style={{background:'none',border:'none',color:'#94a3b8',fontSize:22,cursor:'pointer',padding:4}}>✕</button>
+                </div>
+                <p style={{color:'#c4b5fd',fontSize:13,marginBottom:16}}>Select crew member to generate their as-built PDF report:</p>
+                {CREW_MEMBERS.map(function(crew) {
+                  return React.createElement('button', {
+                    key: crew.userId,
+                    disabled: reportSending,
+                    onClick: function() { handleRunEndOfDayReport(crew); },
+                    style: {
+                      display:'flex',alignItems:'center',justifyContent:'space-between',
+                      width:'100%',padding:'14px 16px',marginBottom:8,
+                      background:'linear-gradient(135deg,rgba(139,92,246,0.15),rgba(251,191,36,0.1))',
+                      border:'1px solid rgba(251,191,36,0.2)',borderRadius:12,
+                      cursor: reportSending ? 'wait' : 'pointer',
+                      color:'white',fontSize:14,fontWeight:600,textAlign:'left',
+                      opacity: reportSending ? 0.6 : 1,
+                      transition:'all 0.2s'
+                    },
+                    onMouseOver: function(e) { if (!reportSending) e.currentTarget.style.background='linear-gradient(135deg,rgba(139,92,246,0.3),rgba(251,191,36,0.2))'; },
+                    onMouseOut: function(e) { e.currentTarget.style.background='linear-gradient(135deg,rgba(139,92,246,0.15),rgba(251,191,36,0.1))'; }
+                  },
+                    React.createElement('span', null, '👤 ' + crew.name),
+                    React.createElement('span', {style:{color:'#fbbf24',fontSize:12,fontWeight:500}}, crew.route)
+                  );
+                })}
+                {reportSending && (
+                  <div style={{textAlign:'center',color:'#fbbf24',fontSize:13,marginTop:8}}>
+                    ⏳ Requesting report...
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
