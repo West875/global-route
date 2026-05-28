@@ -2949,10 +2949,15 @@
           });
           var hasWork = hasAsBuilt || hasEquip || hasSpanWork;
           var pType = site.poleType || 'distribution';
-          // Color coding: green=done, red=pending, blue=transmission, gold=key location
-          var color = hasWork ? '#22c55e' : (pType === 'transmission' ? '#3b82f6' : (pType === 'key' ? '#f59e0b' : '#ef4444'));
+          // Splice point detection: has BOTH poleTic AND tailTic
+          var ticInfo = fiberTicMarks[site.id] || {};
+          var isSplicePin = ticInfo.poleTic != null && ticInfo.tailTic != null;
+          // Color coding: gold=splice, green=done, red=pending, blue=transmission, gold=key
+          var color = isSplicePin ? '#f59e0b' : (hasWork ? '#22c55e' : (pType === 'transmission' ? '#3b82f6' : (pType === 'key' ? '#f59e0b' : '#ef4444')));
           var label = '';
-          if (pType === 'key') {
+          if (isSplicePin) {
+            label = '🔗';
+          } else if (pType === 'key') {
             label = '⭐';
           } else if (pType === 'transmission') {
             label = (site.name || '').replace(/Tower\s*/i,'T');
@@ -2960,18 +2965,28 @@
             label = (site.name || '').replace(/Pole\s*/i,'P');
           }
           var correctedBadge = site.pinCorrected ? '<div style="position:absolute;top:-4px;right:-6px;background:#22c55e;border-radius:50%;width:14px;height:14px;display:flex;align-items:center;justify-content:center;font-size:8px;border:2px solid #0f0a1e;">✓</div>' : '';
+          var spliceStroke = isSplicePin ? ' stroke="#fbbf24" stroke-width="2.5"' : (site.pinCorrected ? ' stroke="#22c55e" stroke-width="2"' : '');
           var icon = L.divIcon({
             className: '',
             html: '<div style="width:32px;height:40px;position:relative;display:flex;align-items:flex-start;justify-content:center;">' +
-              '<svg width="32" height="40" viewBox="0 0 32 40"><path d="M16 0C7.16 0 0 7.16 0 16c0 12 16 24 16 24s16-12 16-24C32 7.16 24.84 0 16 0z" fill="' + color + '"' + (site.pinCorrected ? ' stroke="#22c55e" stroke-width="2"' : '') + '/><circle cx="16" cy="14" r="8" fill="white" fill-opacity="0.3"/></svg>' +
+              '<svg width="32" height="40" viewBox="0 0 32 40"><path d="M16 0C7.16 0 0 7.16 0 16c0 12 16 24 16 24s16-12 16-24C32 7.16 24.84 0 16 0z" fill="' + color + '"' + spliceStroke + '/><circle cx="16" cy="14" r="8" fill="white" fill-opacity="0.3"/></svg>' +
               '<div style="position:absolute;top:5px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:900;color:white;text-shadow:0 1px 2px rgba(0,0,0,0.5);white-space:nowrap;">' + label + '</div>' +
               correctedBadge +
             '</div>',
             iconSize: [32, 40],
             iconAnchor: [16, 40]
           });
+          // Add gold glow ring for splice points
+          if (isSplicePin) {
+            var spliceGlowIcon = L.divIcon({
+              className: '',
+              html: '<div style="width:52px;height:52px;border-radius:50%;position:absolute;top:-10px;left:-10px;animation:pulse 1.5s ease-in-out infinite;border:3px solid #fbbf24;box-shadow:0 0 18px rgba(251,191,36,0.7);"></div>',
+              iconSize: [32, 40],
+              iconAnchor: [16, 40]
+            });
+            L.marker([site.lat, site.lon], { icon: spliceGlowIcon, interactive: false, zIndexOffset: 600 }).addTo(fiberSitesLayer.current);
+          }
           // Add orange glow ring if someone is en-route to this pole
-          var enrouteGlow = fiberEnroutes[site.id] ? 'box-shadow:0 0 12px 4px rgba(245,158,11,0.7);border-radius:50%;' : '';
           if (fiberEnroutes[site.id]) {
             var glowIcon = L.divIcon({
               className: '',
