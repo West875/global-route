@@ -4464,20 +4464,17 @@
             placedByUid: user.uid,
             placedAt: new Date().toISOString()
           });
-          // ── Auto-bill AE6 on the fromPole ──
-          var footage = Math.abs(parseFloat(snowshoeTicOut) - parseFloat(snowshoeTicIn));
-          if (footage > 0) {
-            var billPoleId = snowshoeSpan.fromId;
-            var autoKey = 'auto_AE6_' + shoeDoc.id;
-            var entryUpdate = {};
-            entryUpdate['entries.' + autoKey] = {
-              code: 'AE6', desc: 'Snow Shoe', unit: 'Foot', qty: Math.round(footage),
-              addedBy: user.displayName || user.email.split('@')[0],
-              addedByUid: user.uid,
-              addedAt: new Date().toISOString()
-            };
-            await db.collection('fiberAsBuilt').doc(billPoleId).set(entryUpdate, {merge: true});
-          }
+          // ── Auto-bill AE6 (Each) on the fromPole ──
+          var billPoleId = snowshoeSpan.fromId;
+          var autoKey = 'auto_AE6_' + shoeDoc.id;
+          var entryUpdate = {};
+          entryUpdate['entries.' + autoKey] = {
+            code: 'AE6', desc: 'Snow Shoe', unit: 'Each', qty: 1,
+            addedBy: user.displayName || user.email.split('@')[0],
+            addedByUid: user.uid,
+            addedAt: new Date().toISOString()
+          };
+          await db.collection('fiberAsBuilt').doc(billPoleId).set(entryUpdate, {merge: true});
           setShowSnowshoeModal(false);
           setSnowshoeTicIn('');
           setSnowshoeTicOut('');
