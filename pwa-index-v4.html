@@ -3013,15 +3013,12 @@
         });
         // ── Snowshoe ❄️ markers (drawn in same effect so they never vanish) ──
         try {
-          console.log('[SNOWSHOE DEBUG] allSnowshoes:', allSnowshoes.length, 'allFiberSites:', allFiberSites.length, 'layer:', !!fiberSitesLayer.current);
+          // snowshoe marker rendering
           var shoeMap = {};
           allFiberSites.forEach(function(s) { shoeMap[s.id] = s; });
-          // DEBUG: Show snowshoe count on screen
-          var dbgEl = document.getElementById('shoe-debug');
-          if (!dbgEl) { dbgEl = document.createElement('div'); dbgEl.id = 'shoe-debug'; dbgEl.style.cssText = 'position:fixed;top:60px;right:10px;background:#06b6d4;color:#fff;padding:6px 12px;border-radius:8px;font-weight:900;font-size:13px;z-index:99999;pointer-events:none;'; document.body.appendChild(dbgEl); }
-          dbgEl.textContent = '❄️ ' + allSnowshoes.length + ' shoes / ' + allFiberSites.length + ' sites';
+          // (debug badge removed in v117)
           allSnowshoes.forEach(function(shoe) {
-            console.log('[SNOWSHOE DEBUG] Processing shoe:', shoe.id, 'from:', shoe.spanFromId, 'to:', shoe.spanToId, 'fromMatch:', !!shoeMap[shoe.spanFromId], 'toMatch:', !!shoeMap[shoe.spanToId]);
+            
             try {
               var fromSite = shoeMap[shoe.spanFromId];
               var toSite = shoeMap[shoe.spanToId];
