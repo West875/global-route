@@ -2741,14 +2741,16 @@
             seen[s.id] = true;
           }
         });
-        // Filter out soft-deleted poles
-        merged = merged.filter(function(s) { return !poleDeletes[s.id]; });
+        // Filter out soft-deleted poles and poles with invalid coordinates
+        merged = merged.filter(function(s) { return !poleDeletes[s.id] && s.lat != null && s.lon != null && !isNaN(s.lat) && !isNaN(s.lon); });
         // Apply pin corrections and name renames from Firestore
         return merged.map(function(s) {
           var result = s;
           var correction = correctedPins[s.id];
-          if (correction) {
+          if (correction && correction.correctedLat != null && correction.correctedLon != null) {
             result = Object.assign({}, result, { lat: correction.correctedLat, lon: correction.correctedLon, pinCorrected: true, correctedBy: correction.correctedByName, correctedAt: correction.correctedAt });
+          } else if (correction && correction.lat != null && correction.lon != null) {
+            result = Object.assign({}, result, { lat: correction.lat, lon: correction.lon, pinCorrected: true, correctedBy: correction.correctedByName || 'Pin Restore', correctedAt: correction.correctedAt });
           }
           var rename = poleRenames[s.id];
           if (rename) {
