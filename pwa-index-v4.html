@@ -4480,9 +4480,12 @@
       }
 
       // ── Add snowshoe to a specific span (tap span line on map) ──
+      var snowshoeSaving = useRef(false);
       async function addSnowshoeToSpan() {
         if (!snowshoeSpan || !snowshoeTicIn || !snowshoeTicOut) { alert('Please enter both Tic In and Tic Out values.'); return; }
         if (!snowshoePhoto) { alert('📸 Photo is required — please take a photo of the snowshoe.'); return; }
+        if (snowshoeSaving.current) return; // prevent rapid double-tap
+        snowshoeSaving.current = true;
         try {
           var shoeDoc = await db.collection('fiberSnowshoes').add({
             spanFromId: snowshoeSpan.fromId,
@@ -4521,6 +4524,8 @@
           setTimeout(function(){ try{ document.body.removeChild(toast); }catch(e){} }, 2500);
         } catch(e) {
           alert('Could not add snowshoe: ' + e.message);
+        } finally {
+          snowshoeSaving.current = false;
         }
       }
 
