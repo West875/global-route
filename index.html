@@ -558,7 +558,6 @@
     ];
     const GIGABEAM_CODES = [
       // ─── AERIAL INSTALLATION ─── (GigaBeam Rate Card 5-6-2026)
-      { code:'AE1',  desc:'Strand CBS',                    unit:'Foot', rate:null,    cat:'aerial', daily:true },
       { code:'AE1A', desc:'Overhead Guy',                   unit:'Foot', rate:0.46,    cat:'aerial', daily:true },
       { code:'AE2',  desc:'Strand and Lash',                unit:'Foot', rate:1.05,    cat:'aerial', daily:true },
       { code:'AE3',  desc:'Overlash',                       unit:'Foot', rate:0.65,    cat:'aerial', daily:true },
@@ -3912,7 +3911,7 @@
       // ── BILLING PICKER — full GigaBeam rate card 5-6-2026 (ALL codes, NO pricing for crew) ──
       var BILLING_ITEMS = [
         {cat:'Aerial Installation',items:[
-          {code:'AE1',desc:'Strand CBS',unit:'Foot'},{code:'AE1A',desc:'Overhead Guy',unit:'Foot'},
+          {code:'AE1A',desc:'Overhead Guy',unit:'Foot'},
           {code:'AE2',desc:'Strand and Lash',unit:'Foot'},{code:'AE3',desc:'Overlash',unit:'Foot'},
           {code:'AE4',desc:'Down Guy / Guy Guard',unit:'Each'},{code:'AE5',desc:'Anchor',unit:'Each'},
           {code:'AE5A',desc:'Rock Anchor',unit:'Each'},{code:'AE5B',desc:'Non-Accessible Anchor Adder',unit:'Each'},
