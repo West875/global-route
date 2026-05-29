@@ -1689,7 +1689,7 @@
               ${currentBadge}
               ${enrouteHtml}
               ${revisitHtml}
-              <div style="font-size:15px;font-weight:700;margin-bottom:2px;">${site.id}</div>
+              <div style="font-size:15px;font-weight:700;margin-bottom:2px;">${site.name || cleanPoleName(site.id)}</div>
               <div style="margin-bottom:2px;">${sourceBadge}</div>
               <div style="color:#a8a3b8;font-size:12px;line-height:1.4;">${site.address}</div>
               ${distText}
@@ -1813,7 +1813,7 @@
             <div className="flex items-start gap-2 mt-1">
               <MapPinIcon size={18} className="opacity-60 shrink-0 mt-0.5" />
               <div>
-                <p className="font-semibold text-sm">{site.id}</p>
+                <p className="font-semibold text-sm">{site.name || cleanPoleName(site.id)}</p>
                 <p className="text-sm opacity-70">{site.address}</p>
               </div>
             </div>
@@ -2077,7 +2077,7 @@
             <div className="p-4 border-b border-base-300 flex items-center gap-3 shrink-0">
               <div className="bg-primary/20 rounded-lg p-2"><NoteIcon size={20} className="text-primary" /></div>
               <div className="flex-1 min-w-0">
-                <h2 className="font-bold text-base truncate">{site.id}</h2>
+                <h2 className="font-bold text-base truncate">{site.name || cleanPoleName(site.id)}</h2>
                 <p className="text-xs opacity-60">Site Notes</p>
               </div>
               <button className="btn btn-sm btn-ghost btn-circle" onClick={onClose}>✕</button>
@@ -2250,7 +2250,7 @@
               var dateStr = (now.getMonth()+1) + '/' + now.getDate() + '/' + now.getFullYear();
               var timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
               var line1 = dateStr + ' ' + timeStr + '  •  ' + userName;
-              var line2 = '📍 ' + (site.name || site.id);
+              var line2 = '📍 ' + (site.name || cleanPoleName(site.id));
               if (geo) { line2 += '  •  ' + geo.lat.toFixed(6) + ', ' + geo.lon.toFixed(6); }
 
               var fontSize = Math.max(14, Math.round(w * 0.028));
@@ -2316,7 +2316,7 @@
               <span style={{fontSize:20}}>📷</span>
             </div>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontWeight:700,fontSize:15,color:'#fff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{site.id}</div>
+              <div style={{fontWeight:700,fontSize:15,color:'#fff',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{site.name || cleanPoleName(site.id)}</div>
               <div style={{fontSize:12,color:'#888'}}>Site Photos</div>
             </div>
             <button onClick={onClose} style={{background:'none',border:'none',color:'#888',fontSize:22,cursor:'pointer',padding:4}}>✕</button>
@@ -3008,7 +3008,7 @@
           var marker = L.marker([site.lat, site.lon], { icon: icon }).addTo(fiberSitesLayer.current);
           marker.on('click', function() { setSelectedPole(site); setShowLogForm(true); setShowPolePhotos(false); setShowMakeReadyPicker(false); });
 
-          var tip = site.name || site.id;
+          var tip = site.name || cleanPoleName(site.id);
           if (pType === 'transmission') tip += ' (Tower)';
           if (pType === 'key') tip += ' (' + (site.locationType || 'Key') + ')';
           if (hasWork) tip += ' ✅';
