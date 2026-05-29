@@ -1712,8 +1712,10 @@
 
         // Fit bounds only on first load
         if (!hasInitFit.current && sites.length > 0 && mapInstanceRef.current) {
-          const bounds = L.latLngBounds(sites.map(function(s) { return [s.lat, s.lon]; }));
-          if (userLoc) bounds.extend([userLoc.lat, userLoc.lon]);
+          var validSites = sites.filter(function(s) { return s.lat != null && s.lon != null && !isNaN(s.lat) && !isNaN(s.lon); });
+          if (validSites.length === 0) return;
+          const bounds = L.latLngBounds(validSites.map(function(s) { return [s.lat, s.lon]; }));
+          if (userLoc && userLoc.lat != null && userLoc.lon != null) bounds.extend([userLoc.lat, userLoc.lon]);
           mapInstanceRef.current.fitBounds(bounds, { padding: [30, 30] });
           hasInitFit.current = true;
         }
@@ -2581,6 +2583,7 @@
           iconAnchor: [23, 28],
           className: ''
         });
+        if (fiberUserLoc.lat == null || fiberUserLoc.lon == null) return;
         L.marker([fiberUserLoc.lat, fiberUserLoc.lon], { icon: icon, zIndexOffset: 9999 })
           .addTo(fiberUserLocLayer.current)
           .bindPopup('<div style="text-align:center;font-family:Inter,sans-serif;">' +
@@ -2952,6 +2955,7 @@
         if (!fiberSitesLayer.current) return;
         fiberSitesLayer.current.clearLayers();
         allFiberSites.forEach(function(site) {
+          if (site.lat == null || site.lon == null || isNaN(site.lat) || isNaN(site.lon)) return;
           var hasAsBuilt = asBuiltData[site.id] && asBuiltData[site.id].entries && Object.keys(asBuiltData[site.id].entries).length > 0;
           var equip = fiberEquipment[site.id] || {};
           var hasEquip = equip.screwAnchor || equip.downGuy || equip.makeReady;
@@ -3053,8 +3057,9 @@
             } catch(e) { console.error('Snowshoe marker error:', e); }
           });
         } catch(e) { console.error('Snowshoe render error:', e); }
-        if (allFiberSites.length > 0 && fiberMapInstance.current) {
-          var bounds = L.latLngBounds(allFiberSites.map(function(s) { return [s.lat, s.lon]; }));
+        var validFiber = allFiberSites.filter(function(s) { return s.lat != null && s.lon != null && !isNaN(s.lat) && !isNaN(s.lon); });
+        if (validFiber.length > 0 && fiberMapInstance.current) {
+          var bounds = L.latLngBounds(validFiber.map(function(s) { return [s.lat, s.lon]; }));
           fiberMapInstance.current.fitBounds(bounds, { padding: [30, 30] });
         }
       }, [allFiberSites, asBuiltData, fiberEnroutes, fiberEquipment, spanStages, fiberTicMarks, allSnowshoes, tab]);
@@ -8172,12 +8177,14 @@
     class ErrorBoundary extends React.Component {
       constructor(props) { super(props); this.state = { error: null }; }
       static getDerivedStateFromError(error) { return { error }; }
-      componentDidCatch(error, info) { console.error('React error:', error, info); }
+      componentDidCatch(error, info) { console.error('React error:', error, info); this.setState({ stack: info && info.componentStack ? info.componentStack : '' }); }
       render() {
         if (this.state.error) {
+          var errMsg = String(this.state.error);
+          var stackMsg = (this.state.error && this.state.error.stack) ? this.state.error.stack : '';
           return React.createElement('div', { style: { padding: 40, color: 'white', background: '#1d232a', minHeight: '100vh' } },
             React.createElement('h2', null, '⚠️ App Error'),
-            React.createElement('pre', { style: { whiteSpace: 'pre-wrap', color: '#f87171', fontSize: 14 } }, String(this.state.error)),
+            React.createElement('pre', { style: { whiteSpace: 'pre-wrap', color: '#f87171', fontSize: 12, maxHeight: 200, overflow: 'auto' } }, errMsg + '\n\nStack:\n' + stackMsg),
             React.createElement('button', { onClick: async function() { try { if ('caches' in window) { var keys = await caches.keys(); await Promise.all(keys.map(function(k) { return caches.delete(k); })); } if ('serviceWorker' in navigator) { var regs = await navigator.serviceWorker.getRegistrations(); await Promise.all(regs.map(function(r) { return r.unregister(); })); } } catch(e) {} setTimeout(function() { location.href = location.pathname + '?bust=' + Date.now(); }, 500); }, style: { marginTop: 20, padding: '12px 24px', background: 'linear-gradient(135deg,#570df8,#a855f7)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 16, fontWeight: 700 } }, '🔄 Clear Cache & Reload')
           );
         }
