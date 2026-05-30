@@ -3513,11 +3513,12 @@
 
       // ── Firestore listener for tree trims ──
       useEffect(function() {
-        return db.collection('fiberTreeTrims').orderBy('completedAt','desc').onSnapshot(function(snap) {
+        return db.collection('fiberTreeTrims').onSnapshot(function(snap) {
           var trims = [];
           snap.forEach(function(doc) { trims.push(Object.assign({ id: doc.id }, doc.data())); });
+          console.log('[TreeTrims] loaded', trims.length, 'trims');
           setAllTreeTrims(trims);
-        });
+        }, function(err) { console.error('[TreeTrims] listener error:', err); });
       }, []);
 
       // ── Firestore listener for fiber en-route claims — auto-expire after 2 hours ──
