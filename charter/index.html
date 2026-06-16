@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f0a1a">
+<title>Global Route — Charter Alabama</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧭</text></svg>">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',system-ui,sans-serif;background:#0f0a1a;color:#e2e8f0;overflow-x:hidden;-webkit-tap-highlight-color:transparent}
+.glass{background:rgba(255,255,255,0.06);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.08)}
+.glass-card{background:rgba(255,255,255,0.04);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.06);border-radius:16px}
+.gold-text{color:#f0c040;font-family:'Playfair Display',serif}
+.btn-primary{background:linear-gradient(135deg,#7c3aed,#6d28d9);border:none;color:#fff;padding:12px 24px;border-radius:12px;font-weight:600;cursor:pointer;transition:all .2s;box-shadow:0 4px 15px rgba(124,58,237,0.3)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(124,58,237,0.4)}
+.btn-primary:active{transform:scale(0.97)}
+.btn-gold{background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;font-weight:700}
+.btn-gold:hover{box-shadow:0 6px 20px rgba(245,158,11,0.4)}
+.btn-green{background:linear-gradient(135deg,#10b981,#059669)}
+.btn-green:hover{box-shadow:0 6px 20px rgba(16,185,129,0.4)}
+.btn-red{background:linear-gradient(135deg,#ef4444,#dc2626)}
+.btn-amber{background:linear-gradient(135deg,#f59e0b,#d97706);color:#000}
+.input-field{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:12px 16px;color:#fff;font-size:16px;width:100%;outline:none;transition:border-color .2s}
+.input-field:focus{border-color:#7c3aed}
+.input-field::placeholder{color:rgba(255,255,255,0.3)}
+.site-card{transition:all .2s;cursor:pointer}
+.site-card:active{transform:scale(0.98)}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-green{background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.3)}
+.badge-amber{background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.3)}
+.badge-indigo{background:rgba(99,102,241,0.15);color:#818cf8;border:1px solid rgba(99,102,241,0.3)}
+#map{height:100%;width:100%;border-radius:0}
+.leaflet-control-zoom{display:none}
+.pulse-ring{animation:pulse-ring 2s ease-out infinite}
+@keyframes pulse-ring{0%{box-shadow:0 0 0 0 rgba(245,158,11,0.4)}70%{box-shadow:0 0 0 10px rgba(245,158,11,0)}100%{box-shadow:0 0 0 0 rgba(245,158,11,0)}}
+.progress-ring{transform:rotate(-90deg)}
+.slide-up{animation:slideUp .3s ease-out}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
+.completion-banner{animation:bannerIn .4s ease-out}
+@keyframes bannerIn{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:9000;display:flex;align-items:center;justify-content:center}
+.modal-content{background:#1e1b2e;border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:24px;max-width:400px;width:90%;max-height:80vh;overflow-y:auto}
+.invite-input{font-size:32px;text-align:center;letter-spacing:8px;text-transform:uppercase;font-weight:700;font-family:'Inter',monospace}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script type="module">
+import{initializeApp}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import{getAuth,onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,signInWithPopup,GoogleAuthProvider,updateProfile,signOut}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import{getFirestore,collection,doc,setDoc,getDoc,getDocs,onSnapshot,query,where,orderBy,deleteDoc,updateDoc,serverTimestamp,Timestamp,addDoc}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import{getStorage,ref as storageRef,uploadBytes,getDownloadURL}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+
+const firebaseConfig={apiKey:"AIzaSyD-s8Pg4GeSZhOzYpusiHGEEcQuav-IBOo",authDomain:"global-route-79e25.firebaseapp.com",projectId:"global-route-79e25",storageBucket:"global-route-79e25.firebasestorage.app",messagingSenderId:"780041424093",appId:"1:780041424093:web:43ed17f4a12764db6f5f34"};
+const app=initializeApp(firebaseConfig);
+const auth=getAuth(app);
+const db=getFirestore(app);
+const storage=getStorage(app);
+
+// Charter billing codes
+const CHARTER_CODES=[
+{code:"AC02",name:"Fiber Composite (Strand+Lash)",unit:"Per Ft",rate:1.20,type:"footage"},
+{code:"AS02",name:"Place Strand Only",unit:"Per Ft",rate:0.40,type:"footage"},
+{code:"AS07",name:"Overlash Fiber 1000'+",unit:"Per Ft",rate:0.60,type:"footage"},
+{code:"AS07A",name:"Overlash Fiber 1'–999'",unit:"Per Ft",rate:0.60,type:"footage"},
+{code:"MC04",name:"Tree Trimming",unit:"Per Span",rate:50.00,type:"each"},
+{code:"AS18",name:"Make Ready & Compliance",unit:"Per Pole",rate:45.50,type:"each"},
+{code:"AC05",name:"De/Relash",unit:"Per Ft",rate:1.05,type:"footage"},
+{code:"AS01",name:"Set/Replace Pole",unit:"Each",rate:0,type:"quote"},
+{code:"AS26",name:"Top Pole",unit:"Each",rate:20.00,type:"each"},
+];
+
+
+const GT30E_POLES=[
+{id:"gt30e-pole-0",name:"NT",lat:33.8981916,lon:-86.31892878},
+{id:"gt30e-pole-1",name:"NT-2",lat:33.89880264,lon:-86.31864165},
+{id:"gt30e-pole-2",name:"B-C-A",lat:33.89982089,lon:-86.31818685},
+{id:"gt30e-pole-3",name:"C-B-A",lat:33.901096,lon:-86.31761536},
+{id:"gt30e-pole-4",name:"9091-054",lat:33.90297173,lon:-86.31816971},
+{id:"gt30e-pole-5",name:"2-172422",lat:33.90243328,lon:-86.318035},
+{id:"gt30e-pole-6",name:"C-B-A-2",lat:33.90220391,lon:-86.31797068},
+{id:"gt30e-pole-7",name:"2-172955",lat:33.90180504,lon:-86.30273908},
+{id:"gt30e-pole-8",name:"2-172956",lat:33.90223749,lon:-86.30232963},
+{id:"gt30e-pole-9",name:"2-172954",lat:33.90174359,lon:-86.30371327},
+{id:"gt30e-pole-10",name:"2-172953",lat:33.90167029,lon:-86.30472167},
+{id:"gt30e-pole-11",name:"2-172952",lat:33.90153363,lon:-86.30636172},
+{id:"gt30e-pole-12",name:"2-172951",lat:33.9014407,lon:-86.30747427},
+{id:"gt30e-pole-13",name:"2-172950",lat:33.90233903,lon:-86.3076111},
+{id:"gt30e-pole-14",name:"2-172949",lat:33.90325879,lon:-86.30766654},
+{id:"gt30e-pole-15",name:"2-172948",lat:33.90324815,lon:-86.30776409},
+{id:"gt30e-pole-16",name:"2-172947",lat:33.90425922,lon:-86.30800946},
+{id:"gt30e-pole-17",name:"2-172946",lat:33.90522038,lon:-86.30824283},
+{id:"gt30e-pole-18",name:"2-172939",lat:33.90617503,lon:-86.30849612},
+{id:"gt30e-pole-19",name:"2-172941",lat:33.90635613,lon:-86.3081293},
+{id:"gt30e-pole-20",name:"2-172935",lat:33.90423393,lon:-86.31255382},
+{id:"gt30e-pole-21",name:"2-172934",lat:33.90360185,lon:-86.31383128},
+{id:"gt30e-pole-22",name:"2-172437",lat:33.90376973,lon:-86.31690353},
+{id:"gt30e-pole-23",name:"2-172436",lat:33.90278325,lon:-86.31704717},
+{id:"gt30e-pole-24",name:"2-390310",lat:33.90236278,lon:-86.31640469},
+{id:"gt30e-pole-25",name:"C-A-B",lat:33.90199468,lon:-86.31720522},
+{id:"gt30e-pole-26",name:"A",lat:33.90252043,lon:-86.31609336},
+{id:"gt30e-pole-27",name:"2-172933",lat:33.90306858,lon:-86.31493038},
+{id:"gt30e-pole-28",name:"B-C-A-2",lat:33.89816562,lon:-86.31587516},
+{id:"gt30e-pole-29",name:"2-172419",lat:33.89990261,lon:-86.31712057},
+{id:"gt30e-pole-30",name:"NT-3",lat:33.89911232,lon:-86.31720619},
+{id:"gt30e-pole-31",name:"NT-4",lat:33.89869594,lon:-86.31662265},
+{id:"gt30e-pole-32",name:"2-172386",lat:33.89711324,lon:-86.31526119},
+{id:"gt30e-pole-33",name:"2-172384",lat:33.89537801,lon:-86.31421215},
+{id:"gt30e-pole-34",name:"2-1723-",lat:33.89626213,lon:-86.31475325},
+{id:"gt30e-pole-35",name:"2-172379",lat:33.89436814,lon:-86.31361222},
+{id:"gt30e-pole-36",name:"NT-5",lat:33.89340617,lon:-86.31303822},
+{id:"gt30e-pole-37",name:"2-172377",lat:33.89240607,lon:-86.31245245},
+{id:"gt30e-pole-38",name:"2-118712",lat:33.88907372,lon:-86.31295932},
+{id:"gt30e-pole-39",name:"2-118711",lat:33.88946574,lon:-86.31257052},
+{id:"gt30e-pole-40",name:"2-390315",lat:33.89141602,lon:-86.31185637},
+{id:"gt30e-pole-41",name:"NT-6",lat:33.89084137,lon:-86.31151998},
+{id:"gt30e-pole-42",name:"9085-18",lat:33.89069618,lon:-86.31026466},
+{id:"gt30e-pole-43",name:"2-172217",lat:33.88948381,lon:-86.31069569},
+{id:"gt30e-pole-44",name:"A-B-C",lat:33.8905129,lon:-86.31109912},
+{id:"gt30e-pole-45",name:"2-118707",lat:33.89043561,lon:-86.31127353},
+{id:"gt30e-pole-46",name:"NT-7",lat:33.89016708,lon:-86.31149133},
+{id:"gt30e-pole-47",name:"2-390300",lat:33.88960426,lon:-86.31203655},
+{id:"gt30e-pole-48",name:"2-172218",lat:33.88848948,lon:-86.31010845},
+{id:"gt30e-pole-49",name:"NT-8",lat:33.88753634,lon:-86.30944038},
+{id:"gt30e-pole-50",name:"0019",lat:33.89097621,lon:-86.30946634},
+{id:"gt30e-pole-51",name:"9085-020",lat:33.89141165,lon:-86.30887804},
+{id:"gt30e-pole-52",name:"2-172246",lat:33.89159578,lon:-86.30889275},
+{id:"gt30e-pole-53",name:"2-390338",lat:33.89167479,lon:-86.30798822},
+{id:"gt30e-pole-54",name:"2-172249",lat:33.89181082,lon:-86.3075749},
+{id:"gt30e-pole-55",name:"002",lat:33.89425471,lon:-86.30721389},
+{id:"gt30e-pole-56",name:"9097-001",lat:33.89296515,lon:-86.30722758},
+{id:"gt30e-pole-57",name:"2-172252",lat:33.89204024,lon:-86.30663449},
+{id:"gt30e-pole-58",name:"2-172253",lat:33.89203636,lon:-86.30525805},
+{id:"gt30e-pole-59",name:"2-390335",lat:33.89214967,lon:-86.30461075},
+{id:"gt30e-pole-60",name:"8322",lat:33.89225835,lon:-86.30395138},
+{id:"gt30e-pole-61",name:"2-393032",lat:33.89239619,lon:-86.30312909},
+{id:"gt30e-pole-62",name:"2-390333",lat:33.89204371,lon:-86.30305507},
+{id:"gt30e-pole-63",name:"2-390332",lat:33.89253674,lon:-86.30235975},
+{id:"gt30e-pole-64",name:"2-172312",lat:33.89619719,lon:-86.30091228},
+{id:"gt30e-pole-65",name:"2-172313",lat:33.89621889,lon:-86.30176979},
+{id:"gt30e-pole-66",name:"2-172311",lat:33.89578163,lon:-86.29994375},
+{id:"gt30e-pole-67",name:"NT-9",lat:33.89716247,lon:-86.29777866},
+{id:"gt30e-pole-68",name:"2-172316",lat:33.89612426,lon:-86.29826074},
+{id:"gt30e-pole-69",name:"2-390363",lat:33.8951409,lon:-86.29880619},
+{id:"gt30e-pole-70",name:"2-172309",lat:33.89538882,lon:-86.29914217},
+{id:"gt30e-pole-71",name:"2-390365",lat:33.89467965,lon:-86.29928274},
+{id:"gt30e-pole-72",name:"NT-10",lat:33.89439793,lon:-86.29959492},
+{id:"gt30e-pole-73",name:"2-390330",lat:33.89373442,lon:-86.3002599},
+{id:"gt30e-pole-74",name:"2-172300",lat:33.89269681,lon:-86.30168096},
+{id:"gt30e-pole-75",name:"2-390331",lat:33.89305603,lon:-86.30092554},
+{id:"gt30e-pole-76",name:"2-172271",lat:33.89209982,lon:-86.30123675},
+{id:"gt30e-pole-77",name:"2-172275",lat:33.88934358,lon:-86.30106013},
+{id:"gt30e-pole-78",name:"2-172274",lat:33.8901225,lon:-86.30075792},
+{id:"gt30e-pole-79",name:"2-172273",lat:33.89082082,lon:-86.30074091},
+{id:"gt30e-pole-80",name:"2-172272",lat:33.89141178,lon:-86.30070373},
+{id:"gt30e-pole-81",name:"NT-11",lat:33.88783324,lon:-86.29755288},
+{id:"gt30e-pole-82",name:"NT-12",lat:33.88738748,lon:-86.29812048},
+{id:"gt30e-pole-83",name:"NT-13",lat:33.88632302,lon:-86.29897856},
+{id:"gt30e-pole-84",name:"2-172285",lat:33.88701091,lon:-86.29861747},
+{id:"gt30e-pole-85",name:"NT-14",lat:33.88752371,lon:-86.29923691},
+{id:"gt30e-pole-86",name:"9095-023",lat:33.88810015,lon:-86.30017236},
+{id:"gt30e-pole-87",name:"9095-24",lat:33.88811474,lon:-86.29977972},
+{id:"gt30e-pole-88",name:"9095-022",lat:33.88806733,lon:-86.30061441},
+{id:"gt30e-pole-89",name:"2-172276",lat:33.88856932,lon:-86.30101689},
+{id:"gt30e-pole-90",name:"2-172262",lat:33.89135532,lon:-86.30306082},
+{id:"gt30e-pole-91",name:"2-172264",lat:33.89098258,lon:-86.30305932},
+{id:"gt30e-pole-92",name:"2-390336",lat:33.89192612,lon:-86.30588077},
+{id:"gt30e-pole-93",name:"9085-23",lat:33.89182187,lon:-86.3065053},
+{id:"gt30e-pole-94",name:"2-172251",lat:33.89145654,lon:-86.30644374},
+{id:"gt30e-pole-95",name:"2-391660",lat:33.88382102,lon:-86.30717091},
+{id:"gt30e-pole-96",name:"2-172223",lat:33.88331295,lon:-86.30687},
+{id:"gt30e-pole-97",name:"2-172224",lat:33.88251976,lon:-86.3063902},
+{id:"gt30e-pole-98",name:"NT-15",lat:33.88150661,lon:-86.30578402},
+{id:"gt30e-pole-99",name:"P-100",lat:33.88613029,lon:-86.29842434},
+{id:"gt30e-pole-100",name:"P-101",lat:33.88599387,lon:-86.2979635},
+{id:"gt30e-pole-101",name:"P-102",lat:33.88513614,lon:-86.29736167},
+{id:"gt30e-pole-102",name:"P-103",lat:33.8853254,lon:-86.29776654},
+{id:"gt30e-pole-103",name:"P-104",lat:33.87538767,lon:-86.29917188},
+{id:"gt30e-pole-104",name:"C-B-A-C-B-A",lat:33.87541021,lon:-86.29918159},
+{id:"gt30e-pole-105",name:"P-106",lat:33.87537262,lon:-86.29953007},
+{id:"gt30e-pole-106",name:"2-168623",lat:33.87564747,lon:-86.29972487},
+{id:"gt30e-pole-107",name:"P-108",lat:33.87558255,lon:-86.29980488},
+{id:"gt30e-pole-108",name:"2-168622",lat:33.87568864,lon:-86.29982008},
+{id:"gt30e-pole-109",name:"2-172998",lat:33.87570703,lon:-86.29986314},
+{id:"gt30e-pole-110",name:"2-172993",lat:33.87633719,lon:-86.30080544},
+{id:"gt30e-pole-111",name:"2-172997",lat:33.8757826,lon:-86.299957},
+{id:"gt30e-pole-112",name:"NT-16",lat:33.875808,lon:-86.29999352},
+{id:"gt30e-pole-113",name:"2-172994",lat:33.87665816,lon:-86.30087729},
+{id:"gt30e-pole-114",name:"2-172988",lat:33.87718744,lon:-86.30109005},
+{id:"gt30e-pole-115",name:"2-170235",lat:33.87620744,lon:-86.30327546},
+{id:"gt30e-pole-116",name:"2-367616",lat:33.87626431,lon:-86.30328931},
+{id:"gt30e-pole-117",name:"NT-17",lat:33.87534524,lon:-86.30313563},
+{id:"gt30e-pole-118",name:"NT-18",lat:33.8776845,lon:-86.30465009},
+{id:"gt30e-pole-119",name:"2-172987",lat:33.87796415,lon:-86.30226468},
+{id:"gt30e-pole-120",name:"2-172986",lat:33.87815145,lon:-86.3026567},
+{id:"gt30e-pole-121",name:"2-391658",lat:33.87859542,lon:-86.30334169},
+{id:"gt30e-pole-122",name:"NT-19",lat:33.87961438,lon:-86.3045372},
+{id:"gt30e-pole-123",name:"NT-20",lat:33.87912114,lon:-86.30402291},
+{id:"gt30e-pole-124",name:"NT-21",lat:33.88041333,lon:-86.30512067},
+{id:"gt30e-pole-125",name:"2-170239",lat:33.87828024,lon:-86.3062574},
+{id:"gt30e-pole-126",name:"2-170238",lat:33.87748831,lon:-86.30539037},
+{id:"gt30e-pole-127",name:"2-172221",lat:33.88455605,lon:-86.30761841},
+{id:"gt30e-pole-128",name:"2-172220",lat:33.88536502,lon:-86.30815461},
+{id:"gt30e-pole-129",name:"2-391661",lat:33.88638128,lon:-86.30875462},
+{id:"gt30e-pole-130",name:"2-172400",lat:33.89761254,lon:-86.31918377},
+{id:"gt30e-pole-131",name:"2-172401",lat:33.89620047,lon:-86.31982419},
+{id:"gt30e-pole-132",name:"2-172402",lat:33.89527376,lon:-86.32025811},
+{id:"gt30e-pole-133",name:"2-172408",lat:33.89411907,lon:-86.32077344},
+{id:"gt30e-pole-134",name:"2-172407",lat:33.89444998,lon:-86.32062294},
+{id:"gt30e-pole-135",name:"2-172409",lat:33.89339179,lon:-86.32112131},
+{id:"gt30e-pole-136",name:"9165-22",lat:33.85937925,lon:-86.29893404},
+{id:"gt30e-pole-137",name:"9165-21",lat:33.86052879,lon:-86.29898356},
+{id:"gt30e-pole-138",name:"9165-18",lat:33.86250023,lon:-86.29877573},
+{id:"gt30e-pole-139",name:"9165-17",lat:33.86278636,lon:-86.29947532},
+{id:"gt30e-pole-140",name:"9165-19",lat:33.8623249,lon:-86.29837061},
+{id:"gt30e-pole-141",name:"9165-20",lat:33.86148795,lon:-86.29884727},
+{id:"gt30e-pole-142",name:"9165-16",lat:33.86316627,lon:-86.30036906},
+{id:"gt30e-pole-143",name:"NT-22",lat:33.8635726,lon:-86.30139235},
+{id:"gt30e-pole-144",name:"2-170233",lat:33.87424291,lon:-86.30295975},
+{id:"gt30e-pole-145",name:"2-170230",lat:33.87328294,lon:-86.3028206},
+{id:"gt30e-pole-146",name:"9000-119A",lat:33.87329605,lon:-86.30236429},
+{id:"gt30e-pole-147",name:"9000-119",lat:33.87314976,lon:-86.30226627},
+{id:"gt30e-pole-148",name:"2-170227",lat:33.8731213,lon:-86.30223847},
+{id:"gt30e-pole-149",name:"P-150",lat:33.8733007,lon:-86.30279405},
+{id:"gt30e-pole-150",name:"2-170228",lat:33.87293795,lon:-86.30259681},
+{id:"gt30e-pole-151",name:"9000-119-5",lat:33.87297571,lon:-86.30264502},
+{id:"gt30e-pole-152",name:"2-170242",lat:33.87269258,lon:-86.30322768},
+{id:"gt30e-pole-153",name:"2-170242-2",lat:33.87264908,lon:-86.30318359},
+{id:"gt30e-pole-154",name:"2-170223",lat:33.87104432,lon:-86.30292982},
+{id:"gt30e-pole-155",name:"2-170222",lat:33.8704707,lon:-86.3026143},
+{id:"gt30e-pole-156",name:"9165-9",lat:33.86901991,lon:-86.30216319},
+{id:"gt30e-pole-157",name:"2-170207",lat:33.86809216,lon:-86.3021089},
+{id:"gt30e-pole-158",name:"2-170208",lat:33.86724998,lon:-86.30204189},
+{id:"gt30e-pole-159",name:"9165-12",lat:33.86641397,lon:-86.30198286},
+{id:"gt30e-pole-160",name:"9165-13",lat:33.86549006,lon:-86.30191046},
+{id:"gt30e-pole-161",name:"9165-14",lat:33.86434507,lon:-86.30186551},
+{id:"gt30e-pole-162",name:"2-170221",lat:33.86968533,lon:-86.30215154},
+{id:"gt30e-pole-163",name:"2-367597",lat:33.87334693,lon:-86.30158586},
+{id:"gt30e-pole-164",name:"9000-118",lat:33.87328363,lon:-86.30179416},
+{id:"gt30e-pole-165",name:"2-170196",lat:33.87317977,lon:-86.30194185},
+{id:"gt30e-pole-166",name:"9000-117",lat:33.87367611,lon:-86.3009494},
+{id:"gt30e-pole-167",name:"2-367599",lat:33.87386824,lon:-86.30048895},
+{id:"gt30e-pole-168",name:"9000-116A",lat:33.87388079,lon:-86.30053202},
+{id:"gt30e-pole-169",name:"2-367600",lat:33.87413457,lon:-86.30001914},
+{id:"gt30e-pole-170",name:"2-367601",lat:33.87416859,lon:-86.29992441},
+{id:"gt30e-pole-171",name:"P-172",lat:33.87426665,lon:-86.29977389},
+{id:"gt30e-pole-172",name:"2-390558",lat:33.87460957,lon:-86.29909025},
+{id:"gt30e-pole-173",name:"NT-23",lat:33.87475292,lon:-86.29888965},
+{id:"gt30e-pole-174",name:"2-390558-2",lat:33.87472741,lon:-86.29886398},
+{id:"gt30e-pole-175",name:"2-367602",lat:33.87466677,lon:-86.29893272},
+{id:"gt30e-pole-176",name:"P-177",lat:33.88548705,lon:-86.29678224},
+{id:"gt30e-pole-177",name:"P-178",lat:33.88604696,lon:-86.29609504},
+{id:"gt30e-pole-178",name:"2-172292",lat:33.88829074,lon:-86.29697845},
+{id:"gt30e-pole-179",name:"2-172293",lat:33.8886346,lon:-86.2965689},
+{id:"gt30e-pole-180",name:"2-390372",lat:33.89024969,lon:-86.29236632},
+{id:"gt30e-pole-181",name:"2-172332",lat:33.89097928,lon:-86.29236469},
+{id:"gt30e-pole-182",name:"2-172331",lat:33.89197319,lon:-86.29237238},
+{id:"gt30e-pole-183",name:"2-172330",lat:33.89292022,lon:-86.29236731},
+{id:"gt30e-pole-184",name:"2-172329",lat:33.89400135,lon:-86.29235938},
+{id:"gt30e-pole-185",name:"2-172318",lat:33.89716831,lon:-86.29667232},
+{id:"gt30e-pole-186",name:"2-172319",lat:33.89717972,lon:-86.29547918},
+{id:"gt30e-pole-187",name:"2-172328",lat:33.89506532,lon:-86.29233113},
+{id:"gt30e-pole-188",name:"2-172327",lat:33.89607885,lon:-86.29229776},
+{id:"gt30e-pole-189",name:"NT-24",lat:33.89624481,lon:-86.28990176},
+{id:"gt30e-pole-190",name:"2-172340",lat:33.89585948,lon:-86.289927},
+{id:"gt30e-pole-191",name:"2-390373",lat:33.89504441,lon:-86.28988504},
+{id:"gt30e-pole-192",name:"2-390322",lat:33.90089076,lon:-86.28088552},
+{id:"gt30e-pole-193",name:"2-390321",lat:33.90100649,lon:-86.28054877},
+{id:"gt30e-pole-194",name:"2-172366",lat:33.90134626,lon:-86.27948357},
+{id:"gt30e-pole-195",name:"2-390320",lat:33.90183059,lon:-86.27805652},
+{id:"gt30e-pole-196",name:"2-172363",lat:33.90004825,lon:-86.28214522},
+{id:"gt30e-pole-197",name:"NT-25",lat:33.89929023,lon:-86.28390648},
+{id:"gt30e-pole-198",name:"2-172354",lat:33.8986631,lon:-86.28560209},
+{id:"gt30e-pole-199",name:"2-390325",lat:33.89878587,lon:-86.28527929},
+{id:"gt30e-pole-200",name:"2-172352",lat:33.89825845,lon:-86.28675936},
+{id:"gt30e-pole-201",name:"2-172347",lat:33.89764856,lon:-86.28839101},
+{id:"gt30e-pole-202",name:"2-172337",lat:33.89711766,lon:-86.28976039},
+{id:"gt30e-pole-203",name:"8780",lat:33.89712744,lon:-86.29075595},
+{id:"gt30e-pole-204",name:"2-172326",lat:33.8971406,lon:-86.29227592},
+{id:"gt30e-pole-205",name:"2-172325",lat:33.8971428,lon:-86.29247665},
+{id:"gt30e-pole-206",name:"2-172323",lat:33.89715105,lon:-86.29315048},
+{id:"gt30e-pole-207",name:"2-390328",lat:33.89715888,lon:-86.29357313},
+{id:"gt30e-pole-208",name:"2-172320",lat:33.89715687,lon:-86.29397428},
+{id:"gt30e-pole-209",name:"2-169363",lat:33.90883371,lon:-86.26675637},
+{id:"gt30e-pole-210",name:"2-169352",lat:33.90807684,lon:-86.26789437},
+{id:"gt30e-pole-211",name:"2-169348",lat:33.90765796,lon:-86.26853286},
+{id:"gt30e-pole-212",name:"2-169437",lat:33.90668619,lon:-86.2717559},
+{id:"gt30e-pole-213",name:"C",lat:33.90508729,lon:-86.27234708},
+{id:"gt30e-pole-214",name:"2-172375",lat:33.90384182,lon:-86.27425099},
+{id:"gt30e-pole-215",name:"2-390318",lat:33.90454386,lon:-86.27319439},
+{id:"gt30e-pole-216",name:"NT-26",lat:33.90325879,lon:-86.2751112},
+{id:"gt30e-pole-217",name:"2-172371",lat:33.90260941,lon:-86.27611089},
+{id:"gt30e-pole-218",name:"2-172370",lat:33.90251064,lon:-86.27625271},
+{id:"gt30e-pole-219",name:"C-B-A-3",lat:33.90602719,lon:-86.27127722},
+{id:"gt30e-pole-220",name:"52",lat:33.9058807,lon:-86.27116861},
+{id:"gt30e-pole-221",name:"2-169436",lat:33.90639386,lon:-86.27155732},
+{id:"gt30e-pole-222",name:"NT-27",lat:33.90663099,lon:-86.27005853},
+{id:"gt30e-pole-223",name:"2-169343",lat:33.90724803,lon:-86.26913155},
+{id:"gt30e-pole-224",name:"P-225",lat:33.90228207,lon:-86.26168584},
+{id:"gt30e-pole-225",name:"P-226",lat:33.90201944,lon:-86.2620539},
+{id:"gt30e-pole-226",name:"P-227",lat:33.90223859,lon:-86.26244191},
+{id:"gt30e-pole-227",name:"P-228",lat:33.90221607,lon:-86.26380188},
+{id:"gt30e-pole-228",name:"P-229",lat:33.90191847,lon:-86.26471883},
+{id:"gt30e-pole-229",name:"P-230",lat:33.90254886,lon:-86.261404},
+{id:"gt30e-pole-230",name:"P-231",lat:33.90305095,lon:-86.26103146},
+{id:"gt30e-pole-231",name:"P-232",lat:33.9042035,lon:-86.26017706},
+{id:"gt30e-pole-232",name:"P-233",lat:33.90348724,lon:-86.26019279},
+{id:"gt30e-pole-233",name:"P-234",lat:33.90499516,lon:-86.25958405},
+{id:"gt30e-pole-234",name:"P-235",lat:33.90671911,lon:-86.2597698},
+{id:"gt30e-pole-235",name:"P-236",lat:33.90672099,lon:-86.2602495},
+{id:"gt30e-pole-236",name:"P-237",lat:33.90599311,lon:-86.25947618},
+{id:"gt30e-pole-237",name:"P-238",lat:33.90697556,lon:-86.25797192},
+{id:"gt30e-pole-238",name:"P-239",lat:33.90617769,lon:-86.25835017},
+{id:"gt30e-pole-239",name:"P-240",lat:33.90548834,lon:-86.25885917},
+{id:"gt30e-pole-240",name:"P-241",lat:33.90520542,lon:-86.25814018},
+{id:"gt30e-pole-241",name:"P-242",lat:33.90511584,lon:-86.25732079},
+{id:"gt30e-pole-242",name:"P-243",lat:33.90756842,lon:-86.25698706},
+{id:"gt30e-pole-243",name:"P-244",lat:33.90733641,lon:-86.25747722},
+{id:"gt30e-pole-244",name:"44",lat:33.91283279,lon:-86.26117311},
+{id:"gt30e-pole-245",name:"P-246",lat:33.90737287,lon:-86.26103343},
+{id:"gt30e-pole-246",name:"P-247",lat:33.90804459,lon:-86.26175282},
+{id:"gt30e-pole-247",name:"4",lat:33.90890954,lon:-86.26160577},
+{id:"gt30e-pole-248",name:"3",lat:33.90946988,lon:-86.26187673},
+{id:"gt30e-pole-249",name:"2-169354",lat:33.90918096,lon:-86.26624636},
+{id:"gt30e-pole-250",name:"NT-28",lat:33.90957563,lon:-86.2656855},
+{id:"gt30e-pole-251",name:"2-169356",lat:33.90996801,lon:-86.26510825},
+{id:"gt30e-pole-252",name:"2-390625",lat:33.91038665,lon:-86.26454074},
+{id:"gt30e-pole-253",name:"2-169366",lat:33.91117037,lon:-86.26351956},
+{id:"gt30e-pole-254",name:"2-169367",lat:33.91086556,lon:-86.26301785},
+{id:"gt30e-pole-255",name:"NT-29",lat:33.91136061,lon:-86.26324729},
+{id:"gt30e-pole-256",name:"2-169440",lat:33.91151884,lon:-86.26336533},
+{id:"gt30e-pole-257",name:"2",lat:33.91014254,lon:-86.26252964},
+{id:"gt30e-pole-258",name:"2-169415",lat:33.91207265,lon:-86.26224001},
+{id:"gt30e-pole-259",name:"2-169417",lat:33.91321751,lon:-86.26061925},
+{id:"gt30e-pole-260",name:"3550",lat:33.91364436,lon:-86.25999182},
+{id:"gt30e-pole-261",name:"2-169420",lat:33.91412102,lon:-86.25935606},
+{id:"gt30e-pole-262",name:"2-169429",lat:33.91521243,lon:-86.25803685},
+{id:"gt30e-pole-263",name:"2-390623",lat:33.9145635,lon:-86.25873521},
+{id:"gt30e-pole-264",name:"C-B-A-4",lat:33.91448038,lon:-86.25885545},
+{id:"gt30e-pole-265",name:"NT-30",lat:33.91637493,lon:-86.25682081},
+{id:"gt30e-pole-266",name:"2-169434",lat:33.91598021,lon:-86.25725105},
+{id:"gt30e-pole-267",name:"P-268",lat:33.92039431,lon:-86.24375637},
+{id:"gt30e-pole-268",name:"P-269",lat:33.91919549,lon:-86.24503358},
+{id:"gt30e-pole-269",name:"P-270",lat:33.91864933,lon:-86.24561343},
+{id:"gt30e-pole-270",name:"2-169464",lat:33.91839015,lon:-86.24607094},
+{id:"gt30e-pole-271",name:"2-169465",lat:33.91909987,lon:-86.24529352},
+{id:"gt30e-pole-272",name:"2-390505",lat:33.91993679,lon:-86.24441298},
+{id:"gt30e-pole-273",name:"P-274",lat:33.91981787,lon:-86.24439756},
+{id:"gt30e-pole-274",name:"2-169472",lat:33.92040372,lon:-86.24389908},
+{id:"gt30e-pole-275",name:"2-280504",lat:33.9209377,lon:-86.24332518},
+{id:"gt30e-pole-276",name:"P-277",lat:33.92081265,lon:-86.2433548},
+{id:"gt30e-pole-277",name:"3-1/2",lat:33.91835626,lon:-86.2474424},
+{id:"gt30e-pole-278",name:"2-169462",lat:33.9183581,lon:-86.24796581},
+{id:"gt30e-pole-279",name:"3-1/2-2",lat:33.91835908,lon:-86.24882443},
+{id:"gt30e-pole-280",name:"3-2",lat:33.91835223,lon:-86.24996804},
+{id:"gt30e-pole-281",name:"2-390507",lat:33.91833491,lon:-86.25125375},
+{id:"gt30e-pole-282",name:"C-B-A-5",lat:33.91833434,lon:-86.25147178},
+{id:"gt30e-pole-283",name:"2-169444",lat:33.9183222,lon:-86.25292854},
+{id:"gt30e-pole-284",name:"2-169441",lat:33.91762121,lon:-86.25524921},
+{id:"gt30e-pole-285",name:"2-169440-2",lat:33.91725333,lon:-86.25589755},
+{id:"gt30e-pole-286",name:"NT-31",lat:33.91799352,lon:-86.25511845},
+{id:"gt30e-pole-287",name:"C-B-A-6",lat:33.91816245,lon:-86.25396218},
+];
+
+// ============ STATE ============
+let currentUser = null;
+let currentNode = null;
+let currentNodeId = null;
+let completions = {};
+let enroutes = {};
+let notes = {};
+let billingEntries = {};
+let unsubscribers = [];
+let mapInstance = null;
+let markers = {};
+
+// ============ UTILS ============
+function $(id){ return document.getElementById(id); }
+function vibrate(ms=50){ if(navigator.vibrate) navigator.vibrate(ms); }
+
+function playSound(type){
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    const osc=ctx.createOscillator();
+    const gain=ctx.createGain();
+    osc.connect(gain);gain.connect(ctx.destination);
+    if(type==='done'){osc.frequency.value=880;gain.gain.value=0.1;osc.start();osc.stop(ctx.currentTime+0.15);}
+    else if(type==='click'){osc.frequency.value=600;gain.gain.value=0.05;osc.start();osc.stop(ctx.currentTime+0.08);}
+  }catch(e){}
+}
+
+function directionsUrl(lat,lon){
+  const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent);
+  return isIOS?`maps://maps.apple.com/?daddr=${lat},${lon}&dirflg=d`:`https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=driving`;
+}
+
+function timeAgo(ts){
+  if(!ts) return '';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  const diff = Date.now() - d.getTime();
+  const mins = Math.floor(diff/60000);
+  if(mins<1) return 'just now';
+  if(mins<60) return `${mins}m ago`;
+  const hrs=Math.floor(mins/60);
+  if(hrs<24) return `${hrs}h ago`;
+  return `${Math.floor(hrs/24)}d ago`;
+}
+
+// ============ AUTH UI ============
+function renderLogin(){
+  $('app').innerHTML = `
+  <div class="min-h-screen flex items-center justify-center p-4" style="background:linear-gradient(135deg,#0f0a1a 0%,#1a0f2e 50%,#0f0a1a 100%)">
+    <div class="glass-card p-8 w-full max-w-sm slide-up">
+      <div class="text-center mb-8">
+        <div class="text-4xl mb-2">🧭</div>
+        <h1 class="gold-text text-2xl">GLOBAL ROUTE</h1>
+        <p class="text-xs text-gray-400 tracking-[0.3em] mt-1">ROUTE • TRACK • MANAGE</p>
+        <p class="text-sm text-purple-400 mt-3 font-semibold">Charter Alabama</p>
+      </div>
+      <div id="auth-form">
+        <input id="auth-email" class="input-field mb-3" placeholder="Email" type="email" autocomplete="email">
+        <input id="auth-pass" class="input-field mb-4" placeholder="Password" type="password" autocomplete="current-password">
+        <button id="btn-login" class="btn-primary w-full mb-3" onclick="doLogin()">Sign In</button>
+        <button id="btn-signup" class="btn-primary w-full mb-4" style="background:linear-gradient(135deg,#059669,#047857)" onclick="doSignup()">Create Account</button>
+        <div class="relative my-4"><div class="absolute inset-0 flex items-center"><div class="w-full border-t border-white/10"></div></div><div class="relative flex justify-center"><span class="bg-[#1e1b2e] px-3 text-xs text-gray-500">or</span></div></div>
+        <button class="w-full glass p-3 rounded-xl flex items-center justify-center gap-3 hover:bg-white/10 transition" onclick="doGoogle()">
+          <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#34A853" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#FBBC05" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+          <span class="text-sm font-medium">Continue with Google</span>
+        </button>
+        <p id="auth-error" class="text-red-400 text-sm mt-3 text-center hidden"></p>
+      </div>
+    </div>
+  </div>`;
+}
+
+function showAuthError(msg){
+  const el=$('auth-error');
+  el.textContent=msg;el.classList.remove('hidden');
+}
+
+window.doLogin=async function(){
+  const email=$('auth-email').value.trim();
+  const pass=$('auth-pass').value;
+  if(!email||!pass) return showAuthError('Enter email and password');
+  try{await signInWithEmailAndPassword(auth,email,pass);}
+  catch(e){showAuthError(e.message.replace('Firebase:',''));}
+};
+
+window.doSignup=async function(){
+  const email=$('auth-email').value.trim();
+  const pass=$('auth-pass').value;
+  if(!email||!pass) return showAuthError('Enter email and password');
+  if(pass.length<6) return showAuthError('Password must be 6+ characters');
+  try{await createUserWithEmailAndPassword(auth,email,pass);}
+  catch(e){showAuthError(e.message.replace('Firebase:',''));}
+};
+
+window.doGoogle=async function(){
+  try{await signInWithPopup(auth,new GoogleAuthProvider());}
+  catch(e){if(e.code!=='auth/popup-closed-by-user') showAuthError(e.message);}
+};
+
+// ============ INVITE CODE ============
+function renderInviteCode(){
+  $('app').innerHTML = `
+  <div class="min-h-screen flex items-center justify-center p-4" style="background:linear-gradient(135deg,#0f0a1a 0%,#1a0f2e 50%,#0f0a1a 100%)">
+    <div class="glass-card p-8 w-full max-w-sm slide-up">
+      <div class="text-center mb-6">
+        <div class="text-4xl mb-2">🔑</div>
+        <h2 class="text-xl font-bold mb-2">Enter Invite Code</h2>
+        <p class="text-sm text-gray-400">Enter the 6-character code provided by your supervisor</p>
+      </div>
+      <input id="invite-input" class="input-field invite-input mb-4" maxlength="6" placeholder="------" autocomplete="off" oninput="this.value=this.value.toUpperCase()">
+      <button class="btn-gold w-full mb-3 p-3 rounded-xl" onclick="submitInviteCode()">Join Node</button>
+      <button class="text-gray-500 text-sm w-full text-center mt-2" onclick="signOut(auth)">Sign Out</button>
+      <p id="invite-error" class="text-red-400 text-sm mt-3 text-center hidden"></p>
+    </div>
+  </div>`;
+  setTimeout(()=>$('invite-input')?.focus(),100);
+}
+
+window.submitInviteCode=async function(){
+  const code=$('invite-input').value.trim().toUpperCase();
+  if(code.length!==6){$('invite-error').textContent='Enter 6-character code';$('invite-error').classList.remove('hidden');return;}
+  
+  // Look up code in charterNodes
+  try{
+    const snap=await getDocs(query(collection(db,'charterNodes'),where('inviteCode','==',code)));
+    if(snap.empty){$('invite-error').textContent='Invalid code. Check with your supervisor.';$('invite-error').classList.remove('hidden');return;}
+    
+    const nodeDoc=snap.docs[0];
+    const nodeId=nodeDoc.id;
+    
+    // Add user to node
+    await setDoc(doc(db,'charterNodeMembers',`${nodeId}_${currentUser.uid}`),{
+      nodeId,uid:currentUser.uid,
+      name:currentUser.displayName||currentUser.email.split('@')[0],
+      email:currentUser.email,
+      photoURL:currentUser.photoURL||'',
+      joinedAt:serverTimestamp()
+    });
+    
+    vibrate(100);playSound('done');
+    loadUserNode();
+  }catch(e){
+    $('invite-error').textContent='Error joining. Try again.';$('invite-error').classList.remove('hidden');
+    console.error(e);
+  }
+};
+
+// ============ LOAD USER NODE ============
+async function loadUserNode(){
+  // Check if user belongs to any node
+  const snap=await getDocs(query(collection(db,'charterNodeMembers'),where('uid','==',currentUser.uid)));
+  if(snap.empty){renderInviteCode();return;}
+  
+  // Use first node found (can add multi-node picker later)
+  const membership=snap.docs[0].data();
+  currentNodeId=membership.nodeId;
+  
+  // Get node details
+  const nodeDoc=await getDoc(doc(db,'charterNodes',currentNodeId));
+  if(!nodeDoc.exists()){renderInviteCode();return;}
+  currentNode=nodeDoc.data();
+  
+  renderMainApp();
+  subscribeToData();
+}
+
+// ============ MAIN APP ============
+let currentView='list'; // list | map
+let searchTerm='';
+let filterMode='all'; // all | pending | completed | enroute
+
+function getFilteredPoles(){
+  let poles=GT30E_POLES;
+  if(searchTerm){
+    const s=searchTerm.toLowerCase();
+    poles=poles.filter(p=>p.name.toLowerCase().includes(s));
+  }
+  if(filterMode==='completed') poles=poles.filter(p=>completions[p.id]);
+  if(filterMode==='pending') poles=poles.filter(p=>!completions[p.id]);
+  if(filterMode==='enroute') poles=poles.filter(p=>enroutes[p.id]);
+  return poles;
+}
+
+function completedCount(){ return GT30E_POLES.filter(p=>completions[p.id]).length; }
+function progressPct(){ return Math.round((completedCount()/GT30E_POLES.length)*100); }
+
+function renderMainApp(){
+  const pct=progressPct();
+  const completed=completedCount();
+  const total=GT30E_POLES.length;
+  
+  $('app').innerHTML = `
+  <div class="min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="glass sticky top-0 z-50 px-4 py-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="relative" style="width:44px;height:44px">
+            <svg class="progress-ring" width="44" height="44">
+              <circle cx="22" cy="22" r="18" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="3"/>
+              <circle cx="22" cy="22" r="18" fill="none" stroke="#f0c040" stroke-width="3" stroke-linecap="round"
+                stroke-dasharray="${2*Math.PI*18}" stroke-dashoffset="${2*Math.PI*18*(1-pct/100)}"/>
+            </svg>
+            <span class="absolute inset-0 flex items-center justify-center text-xs font-bold gold-text">${pct}%</span>
+          </div>
+          <div>
+            <h1 class="gold-text text-lg leading-tight">${currentNode?.name||'Charter'}</h1>
+            <p class="text-xs text-gray-400">${completed}/${total} poles</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="toggleView()" class="glass p-2 rounded-xl text-lg" title="Toggle view">${currentView==='list'?'🗺️':'📋'}</button>
+          <button onclick="showMenu()" class="glass p-2 rounded-xl">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);border:2px solid #f0c040;box-shadow:0 0 12px rgba(240,192,64,0.3)">
+              ${(currentUser?.displayName||currentUser?.email||'?')[0].toUpperCase()}
+            </div>
+          </button>
+        </div>
+      </div>
+      
+      <!-- Search & Filters -->
+      <div class="mt-3 flex gap-2">
+        <input class="input-field flex-1 text-sm py-2" placeholder="🔍 Search poles..." value="${searchTerm}" oninput="searchTerm=this.value;renderPoleList()">
+        <select class="input-field text-sm py-2" style="width:auto" onchange="filterMode=this.value;renderPoleList()">
+          <option value="all"${filterMode==='all'?' selected':''}>All</option>
+          <option value="pending"${filterMode==='pending'?' selected':''}>Pending</option>
+          <option value="completed"${filterMode==='completed'?' selected':''}>Done</option>
+          <option value="enroute"${filterMode==='enroute'?' selected':''}>En Route</option>
+        </select>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <main class="flex-1 relative">
+      <div id="list-view" class="${currentView==='list'?'':'hidden'} p-4 pb-20"></div>
+      <div id="map-container" class="${currentView==='map'?'':'hidden'}" style="position:absolute;inset:0"></div>
+    </main>
+  </div>
+  
+  <!-- Menu Modal -->
+  <div id="menu-modal" class="hidden modal-backdrop" onclick="if(event.target===this)closeMenu()">
+    <div class="modal-content"></div>
+  </div>
+  
+  <!-- Pole Detail Modal -->
+  <div id="pole-modal" class="hidden modal-backdrop" onclick="if(event.target===this)closePoleModal()">
+    <div class="modal-content" id="pole-modal-content" style="max-height:90vh"></div>
+  </div>
+  `;
+  
+  renderPoleList();
+  if(currentView==='map') initMap();
+}
+
+function renderPoleList(){
+  const poles=getFilteredPoles();
+  const container=$('list-view');
+  if(!container) return;
+  
+  container.innerHTML=poles.map(p=>{
+    const done=completions[p.id];
+    const enr=enroutes[p.id];
+    const noteCount=Object.values(notes).filter(n=>n.poleId===p.id).length;
+    
+    let statusBadge='';
+    if(done){
+      const isMe=done.uid===currentUser.uid;
+      statusBadge=`<span class="badge badge-green">✅ ${done.userName||'Done'}</span>`;
+    }else if(enr){
+      statusBadge=`<span class="badge badge-amber">🚗 ${enr.userName||'En Route'}</span>`;
+    }
+    
+    return `
+    <div class="glass-card p-4 mb-3 site-card slide-up" onclick="openPole('${p.id}')">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl flex items-center justify-center text-lg ${done?'bg-gray-700':'bg-purple-900/50'}">
+            ${done?'✅':'📍'}
+          </div>
+          <div>
+            <p class="font-semibold ${done?'text-gray-500 line-through':''}">${p.name}</p>
+            <p class="text-xs text-gray-500">${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}</p>
+          </div>
+        </div>
+        <div class="flex flex-col items-end gap-1">
+          ${statusBadge}
+          ${noteCount?`<span class="text-xs text-gray-500">💬 ${noteCount}</span>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  
+  if(!poles.length){
+    container.innerHTML=`<div class="text-center text-gray-500 py-12">No poles found</div>`;
+  }
+}
+
+// ============ MAP ============
+function initMap(){
+  const container=$('map-container');
+  if(!container) return;
+  
+  // Create map div if needed
+  if(!container.querySelector('#map')){
+    container.innerHTML='<div id="map" style="height:100%;width:100%"></div>';
+  }
+  
+  if(mapInstance){mapInstance.remove();mapInstance=null;}
+  
+  const lats=GT30E_POLES.map(p=>p.lat);
+  const lons=GT30E_POLES.map(p=>p.lon);
+  const bounds=[[Math.min(...lats)-0.002,Math.min(...lons)-0.003],[Math.max(...lats)+0.002,Math.max(...lons)+0.003]];
+  
+  mapInstance=L.map('map',{zoomControl:false,attributionControl:false}).fitBounds(bounds);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:20}).addTo(mapInstance);
+  
+  // Add markers
+  GT30E_POLES.forEach(p=>{
+    const done=completions[p.id];
+    const enr=enroutes[p.id];
+    
+    let color='#ef4444'; // red
+    if(done) color='#6b7280'; // gray
+    else if(enr) color='#f59e0b'; // amber
+    
+    const icon=L.divIcon({
+      className:'',
+      html:`<svg width="24" height="36" viewBox="0 0 24 36"><path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" fill="${color}" stroke="#fff" stroke-width="1.5"/><circle cx="12" cy="12" r="5" fill="#fff"/></svg>`,
+      iconSize:[24,36],iconAnchor:[12,36]
+    });
+    
+    const m=L.marker([p.lat,p.lon],{icon}).addTo(mapInstance);
+    m.bindPopup(`
+      <div style="min-width:200px;font-family:Inter,sans-serif">
+        <b>${p.name}</b>${done?'<br><span style="color:green">✅ Complete</span>':''}${enr?`<br><span style="color:orange">🚗 ${enr.userName}</span>`:''}
+        <br><br>
+        <a href="${directionsUrl(p.lat,p.lon)}" target="_blank" style="color:#7c3aed;font-weight:600">🧭 Get Directions</a>
+        &nbsp;|&nbsp;
+        <a href="#" onclick="event.preventDefault();closePoleModal();openPole('${p.id}')" style="color:#7c3aed;font-weight:600">📋 Details</a>
+      </div>
+    `);
+    markers[p.id]=m;
+  });
+}
+
+// ============ POLE DETAIL ============
+window.openPole=function(poleId){
+  const pole=GT30E_POLES.find(p=>p.id===poleId);
+  if(!pole) return;
+  vibrate();playSound('click');
+  
+  const done=completions[poleId];
+  const enr=enroutes[poleId];
+  const poleNotes=Object.entries(notes).filter(([k,n])=>n.poleId===poleId).sort((a,b)=>{
+    const ta=a[1].createdAt?.toDate?.()?.getTime()||0;
+    const tb=b[1].createdAt?.toDate?.()?.getTime()||0;
+    return tb-ta;
+  });
+  const poleBilling=Object.entries(billingEntries).filter(([k,b])=>b.poleId===poleId);
+  
+  const content=$('pole-modal-content');
+  content.innerHTML=`
+  <div class="slide-up">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-bold">${pole.name}</h2>
+      <button onclick="closePoleModal()" class="text-gray-400 text-2xl">&times;</button>
+    </div>
+    
+    ${done?`<div class="completion-banner rounded-xl p-3 mb-4" style="background:${done.uid===currentUser.uid?'rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.3)':'rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3)'}">
+      <div class="flex items-center gap-2">
+        <span>✅</span>
+        <div><span class="font-semibold">${done.userName||'Unknown'}</span><br><span class="text-xs text-gray-400">${timeAgo(done.completedAt)}</span></div>
+      </div>
+    </div>`:''}
+    
+    ${enr&&!done?`<div class="rounded-xl p-3 mb-4" style="background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.3)">
+      <div class="flex items-center gap-2">
+        <span>🚗</span><span class="font-semibold">${enr.userName}</span><span class="text-xs text-gray-400">${timeAgo(enr.startedAt)}</span>
+      </div>
+    </div>`:''}
+    
+    <!-- Directions Button -->
+    <a href="${directionsUrl(pole.lat,pole.lon)}" target="_blank" class="btn-gold w-full p-3 rounded-xl flex items-center justify-center gap-2 mb-3 block text-center no-underline" onclick="claimEnroute('${poleId}')">
+      🧭 Get Directions
+    </a>
+    
+    <!-- Action Buttons -->
+    <div class="grid grid-cols-3 gap-2 mb-4">
+      <button onclick="toggleNotes('${poleId}')" class="btn-primary p-3 rounded-xl text-sm">💬 Notes</button>
+      <button onclick="${done?`undoComplete('${poleId}')`:`markComplete('${poleId}')`}" class="btn-primary p-3 rounded-xl text-sm ${done?'btn-amber':'btn-green'}">${done?'↩️ Undo':'✅ Done'}</button>
+      <button onclick="toggleBilling('${poleId}')" class="btn-primary p-3 rounded-xl text-sm" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed)">💰 Bill</button>
+    </div>
+    
+    <!-- Billing Entries -->
+    <div id="billing-section-${poleId}" class="hidden mb-4">
+      <h3 class="font-semibold text-sm mb-2 text-gray-400">LOG BILLING</h3>
+      <select id="bill-code-${poleId}" class="input-field text-sm mb-2">
+        ${CHARTER_CODES.map(c=>`<option value="${c.code}">${c.code} — ${c.name} (${c.rate?'$'+c.rate.toFixed(2):'Quote'}/${c.unit})</option>`).join('')}
+      </select>
+      <div class="flex gap-2 mb-2">
+        <input id="bill-qty-${poleId}" class="input-field text-sm flex-1" type="number" placeholder="Quantity" min="0" step="1">
+        <button onclick="logBilling('${poleId}')" class="btn-green p-2 rounded-xl text-sm px-4">💾 Log</button>
+      </div>
+      ${poleBilling.length?`<div class="space-y-1">${poleBilling.map(([id,b])=>{
+        const code=CHARTER_CODES.find(c=>c.code===b.code);
+        return `<div class="glass p-2 rounded-lg flex justify-between items-center text-sm">
+          <span>${b.code} — ${b.qty} ${code?.unit||''}</span>
+          <span class="text-gray-400">$${((code?.rate||0)*b.qty).toFixed(2)}</span>
+        </div>`;
+      }).join('')}</div>`:''}
+    </div>
+    
+    <!-- Notes Section -->
+    <div id="notes-section-${poleId}" class="hidden mb-4">
+      <h3 class="font-semibold text-sm mb-2 text-gray-400">NOTES</h3>
+      <div class="flex gap-2 mb-3">
+        <input id="note-input-${poleId}" class="input-field text-sm flex-1" placeholder="Add a note...">
+        <button onclick="addNote('${poleId}')" class="btn-primary p-2 rounded-xl text-sm px-4">Send</button>
+      </div>
+      ${poleNotes.length?`<div class="space-y-2">${poleNotes.map(([id,n])=>`
+        <div class="glass p-3 rounded-xl">
+          <div class="flex justify-between items-start">
+            <span class="font-semibold text-sm">${n.userName||'Unknown'}</span>
+            <span class="text-xs text-gray-500">${timeAgo(n.createdAt)}</span>
+          </div>
+          <p class="text-sm mt-1">${n.text}</p>
+          ${n.uid===currentUser.uid?`<button onclick="deleteNote('${id}')" class="text-xs text-gray-500 mt-1">🗑️ Delete</button>`:''}
+        </div>
+      `).join('')}</div>`:'<p class="text-sm text-gray-500">No notes yet</p>'}
+    </div>
+    
+    <p class="text-xs text-gray-600 text-center mt-4">${pole.lat.toFixed(6)}, ${pole.lon.toFixed(6)}</p>
+  </div>`;
+  
+  $('pole-modal').classList.remove('hidden');
+};
+
+window.closePoleModal=function(){ $('pole-modal').classList.add('hidden'); };
+
+window.toggleNotes=function(id){
+  const el=$('notes-section-'+id);
+  if(el) el.classList.toggle('hidden');
+};
+
+window.toggleBilling=function(id){
+  const el=$('billing-section-'+id);
+  if(el) el.classList.toggle('hidden');
+};
+
+// ============ ACTIONS ============
+window.markComplete=async function(poleId){
+  vibrate(100);playSound('done');
+  await setDoc(doc(db,'charterCompletions',`${currentNodeId}_${poleId}`),{
+    nodeId:currentNodeId,poleId,uid:currentUser.uid,
+    userName:currentUser.displayName||currentUser.email.split('@')[0],
+    completedAt:serverTimestamp()
+  });
+  // Clear enroute if exists
+  try{await deleteDoc(doc(db,'charterEnroute',`${currentNodeId}_${poleId}`));}catch(e){}
+  openPole(poleId);
+};
+
+window.undoComplete=async function(poleId){
+  if(!confirm('Undo completion?')) return;
+  vibrate();
+  await deleteDoc(doc(db,'charterCompletions',`${currentNodeId}_${poleId}`));
+  openPole(poleId);
+};
+
+window.claimEnroute=async function(poleId){
+  try{
+    await setDoc(doc(db,'charterEnroute',`${currentNodeId}_${poleId}`),{
+      nodeId:currentNodeId,poleId,uid:currentUser.uid,
+      userName:currentUser.displayName||currentUser.email.split('@')[0],
+      startedAt:serverTimestamp()
+    });
+  }catch(e){console.error(e);}
+};
+
+window.addNote=async function(poleId){
+  const input=$('note-input-'+poleId);
+  const text=input?.value?.trim();
+  if(!text) return;
+  vibrate();
+  await addDoc(collection(db,'charterNotes'),{
+    nodeId:currentNodeId,poleId,text,uid:currentUser.uid,
+    userName:currentUser.displayName||currentUser.email.split('@')[0],
+    createdAt:serverTimestamp()
+  });
+  input.value='';
+  openPole(poleId);
+};
+
+window.deleteNote=async function(noteId){
+  if(!confirm('Delete note?')) return;
+  await deleteDoc(doc(db,'charterNotes',noteId));
+  vibrate();
+};
+
+window.logBilling=async function(poleId){
+  const code=$('bill-code-'+poleId)?.value;
+  const qty=parseFloat($('bill-qty-'+poleId)?.value);
+  if(!code||!qty||qty<=0){alert('Enter a valid quantity');return;}
+  vibrate();playSound('done');
+  
+  await addDoc(collection(db,'charterBilling'),{
+    nodeId:currentNodeId,poleId,code,qty,uid:currentUser.uid,
+    userName:currentUser.displayName||currentUser.email.split('@')[0],
+    createdAt:serverTimestamp()
+  });
+  $('bill-qty-'+poleId).value='';
+  openPole(poleId);
+};
+
+// ============ MENU ============
+window.showMenu=function(){
+  const modal=$('menu-modal');
+  modal.querySelector('.modal-content').innerHTML=`
+  <div class="slide-up">
+    <div class="flex items-center gap-3 mb-6">
+      <div class="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);border:2px solid #f0c040">
+        ${(currentUser?.displayName||currentUser?.email||'?')[0].toUpperCase()}
+      </div>
+      <div>
+        <p class="font-semibold">${currentUser?.displayName||'User'}</p>
+        <p class="text-xs text-gray-400">${currentUser?.email}</p>
+      </div>
+    </div>
+    <div class="space-y-2">
+      <div class="glass p-3 rounded-xl text-sm">
+        <span class="text-gray-400">Node:</span> <span class="font-semibold">${currentNode?.name||'—'}</span>
+      </div>
+      <div class="glass p-3 rounded-xl text-sm">
+        <span class="text-gray-400">Invite Code:</span> <span class="font-mono font-bold gold-text">${currentNode?.inviteCode||'—'}</span>
+      </div>
+      <div class="glass p-3 rounded-xl text-sm">
+        <span class="text-gray-400">Progress:</span> <span class="font-semibold">${completedCount()}/${GT30E_POLES.length} (${progressPct()}%)</span>
+      </div>
+      <button onclick="downloadCSV()" class="btn-primary w-full p-3 rounded-xl text-sm mt-4">📥 Download CSV</button>
+      <button onclick="signOut(auth);closeMenu()" class="w-full p-3 rounded-xl text-sm text-gray-400 glass mt-2">Sign Out</button>
+    </div>
+  </div>`;
+  modal.classList.remove('hidden');
+};
+
+window.closeMenu=function(){ $('menu-modal').classList.add('hidden'); };
+
+window.downloadCSV=function(){
+  let csv='Pole,Status,Completed By,Date,Billing\n';
+  GT30E_POLES.forEach(p=>{
+    const done=completions[p.id];
+    const bills=Object.values(billingEntries).filter(b=>b.poleId===p.id).map(b=>`${b.code}:${b.qty}`).join('; ');
+    csv+=`"${p.name}",${done?'Complete':'Pending'},"${done?.userName||''}","${done?.completedAt?.toDate?.()?.toLocaleDateString()||''}","${bills}"\n`;
+  });
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`charter-${currentNode?.name||'report'}-${new Date().toISOString().split('T')[0]}.csv`;a.click();
+};
+
+// ============ VIEW TOGGLE ============
+window.toggleView=function(){
+  currentView=currentView==='list'?'map':'list';
+  renderMainApp();
+};
+
+// ============ FIRESTORE SUBSCRIPTIONS ============
+function subscribeToData(){
+  // Clear old subs
+  unsubscribers.forEach(u=>u());
+  unsubscribers=[];
+  
+  // Completions
+  unsubscribers.push(onSnapshot(
+    query(collection(db,'charterCompletions'),where('nodeId','==',currentNodeId)),
+    snap=>{
+      completions={};
+      snap.forEach(d=>{const data=d.data();completions[data.poleId]=data;});
+      renderPoleList();
+    }
+  ));
+  
+  // Enroutes
+  unsubscribers.push(onSnapshot(
+    query(collection(db,'charterEnroute'),where('nodeId','==',currentNodeId)),
+    snap=>{
+      enroutes={};
+      snap.forEach(d=>{const data=d.data();enroutes[data.poleId]=data;});
+      renderPoleList();
+    }
+  ));
+  
+  // Notes
+  unsubscribers.push(onSnapshot(
+    query(collection(db,'charterNotes'),where('nodeId','==',currentNodeId)),
+    snap=>{
+      notes={};
+      snap.forEach(d=>{notes[d.id]={...d.data(),id:d.id};});
+    }
+  ));
+  
+  // Billing
+  unsubscribers.push(onSnapshot(
+    query(collection(db,'charterBilling'),where('nodeId','==',currentNodeId)),
+    snap=>{
+      billingEntries={};
+      snap.forEach(d=>{billingEntries[d.id]={...d.data(),id:d.id};});
+    }
+  ));
+}
+
+// ============ GPS CHECK ============
+function checkGPS(){
+  return new Promise((resolve)=>{
+    if(!navigator.geolocation){resolve(false);return;}
+    navigator.geolocation.getCurrentPosition(()=>resolve(true),()=>resolve(false),{timeout:5000});
+  });
+}
+
+// ============ AUTH STATE ============
+onAuthStateChanged(auth,async(user)=>{
+  if(user){
+    currentUser=user;
+    // Check GPS
+    const hasGPS=await checkGPS();
+    if(!hasGPS){
+      $('app').innerHTML=`
+      <div class="min-h-screen flex items-center justify-center p-4" style="background:#0f0a1a">
+        <div class="glass-card p-8 text-center max-w-sm">
+          <div class="text-5xl mb-4">📍</div>
+          <h2 class="text-xl font-bold mb-2">Location Required</h2>
+          <p class="text-gray-400 mb-4">Global Route needs GPS access to track your work locations.</p>
+          <button onclick="location.reload()" class="btn-primary w-full">Try Again</button>
+        </div>
+      </div>`;
+      return;
+    }
+    loadUserNode();
+  }else{
+    currentUser=null;currentNode=null;currentNodeId=null;
+    unsubscribers.forEach(u=>u());unsubscribers=[];
+    renderLogin();
+  }
+});
+</script>
+</body>
+</html>
