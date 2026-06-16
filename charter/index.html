@@ -57,7 +57,7 @@ body{font-family:'Inter',system-ui,sans-serif;background:#0f0a1a;color:#e2e8f0;o
 
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import{getAuth,onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,signInWithPopup,GoogleAuthProvider,updateProfile,signOut}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import{getAuth,onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,signInWithPopup,signInWithRedirect,getRedirectResult,GoogleAuthProvider,updateProfile,signOut}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import{getFirestore,collection,doc,setDoc,getDoc,getDocs,onSnapshot,query,where,orderBy,deleteDoc,updateDoc,serverTimestamp,Timestamp,addDoc}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import{getStorage,ref as storageRef,uploadBytes,getDownloadURL}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
@@ -466,9 +466,14 @@ window.doSignup=async function(){
 };
 
 window.doGoogle=async function(){
-  try{await signInWithPopup(auth,new GoogleAuthProvider());}
-  catch(e){if(e.code!=='auth/popup-closed-by-user') showAuthError(e.message);}
-};
+  const provider=new GoogleAuthProvider();
+  const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  try{
+    if(isMobile){await signInWithRedirect(auth,provider);}
+    else{await signInWithPopup(auth,provider);}
+  }catch(e){if(e.code!=='auth/popup-closed-by-user') showAuthError(e.message);}
+}
+getRedirectResult(auth).catch(()=>{});;
 
 // ============ INVITE CODE ============
 function renderInviteCode(){
