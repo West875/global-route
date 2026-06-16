@@ -444,25 +444,29 @@ function renderLogin(){
 }
 
 function showAuthError(msg){
+  const clean=msg.replace('Firebase:','').replace(/\(auth\/.*\)/,'').trim();
   const el=$('auth-error');
-  el.textContent=msg;el.classList.remove('hidden');
+  if(el){el.textContent=clean;el.classList.remove('hidden');}
+  alert(clean);
 }
 
 window.doLogin=async function(){
-  const email=$('auth-email').value.trim();
-  const pass=$('auth-pass').value;
+  const email=$('auth-email')?.value?.trim();
+  const pass=$('auth-pass')?.value;
   if(!email||!pass) return showAuthError('Enter email and password');
+  const btn=$('btn-login');if(btn)btn.textContent='Signing in...';
   try{await signInWithEmailAndPassword(auth,email,pass);}
-  catch(e){showAuthError(e.message.replace('Firebase:',''));}
+  catch(e){if(btn)btn.textContent='Sign In';showAuthError(e.message);}
 };
 
 window.doSignup=async function(){
-  const email=$('auth-email').value.trim();
-  const pass=$('auth-pass').value;
+  const email=$('auth-email')?.value?.trim();
+  const pass=$('auth-pass')?.value;
   if(!email||!pass) return showAuthError('Enter email and password');
   if(pass.length<6) return showAuthError('Password must be 6+ characters');
+  const btn=$('btn-signup');if(btn)btn.textContent='Creating account...';
   try{await createUserWithEmailAndPassword(auth,email,pass);}
-  catch(e){showAuthError(e.message.replace('Firebase:',''));}
+  catch(e){if(btn)btn.textContent='Create Account';showAuthError(e.message);}
 };
 
 window.doGoogle=async function(){
