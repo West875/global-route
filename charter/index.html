@@ -419,6 +419,7 @@ let userAvatarURL = null;
 let notes = {};
 let billingEntries = {};
 let polePhotos = {};
+let ticMarks = {};
 let unsubscribers = [];
 let mapInstance = null;
 let markers = {};
@@ -939,17 +940,31 @@ function initMap(){
     const enr=enroutes[p.id];
     
     let color='#3b82f6'; // blue
-    if(done) color='#6b7280'; // gray
-    else if(enr) color='#f59e0b'; // amber
+    let colorDark='#2563eb';
+    let colorLight='#60a5fa';
+    if(done){ color='#6b7280'; colorDark='#4b5563'; colorLight='#9ca3af'; }
+    else if(enr){ color='#f59e0b'; colorDark='#d97706'; colorLight='#fbbf24'; }
     
-    const label=(p.name||'').length>4 ? (p.name||'').slice(0,4) : (p.name||'');
+    const label=(p.name||'').length>5 ? (p.name||'').slice(0,5) : (p.name||'');
     const icon=L.divIcon({
       className:'',
-      html:'<div style="width:32px;height:40px;position:relative;display:flex;align-items:flex-start;justify-content:center;">'+
-        '<svg width="32" height="40" viewBox="0 0 32 40"><path d="M16 0C7.16 0 0 7.16 0 16c0 12 16 24 16 24s16-12 16-24C32 7.16 24.84 0 16 0z" fill="'+color+'"/><circle cx="16" cy="14" r="8" fill="white" fill-opacity="0.3"/></svg>'+
-        '<div style="position:absolute;top:5px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:900;color:white;text-shadow:0 1px 2px rgba(0,0,0,0.5);white-space:nowrap;">'+label+'</div>'+
+      html:'<div style="position:relative;filter:drop-shadow(1px 2px 3px rgba(0,0,0,0.5));">'+
+        '<svg width="28" height="44" viewBox="0 0 28 44" xmlns="http://www.w3.org/2000/svg">'+
+          '<defs>'+
+            '<radialGradient id="head_'+p.id.replace(/[^a-zA-Z0-9]/g,"")+'" cx="40%" cy="35%" r="50%">'+
+              '<stop offset="0%" stop-color="'+colorLight+'"/>'+
+              '<stop offset="100%" stop-color="'+colorDark+'"/>'+
+            '</radialGradient>'+
+          '</defs>'+
+          '<ellipse cx="14" cy="40" rx="4" ry="1.5" fill="rgba(0,0,0,0.3)"/>'+
+          '<line x1="14" y1="22" x2="14" y2="40" stroke="#888" stroke-width="2"/>'+
+          '<line x1="14" y1="22" x2="14" y2="40" stroke="#aaa" stroke-width="1" stroke-dasharray="0" opacity="0.5"/>'+
+          '<circle cx="14" cy="12" r="11" fill="url(#head_'+p.id.replace(/[^a-zA-Z0-9]/g,"")+')" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>'+
+          '<ellipse cx="11" cy="9" rx="4" ry="3" fill="rgba(255,255,255,0.25)" transform="rotate(-20,11,9)"/>'+
+        '</svg>'+
+        '<div style="position:absolute;top:4px;left:0;right:0;text-align:center;font-size:8px;font-weight:800;color:white;text-shadow:0 1px 2px rgba(0,0,0,0.7);line-height:16px;">'+label+'</div>'+
       '</div>',
-      iconSize:[32,40],iconAnchor:[16,40]
+      iconSize:[28,44],iconAnchor:[14,40]
     });
     
     const m=L.marker([p.lat,p.lon],{icon}).addTo(mapInstance);
@@ -1081,6 +1096,19 @@ window.openPole=function(poleId){
       <button onclick="toggleBilling('${poleId}')" class="btn-primary p-3 rounded-xl text-sm" style="background:linear-gradient(135deg,#3b82f6,#7c3aed)">💰 Bill</button>
     </div>
     
+    <!-- Tic Mark -->
+    <div class="glass rounded-xl p-3 mb-4">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-semibold text-sm text-gray-400">📏 TIC MARK (footage)</h3>
+        <span class="text-xs text-gray-500" id="tic-saved-${poleId}"></span>
+      </div>
+      <div class="flex gap-2">
+        <input id="tic-input-${poleId}" class="input-field text-sm flex-1" type="number" placeholder="Enter tic mark footage..." value="${ticMarks[poleId]?.footage||''}" min="0" step="1">
+        <button onclick="saveTicMark('${poleId}')" class="btn-gold p-2 rounded-xl text-sm px-4">💾 Save</button>
+      </div>
+      ${ticMarks[poleId]?'<div class=\"text-xs text-gray-500 mt-1\">Last: '+ticMarks[poleId].footage+' ft by '+(ticMarks[poleId].userName||'')+'</div>':''}
+    </div>
+    
     <!-- Billing Entries -->
     <div id="billing-section-${poleId}" class="hidden mb-4">
       <h3 class="font-semibold text-sm mb-2 text-gray-400">LOG BILLING</h3>
@@ -1134,7 +1162,23 @@ window.openPole=function(poleId){
   $('pole-modal').classList.remove('hidden');
 };
 
-window.closePoleModal=function(){ $('pole-modal').classList.add('hidden'); };
+window.closePoleModal=function(){ $('pole-modal').classList.add('hidden'); }
+
+window.saveTicMark=async function(poleId){
+  if(!currentUser) return;
+  const input=$('tic-input-'+poleId);
+  const footage=parseInt(input?.value);
+  if(isNaN(footage)||footage<0){ alert('Enter a valid footage number'); return; }
+  vibrate();playSound('complete');
+  await setDoc(doc(db,'charterTicMarks',poleId),{
+    poleId,nodeId:currentNodeId,footage,
+    userId:currentUser.uid,
+    userName:currentUser.displayName||currentUser.email.split('@')[0],
+    updatedAt:serverTimestamp()
+  },{merge:true});
+  const saved=$('tic-saved-'+poleId);
+  if(saved){ saved.textContent='✅ Saved!'; setTimeout(()=>saved.textContent='',2000); }
+};;
 // ============ TIMEMARK WATERMARK ============
 function drawTimemarkWatermark(ctx,w,h,opts){
   var now=new Date();
