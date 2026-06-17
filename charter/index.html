@@ -19,7 +19,7 @@
 :root{
   --bg-deep:#0a0814;--bg-surface:rgba(18,14,35,0.85);--bg-elevated:rgba(28,22,52,0.9);
   --bg-card:rgba(22,18,42,0.75);--border-subtle:rgba(139,92,246,0.12);
-  --border-medium:rgba(139,92,246,0.22);--accent:#8b5cf6;--gold:#d4af37;--gold-light:#f0d060;
+  --border-medium:rgba(139,92,246,0.22);--accent:#3b82f6;--gold:#d4af37;--gold-light:#f0d060;
   --text-primary:#f1f0f5;--text-secondary:#a8a3b8;--text-muted:#6b6580;
   --radius-md:12px;--radius-lg:16px;
   --shadow-card:0 2px 12px rgba(0,0,0,0.25),0 0 0 1px var(--border-subtle);
@@ -31,7 +31,7 @@ html,body{font-family:'Inter',system-ui,-apple-system,sans-serif;-webkit-font-sm
 .glass-card{background:var(--bg-card);backdrop-filter:blur(20px) saturate(1.2);-webkit-backdrop-filter:blur(20px) saturate(1.2);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);box-shadow:var(--shadow-card);transition:transform 250ms cubic-bezier(0.4,0,0.2,1),box-shadow 250ms cubic-bezier(0.4,0,0.2,1)}
 .glass-card:hover{box-shadow:var(--shadow-elevated)}
 .gold-text{color:var(--gold-light);font-family:'Playfair Display',serif;letter-spacing:0.02em}
-.btn-primary{background:linear-gradient(135deg,#7c3aed,#8b5cf6);border:none;color:#fff;padding:12px 24px;border-radius:var(--radius-md);font-weight:600;cursor:pointer;transition:all 150ms cubic-bezier(0.4,0,0.2,1);box-shadow:0 4px 15px rgba(139,92,246,0.3)}
+.btn-primary{background:linear-gradient(135deg,#7c3aed,#3b82f6);border:none;color:#fff;padding:12px 24px;border-radius:var(--radius-md);font-weight:600;cursor:pointer;transition:all 150ms cubic-bezier(0.4,0,0.2,1);box-shadow:0 4px 15px rgba(139,92,246,0.3)}
 .btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(124,58,237,0.4)}
 .btn-primary:active{transform:scale(0.97)}
 .btn-gold{background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;font-weight:700}
@@ -937,7 +937,7 @@ function initMap(){
     const done=completions[p.id];
     const enr=enroutes[p.id];
     
-    let color='#8b5cf6'; // purple
+    let color='#3b82f6'; // purple
     if(done) color='#6b7280'; // gray
     else if(enr) color='#f59e0b'; // amber
     
@@ -1073,7 +1073,7 @@ window.openPole=function(poleId){
       <button onclick="toggleNotes('${poleId}')" class="btn-primary p-3 rounded-xl text-sm">💬 Notes</button>
       <button onclick="openPhotoCapture('${poleId}','pole','${pole.name}')" class="btn-primary p-3 rounded-xl text-sm" style="background:linear-gradient(135deg,#ec4899,#db2777)">📸 Photo</button>
       <button onclick="${done?`undoComplete('${poleId}')`:`markComplete('${poleId}')`}" class="btn-primary p-3 rounded-xl text-sm ${done?'btn-amber':'btn-green'}">${done?'↩️ Undo':'✅ Done'}</button>
-      <button onclick="toggleBilling('${poleId}')" class="btn-primary p-3 rounded-xl text-sm" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed)">💰 Bill</button>
+      <button onclick="toggleBilling('${poleId}')" class="btn-primary p-3 rounded-xl text-sm" style="background:linear-gradient(135deg,#3b82f6,#7c3aed)">💰 Bill</button>
     </div>
     
     <!-- Billing Entries -->
