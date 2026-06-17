@@ -946,25 +946,34 @@ function initMap(){
     else if(enr){ color='#f59e0b'; colorDark='#d97706'; colorLight='#fbbf24'; }
     
     const label=(p.name||'').length>5 ? (p.name||'').slice(0,5) : (p.name||'');
+    const uid=p.id.replace(/[^a-zA-Z0-9]/g,"");
     const icon=L.divIcon({
       className:'',
-      html:'<div style="position:relative;filter:drop-shadow(1px 2px 3px rgba(0,0,0,0.5));">'+
-        '<svg width="28" height="44" viewBox="0 0 28 44" xmlns="http://www.w3.org/2000/svg">'+
+      html:'<div style="position:relative;filter:drop-shadow(2px 3px 4px rgba(0,0,0,0.6));">'+
+        '<svg width="36" height="52" viewBox="0 0 36 52" xmlns="http://www.w3.org/2000/svg">'+
           '<defs>'+
-            '<radialGradient id="head_'+p.id.replace(/[^a-zA-Z0-9]/g,"")+'" cx="40%" cy="35%" r="50%">'+
+            '<radialGradient id="cap_'+uid+'" cx="38%" cy="32%" r="55%">'+
               '<stop offset="0%" stop-color="'+colorLight+'"/>'+
+              '<stop offset="60%" stop-color="'+color+'"/>'+
               '<stop offset="100%" stop-color="'+colorDark+'"/>'+
             '</radialGradient>'+
+            '<linearGradient id="pin_'+uid+'" x1="0" y1="0" x2="0" y2="1">'+
+              '<stop offset="0%" stop-color="#ccc"/>'+
+              '<stop offset="50%" stop-color="#999"/>'+
+              '<stop offset="100%" stop-color="#666"/>'+
+            '</linearGradient>'+
           '</defs>'+
-          '<ellipse cx="14" cy="40" rx="4" ry="1.5" fill="rgba(0,0,0,0.3)"/>'+
-          '<line x1="14" y1="22" x2="14" y2="40" stroke="#888" stroke-width="2"/>'+
-          '<line x1="14" y1="22" x2="14" y2="40" stroke="#aaa" stroke-width="1" stroke-dasharray="0" opacity="0.5"/>'+
-          '<circle cx="14" cy="12" r="11" fill="url(#head_'+p.id.replace(/[^a-zA-Z0-9]/g,"")+')" stroke="rgba(255,255,255,0.6)" stroke-width="1.5"/>'+
-          '<ellipse cx="11" cy="9" rx="4" ry="3" fill="rgba(255,255,255,0.25)" transform="rotate(-20,11,9)"/>'+
+          '<ellipse cx="18" cy="49" rx="5" ry="2" fill="rgba(0,0,0,0.25)"/>'+
+          '<polygon points="16,22 20,22 18.5,48 17.5,48" fill="url(#pin_'+uid+')"/>'+
+          '<line x1="17" y1="22" x2="17" y2="47" stroke="rgba(255,255,255,0.3)" stroke-width="0.5"/>'+
+          '<circle cx="18" cy="14" r="13" fill="url(#cap_'+uid+')" stroke="'+colorDark+'" stroke-width="1.5"/>'+
+          '<circle cx="18" cy="14" r="11" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>'+
+          '<ellipse cx="13" cy="9" rx="6" ry="4" fill="rgba(255,255,255,0.3)" transform="rotate(-25,13,9)"/>'+
+          '<ellipse cx="14" cy="8" rx="3" ry="2" fill="rgba(255,255,255,0.25)" transform="rotate(-25,14,8)"/>'+
         '</svg>'+
-        '<div style="position:absolute;top:4px;left:0;right:0;text-align:center;font-size:8px;font-weight:800;color:white;text-shadow:0 1px 2px rgba(0,0,0,0.7);line-height:16px;">'+label+'</div>'+
+        '<div style="position:absolute;top:5px;left:0;right:0;text-align:center;font-size:10px;font-weight:900;color:white;text-shadow:0 1px 3px rgba(0,0,0,0.8);line-height:18px;">'+label+'</div>'+
       '</div>',
-      iconSize:[28,44],iconAnchor:[14,40]
+      iconSize:[36,52],iconAnchor:[18,49]
     });
     
     const m=L.marker([p.lat,p.lon],{icon}).addTo(mapInstance);
