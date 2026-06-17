@@ -62,6 +62,7 @@ html,body{font-family:'Inter',system-ui,-apple-system,sans-serif;-webkit-font-sm
 .modal-content{background:#1e1b2e;border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:24px;max-width:400px;width:90%;max-height:80vh;overflow-y:auto}
 .invite-input{font-size:32px;text-align:center;letter-spacing:8px;text-transform:uppercase;font-weight:700;font-family:'Inter',monospace}
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
+@keyframes gpsPulse{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,0.5)}50%{box-shadow:0 0 0 12px rgba(59,130,246,0)}}
 </style>
 </head>
 <body>
@@ -1055,11 +1056,12 @@ function initMap(){
   // Store for toggle
   window._fiberLayers=fiberLayers;
 
-  // GPS My Location button
-  const gpsBtn = L.control({position:'bottomleft'});
+  // ===== GPS CROSSHAIR BUTTON (top-right) =====
+  const gpsBtn = L.control({position:'topright'});
   gpsBtn.onAdd = function(){
     const div = L.DomUtil.create('div','');
-    div.innerHTML = '<button id="gpsLocateBtn" style="width:48px;height:48px;border-radius:14px;border:none;background:rgba(30,30,40,0.88);backdrop-filter:blur(12px);color:white;font-size:24px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;margin-bottom:8px;" title="My Location">📍</button>';
+    div.style.marginTop = '10px';
+    div.innerHTML = '<button id="gpsLocateBtn" style="width:44px;height:44px;border-radius:10px;border:2px solid rgba(255,255,255,0.3);background:rgba(20,20,30,0.9);backdrop-filter:blur(12px);color:white;font-size:20px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;" title="My Location"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg></button>';
     L.DomEvent.disableClickPropagation(div);
     return div;
   };
@@ -1075,38 +1077,82 @@ function initMap(){
       gpsWatchId=null;
       if(gpsMarker){mapInstance.removeLayer(gpsMarker);gpsMarker=null;}
       if(gpsCircle){mapInstance.removeLayer(gpsCircle);gpsCircle=null;}
-      btn.style.background='rgba(30,30,40,0.88)';
-      btn.style.boxShadow='0 2px 10px rgba(0,0,0,0.5)';
+      btn.style.background='rgba(20,20,30,0.9)';
+      btn.style.borderColor='rgba(255,255,255,0.3)';
       return;
     }
     gpsTracking=true;
     btn.style.background='rgba(59,130,246,0.9)';
-    btn.style.boxShadow='0 0 14px rgba(59,130,246,0.6)';
-    btn.innerHTML='⏳';
+    btn.style.borderColor='rgba(59,130,246,0.8)';
     function updatePos(pos){
       const lat=pos.coords.latitude,lon=pos.coords.longitude,acc=pos.coords.accuracy;
-      btn.innerHTML='📍';
       if(gpsMarker){
         gpsMarker.setLatLng([lat,lon]);
         gpsCircle.setLatLng([lat,lon]).setRadius(acc);
       } else {
-        gpsCircle=L.circle([lat,lon],{radius:acc,color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:0.1,weight:1}).addTo(mapInstance);
+        gpsCircle=L.circle([lat,lon],{radius:acc,color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:0.12,weight:1.5}).addTo(mapInstance);
         gpsMarker=L.marker([lat,lon],{icon:L.divIcon({
           className:'',
-          html:'<div style="width:20px;height:20px;background:#3b82f6;border:3px solid white;border-radius:50%;box-shadow:0 0 12px rgba(59,130,246,0.7),0 2px 6px rgba(0,0,0,0.3);"></div>',
+          html:'<div style="width:20px;height:20px;background:#3b82f6;border:3px solid white;border-radius:50%;box-shadow:0 0 14px rgba(59,130,246,0.7),0 2px 6px rgba(0,0,0,0.3);animation:gpsPulse 2s infinite;"></div>',
           iconSize:[20,20],iconAnchor:[10,10]
         }),zIndexOffset:9999}).addTo(mapInstance);
         mapInstance.setView([lat,lon],16);
       }
     }
     function onErr(err){
-      btn.innerHTML='❌'; gpsTracking=false;
-      btn.style.background='rgba(30,30,40,0.88)';
-      setTimeout(()=>{btn.innerHTML='📍';},2000);
+      gpsTracking=false;
+      btn.style.background='rgba(20,20,30,0.9)';
+      btn.style.borderColor='rgba(255,255,255,0.3)';
     }
     navigator.geolocation.getCurrentPosition(updatePos,onErr,{enableHighAccuracy:true,timeout:10000});
     gpsWatchId=navigator.geolocation.watchPosition(updatePos,onErr,{enableHighAccuracy:true,maximumAge:5000});
   });
+
+  // ===== CREW LOCATION TRACKING =====
+  const crewMarkers = {};
+  const presenceRef = collection(db, 'charterPresence');
+  onSnapshot(presenceRef, snap => {
+    const now = Date.now();
+    snap.forEach(docSnap => {
+      const d = docSnap.data();
+      const uid = docSnap.id;
+      if(uid === currentUser?.uid) return; // skip self (shown by GPS button)
+      const age = now - (d.updatedAt?.toMillis?.() || 0);
+      if(age > 10*60*1000){ // stale > 10 min
+        if(crewMarkers[uid]){ mapInstance.removeLayer(crewMarkers[uid]); delete crewMarkers[uid]; }
+        return;
+      }
+      const name = (d.displayName || 'Crew').split(' ')[0];
+      const photo = d.photoURL || '';
+      const photoHtml = photo
+        ? '<img src="'+photo+'" style="width:36px;height:36px;border-radius:50%;border:2px solid #3b82f6;object-fit:cover;">'
+        : '<div style="width:36px;height:36px;border-radius:50%;background:#3b82f6;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:14px;">'+name[0]+'</div>';
+      const iconHtml = '<div style="position:relative;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4));">'+photoHtml+'<div style="position:absolute;bottom:-2px;right:-2px;font-size:14px;">🚗</div></div>';
+      
+      if(crewMarkers[uid]){
+        crewMarkers[uid].setLatLng([d.lat, d.lon]);
+      } else {
+        crewMarkers[uid] = L.marker([d.lat, d.lon], {
+          icon: L.divIcon({className:'',html:iconHtml,iconSize:[40,40],iconAnchor:[20,20]}),
+          zIndexOffset: 8000
+        }).bindPopup('<b>'+name+'</b><br>Last seen: '+ new Date(d.updatedAt?.toMillis?.() || now).toLocaleTimeString()).addTo(mapInstance);
+      }
+    });
+  });
+
+  // Broadcast own location to charterPresence
+  if(currentUser){
+    const myPresenceRef = doc(db, 'charterPresence', currentUser.uid);
+    let presenceWatchId = navigator.geolocation.watchPosition(pos => {
+      setDoc(myPresenceRef, {
+        lat: pos.coords.latitude,
+        lon: pos.coords.longitude,
+        displayName: currentUser.displayName || currentUser.email,
+        photoURL: currentUser.photoURL || '',
+        updatedAt: serverTimestamp()
+      }, {merge:true});
+    }, ()=>{}, {enableHighAccuracy:true, maximumAge:10000, timeout:15000});
+  }
 }
 
 // ============ POLE DETAIL ============
