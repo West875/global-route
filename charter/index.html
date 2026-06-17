@@ -492,7 +492,7 @@ function renderInviteCode(){
       </div>
       <input id="invite-input" class="input-field invite-input mb-4" maxlength="6" placeholder="------" autocomplete="off" oninput="this.value=this.value.toUpperCase()">
       <button class="btn-gold w-full mb-3 p-3 rounded-xl" onclick="submitInviteCode()">Join Node</button>
-      <button class="text-gray-500 text-sm w-full text-center mt-2" onclick="signOut(auth)">Sign Out</button>
+      <button class="text-gray-500 text-sm w-full text-center mt-2" onclick="doSignOut()">Sign Out</button>
       <p id="invite-error" class="text-red-400 text-sm mt-3 text-center hidden"></p>
     </div>
   </div>`;
@@ -927,6 +927,7 @@ window.showMenu=function(){
 };
 
 window.closeMenu=function(){ $('menu-modal').classList.add('hidden'); };
+window.doSignOut=function(){ signOut(auth); };
 
 window.downloadCSV=function(){
   let csv='Pole,Status,Completed By,Date,Billing\n';
@@ -1012,7 +1013,7 @@ async function requestGPSLoop(){
       <p class="text-gray-400 mb-3">Global Route needs GPS access to track your work locations.</p>
       <p class="text-gray-500 text-xs mb-4">On your phone: Settings → Privacy → Location Services → ensure your browser has "While Using" enabled.</p>
       <button id="gps-retry-btn" class="btn-primary w-full" onclick="retryGPS()">📍 Allow Location & Continue</button>
-      <button class="w-full text-gray-500 text-xs mt-3 p-2" onclick="signOut(auth)">Sign Out</button>
+      <button class="w-full text-gray-500 text-xs mt-3 p-2" onclick="doSignOut()">Sign Out</button>
     </div>
   </div>`;
 }
