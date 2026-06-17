@@ -1054,7 +1054,6 @@ function initMap(){
   
   // Store for toggle
   window._fiberLayers=fiberLayers;
-}
 
   // GPS My Location button
   const gpsBtn = L.control({position:'bottomleft'});
@@ -1108,6 +1107,7 @@ function initMap(){
     navigator.geolocation.getCurrentPosition(updatePos,onErr,{enableHighAccuracy:true,timeout:10000});
     gpsWatchId=navigator.geolocation.watchPosition(updatePos,onErr,{enableHighAccuracy:true,maximumAge:5000});
   });
+}
 
 // ============ POLE DETAIL ============
 window.openPole=function(poleId){
