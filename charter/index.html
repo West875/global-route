@@ -1056,6 +1056,59 @@ function initMap(){
   window._fiberLayers=fiberLayers;
 }
 
+  // GPS My Location button
+  const gpsBtn = L.control({position:'bottomleft'});
+  gpsBtn.onAdd = function(){
+    const div = L.DomUtil.create('div','');
+    div.innerHTML = '<button id="gpsLocateBtn" style="width:48px;height:48px;border-radius:14px;border:none;background:rgba(30,30,40,0.88);backdrop-filter:blur(12px);color:white;font-size:24px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;margin-bottom:8px;" title="My Location">📍</button>';
+    L.DomEvent.disableClickPropagation(div);
+    return div;
+  };
+  gpsBtn.addTo(mapInstance);
+
+  let gpsMarker=null, gpsCircle=null, gpsTracking=false, gpsWatchId=null;
+  document.addEventListener('click',function(e){
+    if(!e.target.closest('#gpsLocateBtn')) return;
+    const btn=document.getElementById('gpsLocateBtn');
+    if(gpsTracking){
+      gpsTracking=false;
+      if(gpsWatchId) navigator.geolocation.clearWatch(gpsWatchId);
+      gpsWatchId=null;
+      if(gpsMarker){mapInstance.removeLayer(gpsMarker);gpsMarker=null;}
+      if(gpsCircle){mapInstance.removeLayer(gpsCircle);gpsCircle=null;}
+      btn.style.background='rgba(30,30,40,0.88)';
+      btn.style.boxShadow='0 2px 10px rgba(0,0,0,0.5)';
+      return;
+    }
+    gpsTracking=true;
+    btn.style.background='rgba(59,130,246,0.9)';
+    btn.style.boxShadow='0 0 14px rgba(59,130,246,0.6)';
+    btn.innerHTML='⏳';
+    function updatePos(pos){
+      const lat=pos.coords.latitude,lon=pos.coords.longitude,acc=pos.coords.accuracy;
+      btn.innerHTML='📍';
+      if(gpsMarker){
+        gpsMarker.setLatLng([lat,lon]);
+        gpsCircle.setLatLng([lat,lon]).setRadius(acc);
+      } else {
+        gpsCircle=L.circle([lat,lon],{radius:acc,color:'#3b82f6',fillColor:'#3b82f6',fillOpacity:0.1,weight:1}).addTo(mapInstance);
+        gpsMarker=L.marker([lat,lon],{icon:L.divIcon({
+          className:'',
+          html:'<div style="width:20px;height:20px;background:#3b82f6;border:3px solid white;border-radius:50%;box-shadow:0 0 12px rgba(59,130,246,0.7),0 2px 6px rgba(0,0,0,0.3);"></div>',
+          iconSize:[20,20],iconAnchor:[10,10]
+        }),zIndexOffset:9999}).addTo(mapInstance);
+        mapInstance.setView([lat,lon],16);
+      }
+    }
+    function onErr(err){
+      btn.innerHTML='❌'; gpsTracking=false;
+      btn.style.background='rgba(30,30,40,0.88)';
+      setTimeout(()=>{btn.innerHTML='📍';},2000);
+    }
+    navigator.geolocation.getCurrentPosition(updatePos,onErr,{enableHighAccuracy:true,timeout:10000});
+    gpsWatchId=navigator.geolocation.watchPosition(updatePos,onErr,{enableHighAccuracy:true,maximumAge:5000});
+  });
+
 // ============ POLE DETAIL ============
 window.openPole=function(poleId){
   const pole=GT30E_POLES.find(p=>p.id===poleId);
