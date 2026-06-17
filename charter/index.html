@@ -933,7 +933,38 @@ function initMap(){
   const bounds=[[Math.min(...lats)-0.002,Math.min(...lons)-0.003],[Math.max(...lats)+0.002,Math.max(...lons)+0.003]];
   
   mapInstance=L.map('map',{zoomControl:false,attributionControl:false}).fitBounds(bounds);
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:20}).addTo(mapInstance);
+  // Map tile layers
+  const baseLayers = {
+    'Satellite': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:20}),
+    'Terrain': L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'OpenTopoMap'}),
+    'Street': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'OSM'}),
+    'Hybrid': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:20})
+  };
+  const labelsLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:20,pane:'overlayPane'});
+  baseLayers['Satellite'].addTo(mapInstance);
+  let currentBase = 'Satellite';
+  
+  // Layer switcher button (bottom-right, above GPS)
+  const layerNames = ['Satellite','Terrain','Street','Hybrid'];
+  const layerIcons = {'Satellite':'🛰️','Terrain':'🏔️','Street':'🗺️','Hybrid':'🛰️+'};
+  const mapC2 = document.getElementById('map-container');
+  const layerBtn = document.createElement('button');
+  layerBtn.id = 'layerSwitchBtn';
+  layerBtn.innerHTML = '🛰️';
+  layerBtn.title = 'Switch map type';
+  layerBtn.style.cssText = 'position:absolute;bottom:84px;right:16px;z-index:1000;width:50px;height:50px;border-radius:50%;border:2px solid rgba(255,255,255,0.4);background:rgba(20,20,30,0.92);backdrop-filter:blur(12px);color:white;font-size:22px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;';
+  mapC2.style.position='relative';
+  mapC2.appendChild(layerBtn);
+  layerBtn.addEventListener('click',()=>{
+    const idx = (layerNames.indexOf(currentBase)+1)%layerNames.length;
+    mapInstance.removeLayer(baseLayers[currentBase]);
+    if(currentBase==='Hybrid') mapInstance.removeLayer(labelsLayer);
+    currentBase = layerNames[idx];
+    baseLayers[currentBase].addTo(mapInstance);
+    if(currentBase==='Hybrid') labelsLayer.addTo(mapInstance);
+    layerBtn.innerHTML = layerIcons[currentBase];
+    layerBtn.title = currentBase;
+  });
   
   // Add markers
   GT30E_POLES.forEach(p=>{
@@ -950,8 +981,8 @@ function initMap(){
     const uid=p.id.replace(/[^a-zA-Z0-9]/g,"");
     const icon=L.divIcon({
       className:'',
-      html:'<div style="position:relative;filter:drop-shadow(2px 3px 4px rgba(0,0,0,0.6));">'+
-        '<svg width="36" height="52" viewBox="0 0 36 52" xmlns="http://www.w3.org/2000/svg">'+
+      html:'<div style="position:relative;filter:drop-shadow(1px 2px 3px rgba(0,0,0,0.5));">'+
+        '<svg width="22" height="32" viewBox="0 0 36 52" xmlns="http://www.w3.org/2000/svg">'+
           '<defs>'+
             '<radialGradient id="cap_'+uid+'" cx="38%" cy="32%" r="55%">'+
               '<stop offset="0%" stop-color="'+colorLight+'"/>'+
@@ -972,9 +1003,9 @@ function initMap(){
           '<ellipse cx="13" cy="9" rx="6" ry="4" fill="rgba(255,255,255,0.3)" transform="rotate(-25,13,9)"/>'+
           '<ellipse cx="14" cy="8" rx="3" ry="2" fill="rgba(255,255,255,0.25)" transform="rotate(-25,14,8)"/>'+
         '</svg>'+
-        '<div style="position:absolute;top:5px;left:0;right:0;text-align:center;font-size:10px;font-weight:900;color:white;text-shadow:0 1px 3px rgba(0,0,0,0.8);line-height:18px;">'+label+'</div>'+
+        '<div style="position:absolute;top:2px;left:0;right:0;text-align:center;font-size:8px;font-weight:900;color:white;text-shadow:0 1px 3px rgba(0,0,0,0.8);line-height:14px;">'+label+'</div>'+
       '</div>',
-      iconSize:[36,52],iconAnchor:[18,49]
+      iconSize:[22,32],iconAnchor:[11,30]
     });
     
     const m=L.marker([p.lat,p.lon],{icon}).addTo(mapInstance);
@@ -1056,16 +1087,14 @@ function initMap(){
   // Store for toggle
   window._fiberLayers=fiberLayers;
 
-  // ===== GPS CROSSHAIR BUTTON (top-right) =====
-  const gpsBtn = L.control({position:'topright'});
-  gpsBtn.onAdd = function(){
-    const div = L.DomUtil.create('div','');
-    div.style.marginTop = '10px';
-    div.innerHTML = '<button id="gpsLocateBtn" style="width:44px;height:44px;border-radius:10px;border:2px solid rgba(255,255,255,0.3);background:rgba(20,20,30,0.9);backdrop-filter:blur(12px);color:white;font-size:20px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;" title="My Location"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg></button>';
-    L.DomEvent.disableClickPropagation(div);
-    return div;
-  };
-  gpsBtn.addTo(mapInstance);
+  // ===== GPS CROSSHAIR BUTTON (floating over map) =====
+  const mapContainer = document.getElementById('map-container');
+  if(!document.getElementById('gpsLocateBtn')){
+    const gpsDiv = document.createElement('div');
+    gpsDiv.innerHTML = '<button id="gpsLocateBtn" style="position:absolute;bottom:24px;right:16px;z-index:1000;width:50px;height:50px;border-radius:50%;border:2px solid rgba(255,255,255,0.4);background:rgba(20,20,30,0.92);backdrop-filter:blur(12px);color:white;font-size:20px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;" title="My Location"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg></button>';
+    mapContainer.style.position='relative';
+    mapContainer.appendChild(gpsDiv);
+  }
 
   let gpsMarker=null, gpsCircle=null, gpsTracking=false, gpsWatchId=null;
   document.addEventListener('click',function(e){
