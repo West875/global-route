@@ -1029,8 +1029,9 @@ window.showMenu=function(){
       <div class="glass p-3 rounded-xl text-sm">
         <span class="text-gray-400">Progress:</span> <span class="font-semibold">${completedCount()}/${GT30E_POLES.length} (${progressPct()}%)</span>
       </div>
-      <button onclick="downloadCSV()" class="btn-primary w-full p-3 rounded-xl text-sm mt-4">📥 Download CSV</button>
-      <button onclick="signOut(auth);closeMenu()" class="w-full p-3 rounded-xl text-sm text-gray-400 glass mt-2">Sign Out</button>
+      <button onclick="changeAvatar()" class="w-full p-3 rounded-xl text-sm glass">📸 Change Photo</button>
+      <button onclick="downloadCSV()" class="btn-primary w-full p-3 rounded-xl text-sm mt-2">📥 Download CSV</button>
+      <button onclick="doSignOut();closeMenu()" class="w-full p-3 rounded-xl text-sm text-gray-400 glass mt-2">Sign Out</button>
     </div>
   </div>`;
   modal.classList.remove('hidden');
@@ -1038,6 +1039,11 @@ window.showMenu=function(){
 
 window.closeMenu=function(){ $('menu-modal').classList.add('hidden'); };
 window.doSignOut=function(){ signOut(auth); };
+
+window.changeAvatar=function(){
+  closeMenu();
+  renderSelfieScreen();
+};
 
 window.downloadCSV=function(){
   let csv='Pole,Status,Completed By,Date,Billing\n';
