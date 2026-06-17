@@ -62,7 +62,10 @@ html,body{font-family:'Inter',system-ui,-apple-system,sans-serif;-webkit-font-sm
 .modal-content{background:#1e1b2e;border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:24px;max-width:400px;width:90%;max-height:80vh;overflow-y:auto}
 .invite-input{font-size:32px;text-align:center;letter-spacing:8px;text-transform:uppercase;font-weight:700;font-family:'Inter',monospace}
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
-@keyframes gpsPulse{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,0.5)}50%{box-shadow:0 0 0 12px rgba(59,130,246,0)}}
+@keyframes confettiFall { 0% { transform: translateY(0) translateX(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(var(--vy, 100vh)) translateX(var(--vx, 0px)) rotate(720deg); opacity: 0; } }
+    @keyframes confettiBannerIn { 0% { opacity: 0; transform: translate(-50%,-50%) scale(0.3); } 50% { transform: translate(-50%,-50%) scale(1.1); } 100% { opacity: 1; transform: translate(-50%,-50%) scale(1); } }
+    @keyframes wave { 0%,100%{transform:rotate(0deg)} 25%{transform:rotate(20deg)} 75%{transform:rotate(-20deg)} }
+    @keyframes gpsPulse{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,0.5)}50%{box-shadow:0 0 0 12px rgba(59,130,246,0)}}
 </style>
 </head>
 <body>
@@ -421,6 +424,7 @@ let notes = {};
 let billingEntries = {};
 let polePhotos = {};
 let ticMarks = {};
+let flags = {};
 let unsubscribers = [];
 let mapInstance = null;
 let markers = {};
@@ -704,6 +708,7 @@ function getFilteredPoles(){
   if(filterMode==='completed') poles=poles.filter(p=>completions[p.id]);
   else if(filterMode==='pending') poles=poles.filter(p=>!completions[p.id]);
   else if(filterMode==='enroute') poles=poles.filter(p=>enroutes[p.id]);
+  else if(filterMode==='flagged') poles=poles.filter(p=>flags[p.id]);
   else if(filterMode.startsWith('CO')) poles=poles.filter(p=>p.section===filterMode);
   return poles;
 }
@@ -754,6 +759,7 @@ function renderMainApp(){
           <option value="pending"${filterMode==='pending'?' selected':''}>Pending</option>
           <option value="completed"${filterMode==='completed'?' selected':''}>Done</option>
           <option value="enroute"${filterMode==='enroute'?' selected':''}>En Route</option>
+          <option value="flagged"${filterMode==='flagged'?' selected':''}>🚩 Flagged</option>
         </select>
       </div>
     </header>
@@ -761,7 +767,7 @@ function renderMainApp(){
     <!-- Content -->
     <main class="flex-1 relative">
       <div id="list-view" class="${currentView==='list'?'':'hidden'} p-4 pb-20"></div>
-      <div id="map-container" style="position:relative;" class="${currentView==='map'?'':'hidden'}" style="position:absolute;inset:0">
+      <div id="map-container" style="position:relative;inset:0;flex:1;min-height:400px;" class="${currentView==='map'?'':'hidden'}">
 <div id="mapLegend" style="position:absolute;bottom:60px;right:10px;z-index:1000;background:rgba(0,0,0,.85);backdrop-filter:blur(10px);border-radius:12px;padding:10px 12px;color:#fff;font-size:11px;font-family:Inter,sans-serif;display:block;min-width:150px">
   <div style="font-weight:700;margin-bottom:6px;color:#d4a843">🗺️ MAP KEY</div>
   <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">
@@ -1138,6 +1144,41 @@ function initMap(){
     gpsWatchId=navigator.geolocation.watchPosition(updatePos,onErr,{enableHighAccuracy:true,maximumAge:5000});
   });
 
+  // ===== LAYER SWITCH BUTTON =====
+  const layerBtn2 = document.getElementById('layerSwitchBtn');
+  if(layerBtn2){
+    const tileSets = [
+      {name:'Satellite',url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',icon:'🛰️'},
+      {name:'Terrain',url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',icon:'⛰️'},
+      {name:'Street',url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',icon:'🗺️'},
+      {name:'Hybrid',url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',icon:'🌐'}
+    ];
+    let tileIdx=0;
+    let labelsLayer=null;
+    layerBtn2.onclick=()=>{
+      tileIdx=(tileIdx+1)%tileSets.length;
+      const t=tileSets[tileIdx];
+      if(window._baseTile) mapInstance.removeLayer(window._baseTile);
+      if(labelsLayer) mapInstance.removeLayer(labelsLayer);
+      window._baseTile=L.tileLayer(t.url,{maxZoom:20,attribution:''}).addTo(mapInstance);
+      if(t.name==='Hybrid'){
+        labelsLayer=L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:20}).addTo(mapInstance);
+      }
+      layerBtn2.textContent=t.icon;
+      layerBtn2.title=t.name;
+      vibrate(30);
+    };
+  }
+
+  // ===== TEAM ACTIVITY BUTTON =====
+  const teamBtn = document.getElementById('teamLocBtn');
+  if(teamBtn){
+    teamBtn.onclick=()=>{
+      vibrate();playSound('click');
+      showTeamActivity();
+    };
+  }
+
   // ===== CREW LOCATION TRACKING =====
   const crewMarkers = {};
   const presenceRef = collection(db, 'charterPresence');
@@ -1255,17 +1296,30 @@ window.openPole=function(poleId){
       </div>
     </div>`:''}
     
+    \${flags[poleId]?`<div class="rounded-xl p-3 mb-4" style="background:rgba(249,115,22,0.15);border:1px solid rgba(249,115,22,0.3)">
+      <div class="flex items-center gap-2">
+        <span style="animation:wave 1s ease-in-out infinite">🚩</span><span class="font-semibold text-orange-400">Flagged</span><span class="text-xs text-gray-400">\${flags[poleId].userName} • \${timeAgo(flags[poleId].flaggedAt)}</span>
+        <button onclick="unflagPole('\${poleId}')" class="ml-auto btn-primary px-3 py-1 rounded-lg text-xs" style="background:linear-gradient(135deg,#22c55e,#16a34a)">✅ Clear Flag</button>
+      </div>
+    </div>`:''}
+    
     <!-- Directions Button -->
     <a href="${directionsUrl(pole.lat,pole.lon)}" target="_blank" class="btn-gold w-full p-3 rounded-xl flex items-center justify-center gap-2 mb-3 block text-center no-underline" onclick="claimEnroute('${poleId}')">
       🧭 Get Directions
     </a>
+    ${enr&&!done&&enr.uid!==currentUser?.uid?`<div class="rounded-xl p-3 mb-3" style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3)">
+      <div class="flex items-center gap-2">
+        <span>💡</span><span class="text-sm"><b>${enr.userName}</b> is already heading here</span>
+      </div>
+    </div>`:''}
     
     <!-- Action Buttons -->
-    <div class="grid grid-cols-4 gap-2 mb-4">
-      <button onclick="toggleNotes('${poleId}')" class="btn-primary p-3 rounded-xl text-sm">💬 Notes</button>
-      <button onclick="openPhotoCapture('${poleId}','pole','${pole.name}')" class="btn-primary p-3 rounded-xl text-sm" style="background:linear-gradient(135deg,#ec4899,#db2777)">📸 Photo</button>
-      <button onclick="${done?`undoComplete('${poleId}')`:`markComplete('${poleId}')`}" class="btn-primary p-3 rounded-xl text-sm ${done?'btn-amber':'btn-green'}">${done?'↩️ Undo':'✅ Done'}</button>
-      <button onclick="toggleBilling('${poleId}')" class="btn-primary p-3 rounded-xl text-sm" style="background:linear-gradient(135deg,#3b82f6,#7c3aed)">💰 Bill</button>
+    <div class="grid grid-cols-5 gap-2 mb-4">
+      <button onclick="toggleNotes('${poleId}')" class="btn-primary p-3 rounded-xl text-xs">💬 Notes</button>
+      <button onclick="openPhotoCapture('${poleId}','pole','${pole.name}')" class="btn-primary p-3 rounded-xl text-xs" style="background:linear-gradient(135deg,#ec4899,#db2777)">📸 Photo</button>
+      <button onclick="${done?`undoComplete('${poleId}')`:`markComplete('${poleId}')`}" class="btn-primary p-3 rounded-xl text-xs ${done?'btn-amber':'btn-green'}">${done?'↩️ Undo':'✅ Done'}</button>
+      <button onclick="${flags[poleId]?`unflagPole('${poleId}')`:`flagPole('${poleId}')`}" class="btn-primary p-3 rounded-xl text-xs" style="background:${flags[poleId]?'linear-gradient(135deg,#22c55e,#16a34a)':'linear-gradient(135deg,#f97316,#ea580c)'}">${flags[poleId]?'✅ Clear':'🚩 Flag'}</button>
+      <button onclick="toggleBilling('${poleId}')" class="btn-primary p-3 rounded-xl text-xs" style="background:linear-gradient(135deg,#3b82f6,#7c3aed)">💰 Bill</button>
     </div>
     
     <!-- Tic Mark -->
@@ -1661,7 +1715,10 @@ window.markComplete=async function(poleId){
   });
   // Clear enroute if exists
   try{await deleteDoc(doc(db,'charterEnroute',`${currentNodeId}_${poleId}`));}catch(e){}
+  // Clear flag if exists
+  try{await deleteDoc(doc(db,'charterFlags',`${currentNodeId}_${poleId}`));}catch(e){}
   openPole(poleId);
+  setTimeout(checkConfetti,500);
 };
 
 window.undoComplete=async function(poleId){
@@ -1717,6 +1774,147 @@ window.logBilling=async function(poleId){
 };
 
 // ============ MENU ============
+// ===== FLAG ISSUE =====
+window.flagPole=async function(poleId){
+  vibrate(100);playSound('click');
+  await setDoc(doc(db,'charterFlags',currentNodeId+'_'+poleId),{
+    nodeId:currentNodeId,poleId,uid:currentUser.uid,
+    userName:currentUser.displayName||currentUser.email.split('@')[0],
+    flaggedAt:serverTimestamp()
+  });
+  openPole(poleId);
+};
+
+window.unflagPole=async function(poleId){
+  vibrate();
+  await deleteDoc(doc(db,'charterFlags',currentNodeId+'_'+poleId));
+  openPole(poleId);
+};
+
+// ===== TEAM ACTIVITY =====
+window.showTeamActivity=function(){
+  vibrate();playSound('click');
+  // Gather completions by user
+  const byUser={};
+  Object.values(completions).forEach(c=>{
+    const key=c.uid||'unknown';
+    if(!byUser[key]) byUser[key]={name:c.userName||'Unknown',count:0,poles:[]};
+    byUser[key].count++;
+    const pole=GT30E_POLES.find(p=>p.id===c.poleId);
+    if(pole) byUser[key].poles.push(pole.name);
+  });
+  const sorted=Object.entries(byUser).sort((a,b)=>b[1].count-a[1].count);
+  const isSelf=(uid)=>uid===currentUser?.uid;
+  
+  const modal=$('pole-modal');
+  const mc=$('pole-modal-content');
+  mc.innerHTML=`
+  <div class="slide-up">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-bold">👥 Team Activity</h2>
+      <button onclick="closePoleModal()" class="text-gray-400 text-2xl">&times;</button>
+    </div>
+    <div class="text-center mb-4">
+      <div class="text-4xl font-bold gold-text">${completedCount()}</div>
+      <div class="text-sm text-gray-400">of ${GT30E_POLES.length} poles completed</div>
+    </div>
+    ${sorted.map(([uid,u])=>`
+      <div class="glass rounded-xl p-4 mb-3" style="border:2px solid ${isSelf(uid)?'#facc15':'#3b82f6'}">
+        <div class="flex items-center justify-between mb-2">
+          <span class="font-bold">${u.name}</span>
+          <span class="badge ${isSelf(uid)?'badge-success':'badge-info'}">${u.count} poles</span>
+        </div>
+        <div class="text-xs text-gray-400">${u.poles.slice(0,8).join(', ')}${u.poles.length>8?'...':''}</div>
+      </div>
+    `).join('')}
+    ${sorted.length===0?'<p class="text-gray-400 text-center py-8">No completions yet</p>':''}
+    <button onclick="downloadCSV()" class="btn-gold w-full p-3 rounded-xl mt-4">📥 DOWNLOAD CSV</button>
+  </div>`;
+  modal.classList.remove('hidden');
+};
+
+// ===== DOWNLOAD CSV =====
+window.downloadCSV=function(){
+  let csv='Pole,Section,Status,Completed By,Date\n';
+  GT30E_POLES.forEach(p=>{
+    const c=completions[p.id];
+    const status=c?'Completed':'Pending';
+    const who=c?c.userName:'';
+    const when=c?.completedAt?.toDate?.()?.toLocaleDateString()||'';
+    csv+='"'+p.name+'","'+p.section+'","'+status+'","'+who+'","'+when+'"\n';
+  });
+  const blob=new Blob([csv],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='charter-production.csv';a.click();
+  URL.revokeObjectURL(url);
+  vibrate();
+};
+
+// ===== CONFETTI =====
+function fireConfetti(){
+  const container=document.createElement('div');
+  container.style.cssText='position:fixed;inset:0;z-index:99999;pointer-events:none;overflow:hidden;';
+  const colors=['#f0c040','#3b82f6','#22c55e','#ec4899','#f97316','#a855f7'];
+  for(let i=0;i<80;i++){
+    const piece=document.createElement('div');
+    const c=colors[Math.floor(Math.random()*colors.length)];
+    const x=-30+Math.random()*60;
+    const dur=1.5+Math.random()*1.5;
+    const delay=Math.random()*0.6;
+    piece.style.cssText='position:absolute;top:-10px;left:'+Math.random()*100+'%;width:'+(6+Math.random()*6)+'px;height:'+(6+Math.random()*6)+'px;background:'+c+';border-radius:'+(Math.random()>0.5?'50%':'2px')+';animation:confettiFall '+dur+'s ease-in '+delay+'s forwards;--vx:'+x+'px;--vy:'+window.innerHeight+'px;';
+    container.appendChild(piece);
+  }
+  // Banner
+  const banner=document.createElement('div');
+  banner.style.cssText='position:absolute;top:35%;left:50%;transform:translate(-50%,-50%);text-align:center;z-index:100000;animation:confettiBannerIn 0.5s ease-out;';
+  banner.innerHTML='<div style="font-size:60px;margin-bottom:8px">🎊</div><div style="font-size:28px;font-weight:900;color:#f0c040;text-shadow:0 2px 10px rgba(240,192,64,0.5)">ALL POLES DONE!</div>';
+  container.appendChild(banner);
+  document.body.appendChild(container);
+  setTimeout(()=>container.remove(),4000);
+}
+
+let confettiFired=false;
+function checkConfetti(){
+  if(completedCount()>=GT30E_POLES.length && !confettiFired){
+    confettiFired=true;
+    fireConfetti();
+  }
+  if(completedCount()<GT30E_POLES.length) confettiFired=false;
+}
+
+// ===== INSTALL BANNER =====
+let installPrompt=null;
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault();
+  installPrompt=e;
+  if(!sessionStorage.getItem('installDismissed')) showInstallBanner();
+});
+
+function showInstallBanner(){
+  if(document.getElementById('install-overlay')) return;
+  const overlay=document.createElement('div');
+  overlay.id='install-overlay';
+  overlay.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.85);backdrop-filter:blur(20px);display:flex;align-items:center;justify-content:center;padding:24px;';
+  overlay.innerHTML=`
+    <div style="background:rgba(30,30,40,0.98);border:1px solid rgba(240,192,64,0.3);border-radius:24px;padding:32px;max-width:360px;text-align:center;">
+      <div style="font-size:64px;margin-bottom:16px">📱</div>
+      <h2 style="font-size:22px;font-weight:800;color:#f0c040;margin-bottom:8px">Install Global Route</h2>
+      <p style="color:#9ca3af;font-size:14px;margin-bottom:24px">Add to your home screen for the best experience — works offline!</p>
+      <button onclick="doInstall()" style="width:100%;padding:14px;border-radius:16px;border:none;background:linear-gradient(135deg,#f0c040,#d4a030);color:#000;font-weight:800;font-size:16px;cursor:pointer;margin-bottom:12px;box-shadow:0 4px 20px rgba(240,192,64,0.4)">INSTALL APP</button>
+      <button onclick="dismissInstall()" style="width:100%;padding:12px;border-radius:16px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:#9ca3af;font-size:14px;cursor:pointer">Not now</button>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+window.doInstall=function(){
+  if(installPrompt){installPrompt.prompt();installPrompt=null;}
+  const o=document.getElementById('install-overlay');if(o)o.remove();
+};
+window.dismissInstall=function(){
+  sessionStorage.setItem('installDismissed','1');
+  const o=document.getElementById('install-overlay');if(o)o.remove();
+};
+
 window.showMenu=function(){
   const modal=$('menu-modal');
   modal.querySelector('.modal-content').innerHTML=`
@@ -1842,28 +2040,56 @@ function checkGPS(){
   });
 }
 
-// Request GPS silently in background - don't block app entry
-function requestGPSBackground(){
-  checkGPS().then(ok=>{
-    if(!ok){
-      // Show a non-blocking banner inside the app
-      setTimeout(()=>{
-        const banner=document.createElement('div');
-        banner.id='gps-banner';
-        banner.innerHTML='<div style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;padding:10px 16px;text-align:center;font-weight:600;font-size:13px;cursor:pointer" onclick="requestGPSPermission()">📍 Location not enabled — tap here to allow GPS for field work</div>';
-        if(!document.getElementById('gps-banner')) document.body.prepend(banner);
-      },1000);
-    }
-  });
+// MANDATORY GPS GATE — full blocking screen, no bypass
+function showGPSGate(){
+  // Remove existing gate if any
+  const existing = document.getElementById('gps-gate');
+  if(existing) existing.remove();
+  
+  const gate = document.createElement('div');
+  gate.id = 'gps-gate';
+  gate.innerHTML = \`
+    <div style="position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg,#0f0f1a 0%,#1a1a2e 50%,#16213e 100%);display:flex;align-items:center;justify-content:center;flex-direction:column;padding:32px;text-align:center;">
+      <div style="font-size:72px;margin-bottom:24px;animation:gpsBounce 2s ease-in-out infinite;">📍</div>
+      <h1 style="color:white;font-size:28px;font-weight:800;margin:0 0 12px;">Location Required</h1>
+      <p style="color:rgba(255,255,255,0.7);font-size:15px;max-width:320px;line-height:1.5;margin:0 0 32px;">
+        GPS location is <strong style="color:#f59e0b;">mandatory</strong> to use this app. 
+        We need your position for field work tracking, crew safety, and billing verification.
+      </p>
+      <button onclick="requestGPSPermission()" style="background:linear-gradient(135deg,#3b82f6,#2563eb);color:white;border:none;padding:16px 48px;border-radius:14px;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(59,130,246,0.5);letter-spacing:0.5px;">
+        ✅ Allow Location Access
+      </button>
+      <p style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:20px;max-width:280px;">
+        If you denied GPS, open your browser settings → Site Settings → Location → Allow for this site, then refresh.
+      </p>
+    </div>
+    <style>
+      @keyframes gpsBounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-15px)} }
+    </style>
+  \`;
+  document.body.appendChild(gate);
+}
+
+function removeGPSGate(){
+  const gate = document.getElementById('gps-gate');
+  if(gate) gate.remove();
+  const banner = document.getElementById('gps-banner');
+  if(banner) banner.remove();
 }
 
 window.requestGPSPermission=async function(){
-  const ok=await checkGPS();
-  if(ok){
-    const b=document.getElementById('gps-banner');
-    if(b)b.remove();
-  } else {
-    alert('Location access denied. On your phone: Settings → Privacy → Location Services → ensure your browser has "While Using" enabled.');
+  try{
+    const ok = await checkGPS();
+    if(ok){
+      gpsGranted=true;
+      removeGPSGate();
+      // Reload the app now that GPS is granted
+      if(currentUser) loadUserNode();
+    } else {
+      alert('📍 GPS was denied. Please enable location in your browser/phone settings and refresh the page.');
+    }
+  }catch(e){
+    alert('📍 Could not get location: '+e.message);
   }
 };
 
@@ -1871,16 +2097,21 @@ window.requestGPSPermission=async function(){
 onAuthStateChanged(auth,async(user)=>{
   if(user){
     currentUser=user;
-    // Try GPS but don't block
-    checkGPS();
+    window._charterUser=user;
+    // MANDATORY GPS CHECK — block until granted
+    const gpsOk = await checkGPS();
+    if(!gpsOk){
+      showGPSGate();
+      return; // Don't load app until GPS is granted
+    }
+    gpsGranted=true;
+    removeGPSGate();
     try{
       await loadUserNode();
     }catch(e){
       console.error('loadUserNode error:',e);
       alert('Error loading app: '+e.message);
     }
-    // Request GPS in background if not granted
-    if(!gpsGranted) requestGPSBackground();
   }else{
     currentUser=null;currentNode=null;currentNodeId=null;
     unsubscribers.forEach(u=>u());unsubscribers=[];
