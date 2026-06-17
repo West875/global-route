@@ -1071,8 +1071,9 @@ window.openPole=function(poleId){
     </a>
     
     <!-- Action Buttons -->
-    <div class="grid grid-cols-3 gap-2 mb-4">
+    <div class="grid grid-cols-4 gap-2 mb-4">
       <button onclick="toggleNotes('${poleId}')" class="btn-primary p-3 rounded-xl text-sm">💬 Notes</button>
+      <button onclick="openPhotoCapture('${poleId}','pole','${pole.name}')" class="btn-primary p-3 rounded-xl text-sm" style="background:linear-gradient(135deg,#ec4899,#db2777)">📸 Photo</button>
       <button onclick="${done?`undoComplete('${poleId}')`:`markComplete('${poleId}')`}" class="btn-primary p-3 rounded-xl text-sm ${done?'btn-amber':'btn-green'}">${done?'↩️ Undo':'✅ Done'}</button>
       <button onclick="toggleBilling('${poleId}')" class="btn-primary p-3 rounded-xl text-sm" style="background:linear-gradient(135deg,#8b5cf6,#7c3aed)">💰 Bill</button>
     </div>
@@ -1094,6 +1095,15 @@ window.openPole=function(poleId){
           <span class="text-gray-400">${b.qty} ${code?.unit||''}</span>
         </div>`;
       }).join('')}</div>`:''}
+    </div>
+    
+    <!-- Photos Gallery -->
+    <div class="mb-4">
+      ${(()=>{
+        const photos=Object.values(polePhotos).filter(p=>p.poleId===poleId);
+        if(!photos.length) return '';
+        return '<button onclick="viewPhotos(\''+poleId+'\',\''+pole.name+'\' )" class="glass w-full p-3 rounded-xl text-sm flex items-center justify-center gap-2 mb-2"><span>🖼️ View '+photos.length+' Photo'+(photos.length>1?'s':'')+'</span></button>';
+      })()}
     </div>
     
     <!-- Notes Section -->
@@ -1122,6 +1132,290 @@ window.openPole=function(poleId){
 };
 
 window.closePoleModal=function(){ $('pole-modal').classList.add('hidden'); };
+// ============ TIMEMARK WATERMARK ============
+function drawTimemarkWatermark(ctx,w,h,opts){
+  var now=new Date();
+  var hrs=now.getHours(),mins=now.getMinutes();
+  var ampm=hrs>=12?'PM':'AM';
+  var h12=hrs%12||12;
+  var timeStr=(h12<10?'0':'')+h12+':'+(mins<10?'0':'')+mins;
+  var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var dayNames=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var dateStr=months[now.getMonth()]+' '+String(now.getDate()).padStart(2,'0')+', '+now.getFullYear();
+  var dayStr=dayNames[now.getDay()];
+  var tz='EST';
+  try{tz=Intl.DateTimeFormat('en-US',{timeZoneName:'short'}).formatToParts(now).find(p=>p.type==='timeZoneName').value;}catch(e){}
+
+  var baseFS=Math.max(18,Math.round(w*0.032));
+  var timeFS=Math.round(baseFS*2.4);
+  var ampmFS=Math.round(baseFS*0.9);
+  var dateFS=Math.round(baseFS*1.1);
+  var dayFS=Math.round(baseFS*0.85);
+  var infoFS=Math.round(baseFS*0.85);
+  var verifyFS=Math.round(baseFS*0.65);
+  var pad=Math.round(baseFS*0.9);
+  var lineH=infoFS+Math.round(pad*0.5);
+  var cardH=Math.round(timeFS+pad*1.5+lineH*3+pad*1.5+verifyFS+pad);
+  var cardW=w-pad*2,cardX=pad;
+  var cardY=h-cardH-Math.round(pad*0.5);
+  var cornerR=Math.round(baseFS*0.5);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(cardX+cornerR,cardY);
+  ctx.lineTo(cardX+cardW-cornerR,cardY);
+  ctx.arcTo(cardX+cardW,cardY,cardX+cardW,cardY+cornerR,cornerR);
+  ctx.lineTo(cardX+cardW,cardY+cardH-cornerR);
+  ctx.arcTo(cardX+cardW,cardY+cardH,cardX+cardW-cornerR,cardY+cardH,cornerR);
+  ctx.lineTo(cardX+cornerR,cardY+cardH);
+  ctx.arcTo(cardX,cardY+cardH,cardX,cardY+cardH-cornerR,cornerR);
+  ctx.lineTo(cardX,cardY+cornerR);
+  ctx.arcTo(cardX,cardY,cardX+cornerR,cardY,cornerR);
+  ctx.closePath();
+  ctx.fillStyle='rgba(15,15,15,0.82)';
+  ctx.fill();
+  ctx.restore();
+
+  var tx=cardX+pad,ty=cardY+pad;
+  ctx.font='bold '+timeFS+'px Inter,Arial,sans-serif';
+  ctx.fillStyle='#FFFFFF';
+  ctx.fillText(timeStr,tx,ty+timeFS*0.82);
+  var timeW=ctx.measureText(timeStr).width;
+
+  var ampmX=tx+timeW+Math.round(pad*0.5);
+  ctx.font='bold '+ampmFS+'px Inter,Arial,sans-serif';
+  ctx.fillStyle='#FFFFFF';
+  ctx.fillText(ampm,ampmX,ty+ampmFS);
+  ctx.fillStyle='rgba(200,200,200,0.8)';
+  ctx.fillText(tz,ampmX,ty+ampmFS*2.3);
+
+  var divX=ampmX+ctx.measureText(tz.length>ampm.length?tz:ampm).width+Math.round(pad*0.7);
+  ctx.fillStyle='#DAA520';
+  ctx.fillRect(divX,ty+4,3,timeFS*0.78);
+
+  var dateX=divX+Math.round(pad*0.7);
+  ctx.font='bold '+dateFS+'px Inter,Arial,sans-serif';
+  ctx.fillStyle='#FFFFFF';
+  ctx.fillText(dateStr,dateX,ty+dateFS);
+  ctx.font=dayFS+'px Inter,Arial,sans-serif';
+  ctx.fillStyle='rgba(200,200,200,0.8)';
+  ctx.fillText(dayStr,dateX,ty+dateFS+dayFS+4);
+
+  var infoY=ty+timeFS+Math.round(pad*1.2);
+  var prefix=opts.prefix||'\u{1F4CD}';
+  ctx.font='bold '+infoFS+'px Inter,Arial,sans-serif';
+  ctx.fillStyle='#DAA520';
+  ctx.fillText(prefix+'  '+(opts.siteName||''),tx,infoY+infoFS);
+
+  infoY+=lineH;
+  if(opts.gps){
+    ctx.font=infoFS+'px Inter,Arial,sans-serif';
+    ctx.fillStyle='rgba(220,220,220,0.9)';
+    var latDir=opts.gps.lat>=0?'N':'S';
+    var lonDir=opts.gps.lon>=0?'E':'W';
+    ctx.fillText(Math.abs(opts.gps.lat).toFixed(6)+'\u00B0'+latDir+', '+Math.abs(opts.gps.lon).toFixed(6)+'\u00B0'+lonDir,tx,infoY+infoFS);
+  }
+
+  infoY+=lineH;
+  ctx.font=infoFS+'px Inter,Arial,sans-serif';
+  ctx.fillStyle='#FFFFFF';
+  ctx.fillText('\u{1F477}  '+(opts.userName||''),tx,infoY+infoFS);
+
+  infoY+=Math.round(lineH*0.9);
+  ctx.fillStyle='#DAA520';
+  ctx.fillRect(tx,infoY,cardW-pad*2,2);
+
+  ctx.font='bold '+verifyFS+'px Inter,Arial,sans-serif';
+  ctx.fillStyle='#DAA520';
+  ctx.fillText('\u2713  Verified by Global Route',tx,infoY+verifyFS+8);
+}
+
+// ============ PHOTO CAPTURE & UPLOAD ============
+let activePhotoTarget=null; // {poleId, type:'pole'|'anchor'|'storage', name}
+
+window.openPhotoCapture=function(poleId,type,name){
+  activePhotoTarget={poleId,type:type||'pole',name:name||poleId};
+  const modal=document.createElement('div');
+  modal.id='photo-capture-modal';
+  modal.className='modal-backdrop';
+  modal.onclick=function(e){if(e.target===modal)closePhotoCapture();};
+  modal.innerHTML=`
+    <div class="modal-content" style="max-width:500px">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-bold">📸 Photo — ${name||'Pole'}</h2>
+        <button onclick="closePhotoCapture()" class="text-gray-400 text-2xl">&times;</button>
+      </div>
+      <div id="photo-preview" class="mb-3" style="border-radius:12px;overflow:hidden;background:#000;min-height:200px;display:flex;align-items:center;justify-content:center">
+        <span class="text-gray-500">Tap button to capture photo</span>
+      </div>
+      <canvas id="watermark-canvas" class="hidden"></canvas>
+      <input type="file" id="photo-file-input" accept="image/*" capture="environment" style="display:none" onchange="handlePhotoFile(this)">
+      <button onclick="document.getElementById('photo-file-input').click()" class="btn-gold w-full p-3 rounded-xl flex items-center justify-center gap-2 mb-2">
+        📷 Take Photo
+      </button>
+      <button id="photo-upload-btn" onclick="uploadWatermarkedPhoto()" class="btn-green w-full p-3 rounded-xl flex items-center justify-center gap-2 hidden">
+        ⬆️ Upload Photo
+      </button>
+      <div id="photo-upload-status" class="text-center text-sm text-gray-400 mt-2"></div>
+    </div>`;
+  document.body.appendChild(modal);
+};
+
+window.closePhotoCapture=function(){
+  const m=document.getElementById('photo-capture-modal');
+  if(m)m.remove();
+  activePhotoTarget=null;
+};
+
+let watermarkedBlob=null;
+
+window.handlePhotoFile=async function(input){
+  if(!input.files||!input.files[0])return;
+  const file=input.files[0];
+  const status=document.getElementById('photo-upload-status');
+  status.textContent='Processing photo...';
+
+  // Get GPS
+  let gps=null;
+  try{
+    const pos=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{timeout:10000,enableHighAccuracy:true}));
+    gps={lat:pos.coords.latitude,lon:pos.coords.longitude};
+  }catch(e){
+    // Fall back to pole GPS
+    const pole=GT30E_POLES.find(p=>p.id===activePhotoTarget.poleId);
+    if(pole)gps={lat:pole.lat,lon:pole.lon};
+  }
+
+  const img=new Image();
+  img.onload=function(){
+    const canvas=document.getElementById('watermark-canvas');
+    const ctx=canvas.getContext('2d');
+    // Cap at 1600px wide for mobile performance
+    const maxW=1600;
+    const scale=img.width>maxW?maxW/img.width:1;
+    canvas.width=Math.round(img.width*scale);
+    canvas.height=Math.round(img.height*scale);
+    ctx.drawImage(img,0,0,canvas.width,canvas.height);
+
+    // Get user info
+    const userName=currentUser.displayName||currentUser.email||'Crew';
+    const siteName=activePhotoTarget.name||'Unknown';
+    const prefix=activePhotoTarget.type==='anchor'?'⚓':activePhotoTarget.type==='storage'?'∞':'📍';
+
+    drawTimemarkWatermark(ctx,canvas.width,canvas.height,{
+      siteName:siteName,
+      userName:userName,
+      gps:gps,
+      prefix:prefix
+    });
+
+    // Show preview
+    const preview=document.getElementById('photo-preview');
+    preview.innerHTML='';
+    const previewImg=document.createElement('img');
+    previewImg.src=canvas.toDataURL('image/jpeg',0.85);
+    previewImg.style.cssText='width:100%;border-radius:12px';
+    preview.appendChild(previewImg);
+
+    // Convert to blob for upload
+    canvas.toBlob(function(blob){
+      watermarkedBlob=blob;
+      document.getElementById('photo-upload-btn').classList.remove('hidden');
+      status.textContent='Photo ready — tap Upload';
+    },'image/jpeg',0.85);
+  };
+  img.src=URL.createObjectURL(file);
+};
+
+window.uploadWatermarkedPhoto=async function(){
+  if(!watermarkedBlob||!activePhotoTarget)return;
+  const status=document.getElementById('photo-upload-status');
+  const btn=document.getElementById('photo-upload-btn');
+  btn.disabled=true;
+  btn.textContent='⏳ Uploading...';
+  status.textContent='Uploading to cloud...';
+
+  try{
+    // Get GPS
+    let gps=null;
+    try{
+      const pos=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{timeout:5000,enableHighAccuracy:true}));
+      gps={lat:pos.coords.latitude,lon:pos.coords.longitude};
+    }catch(e){
+      const pole=GT30E_POLES.find(p=>p.id===activePhotoTarget.poleId);
+      if(pole)gps={lat:pole.lat,lon:pole.lon};
+    }
+
+    const ts=Date.now();
+    const path='charter-photos/'+currentNodeId+'/'+activePhotoTarget.poleId+'/'+ts+'.jpg';
+    const sRef=storageRef(storage,path);
+    await uploadBytes(sRef,watermarkedBlob);
+    const url=await getDownloadURL(sRef);
+
+    // Save to Firestore
+    await addDoc(collection(db,'charterPhotos'),{
+      nodeId:currentNodeId,
+      poleId:activePhotoTarget.poleId,
+      type:activePhotoTarget.type,
+      name:activePhotoTarget.name,
+      url:url,
+      gps:gps,
+      uid:currentUser.uid,
+      userName:currentUser.displayName||currentUser.email,
+      createdAt:serverTimestamp()
+    });
+
+    vibrate();playSound('complete');
+    status.textContent='✅ Photo uploaded!';
+    btn.textContent='✅ Uploaded';
+    setTimeout(()=>{
+      closePhotoCapture();
+      // Refresh modal if it was a pole
+      if(activePhotoTarget&&activePhotoTarget.type==='pole'){
+        const pid=activePhotoTarget.poleId;
+        setTimeout(()=>openPole(pid),200);
+      }
+    },1000);
+  }catch(e){
+    console.error('Upload error:',e);
+    status.textContent='❌ Upload failed: '+e.message;
+    btn.disabled=false;
+    btn.textContent='⬆️ Retry Upload';
+  }
+};
+
+// ============ VIEW PHOTOS GALLERY ============
+window.viewPhotos=function(poleId,name){
+  const photos=Object.values(polePhotos).filter(p=>p.poleId===poleId).sort((a,b)=>{
+    const ta=a.createdAt?.toDate?.()?.getTime()||0;
+    const tb=b.createdAt?.toDate?.()?.getTime()||0;
+    return tb-ta;
+  });
+  
+  const modal=document.createElement('div');
+  modal.id='photo-gallery-modal';
+  modal.className='modal-backdrop';
+  modal.onclick=function(e){if(e.target===modal)modal.remove();};
+  modal.innerHTML=`
+    <div class="modal-content" style="max-width:500px;max-height:90vh;overflow-y:auto">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-bold">📸 Photos — ${name||'Pole'} (${photos.length})</h2>
+        <button onclick="document.getElementById('photo-gallery-modal').remove()" class="text-gray-400 text-2xl">&times;</button>
+      </div>
+      ${photos.length?photos.map(p=>`
+        <div class="mb-3">
+          <img src="${p.url}" style="width:100%;border-radius:12px;border:1px solid rgba(255,255,255,0.1)" loading="lazy">
+          <div class="flex justify-between items-center mt-1 px-1">
+            <span class="text-xs text-gray-400">${p.userName||'Unknown'}</span>
+            <span class="text-xs text-gray-500">${p.createdAt?timeAgo(p.createdAt):''}</span>
+          </div>
+        </div>
+      `).join(''):'<p class="text-center text-gray-500 py-8">No photos yet</p>'}
+    </div>`;
+  document.body.appendChild(modal);
+};
+
+
 
 window.toggleNotes=function(id){
   const el=$('notes-section-'+id);
@@ -1302,6 +1596,16 @@ function subscribeToData(){
     snap=>{
       billingEntries={};
       snap.forEach(d=>{billingEntries[d.id]={...d.data(),id:d.id};});
+    }
+  ));
+  
+  // Photos
+  unsubscribers.push(onSnapshot(
+    query(collection(db,'charterPhotos'),where('nodeId','==',currentNodeId)),
+    snap=>{
+      polePhotos={};
+      snap.forEach(d=>{polePhotos[d.id]={...d.data(),id:d.id};});
+      renderPoleList();
     }
   ));
 }
