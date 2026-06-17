@@ -938,14 +938,18 @@ function initMap(){
     const done=completions[p.id];
     const enr=enroutes[p.id];
     
-    let color='#3b82f6'; // purple
+    let color='#3b82f6'; // blue
     if(done) color='#6b7280'; // gray
     else if(enr) color='#f59e0b'; // amber
     
+    const label=(p.name||'').length>4 ? (p.name||'').slice(0,4) : (p.name||'');
     const icon=L.divIcon({
       className:'',
-      html:`<svg width="24" height="36" viewBox="0 0 24 36"><path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" fill="${color}" stroke="#fff" stroke-width="1.5"/><circle cx="12" cy="12" r="5" fill="#fff"/></svg>`,
-      iconSize:[24,36],iconAnchor:[12,36]
+      html:'<div style="width:32px;height:40px;position:relative;display:flex;align-items:flex-start;justify-content:center;">'+
+        '<svg width="32" height="40" viewBox="0 0 32 40"><path d="M16 0C7.16 0 0 7.16 0 16c0 12 16 24 16 24s16-12 16-24C32 7.16 24.84 0 16 0z" fill="'+color+'"/><circle cx="16" cy="14" r="8" fill="white" fill-opacity="0.3"/></svg>'+
+        '<div style="position:absolute;top:5px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:900;color:white;text-shadow:0 1px 2px rgba(0,0,0,0.5);white-space:nowrap;">'+label+'</div>'+
+      '</div>',
+      iconSize:[32,40],iconAnchor:[16,40]
     });
     
     const m=L.marker([p.lat,p.lon],{icon}).addTo(mapInstance);
