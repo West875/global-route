@@ -991,31 +991,46 @@ function subscribeToData(){
 }
 
 // ============ GPS CHECK ============
+let gpsGranted=false;
 function checkGPS(){
   return new Promise((resolve)=>{
     if(!navigator.geolocation){resolve(false);return;}
-    navigator.geolocation.getCurrentPosition(()=>resolve(true),()=>resolve(false),{timeout:5000});
+    navigator.geolocation.getCurrentPosition(
+      (pos)=>{userLat=pos.coords.latitude;userLon=pos.coords.longitude;gpsGranted=true;resolve(true);},
+      ()=>resolve(false),
+      {timeout:10000,enableHighAccuracy:true}
+    );
   });
 }
+
+async function requestGPSLoop(){
+  $('app').innerHTML=`
+  <div class="min-h-screen flex items-center justify-center p-4" style="background:#0f0a1a">
+    <div class="glass-card p-8 text-center max-w-sm">
+      <div class="text-5xl mb-4">📍</div>
+      <h2 class="text-xl font-bold mb-2">Location Required</h2>
+      <p class="text-gray-400 mb-3">Global Route needs GPS access to track your work locations.</p>
+      <p class="text-gray-500 text-xs mb-4">On your phone: Settings → Privacy → Location Services → ensure your browser has "While Using" enabled.</p>
+      <button id="gps-retry-btn" class="btn-primary w-full" onclick="retryGPS()">📍 Allow Location & Continue</button>
+      <button class="w-full text-gray-500 text-xs mt-3 p-2" onclick="signOut(auth)">Sign Out</button>
+    </div>
+  </div>`;
+}
+
+window.retryGPS=async function(){
+  const btn=$('gps-retry-btn');
+  if(btn)btn.textContent='Checking location...';
+  const ok=await checkGPS();
+  if(ok){loadUserNode();}
+  else{if(btn)btn.textContent='📍 Allow Location & Continue';alert('Location access denied. Please enable location in your browser settings and try again.');}
+};
 
 // ============ AUTH STATE ============
 onAuthStateChanged(auth,async(user)=>{
   if(user){
     currentUser=user;
-    // Check GPS
     const hasGPS=await checkGPS();
-    if(!hasGPS){
-      $('app').innerHTML=`
-      <div class="min-h-screen flex items-center justify-center p-4" style="background:#0f0a1a">
-        <div class="glass-card p-8 text-center max-w-sm">
-          <div class="text-5xl mb-4">📍</div>
-          <h2 class="text-xl font-bold mb-2">Location Required</h2>
-          <p class="text-gray-400 mb-4">Global Route needs GPS access to track your work locations.</p>
-          <button onclick="location.reload()" class="btn-primary w-full">Try Again</button>
-        </div>
-      </div>`;
-      return;
-    }
+    if(!hasGPS){requestGPSLoop();return;}
     loadUserNode();
   }else{
     currentUser=null;currentNode=null;currentNodeId=null;
