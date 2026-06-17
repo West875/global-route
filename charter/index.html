@@ -378,6 +378,7 @@ let currentNode = null;
 let currentNodeId = null;
 let completions = {};
 let enroutes = {};
+let userAvatarURL = null;
 let notes = {};
 let billingEntries = {};
 let unsubscribers = [];
@@ -528,15 +529,117 @@ window.submitInviteCode=async function(){
   }
 };
 
+// ============ SELFIE AVATAR ============
+function renderSelfieScreen(){
+  $('app').innerHTML=`
+  <div class="min-h-screen flex items-center justify-center p-4" style="background:#0f0a1a">
+    <div class="glass-card p-6 text-center max-w-sm w-full">
+      <div class="text-5xl mb-3">📸</div>
+      <h2 class="text-xl font-bold mb-1">Take Your ID Selfie</h2>
+      <p class="text-gray-400 text-sm mb-4">This photo becomes your avatar so the team knows who you are.</p>
+      <div class="relative mx-auto w-48 h-48 rounded-full overflow-hidden bg-gray-800 mb-4" id="selfie-preview">
+        <video id="selfie-video" class="w-full h-full object-cover" autoplay playsinline muted style="transform:scaleX(-1)"></video>
+        <img id="selfie-img" class="w-full h-full object-cover hidden" style="transform:scaleX(-1)">
+      </div>
+      <canvas id="selfie-canvas" class="hidden" width="480" height="480"></canvas>
+      <div id="selfie-actions">
+        <button id="selfie-capture-btn" class="btn-primary w-full mb-2" onclick="captureSelfie()">📸 Take Selfie</button>
+        <p class="text-gray-500 text-xs">🔒 Stored securely. Visible to your team only.</p>
+      </div>
+      <div id="selfie-confirm" class="hidden">
+        <button class="btn-primary w-full mb-2" onclick="confirmSelfie()">✅ Looks Good — Continue</button>
+        <button class="w-full text-gray-400 text-sm p-2" onclick="retakeSelfie()">🔄 Retake</button>
+      </div>
+      <button class="w-full text-gray-500 text-xs mt-2 p-2" onclick="doSignOut()">Sign Out</button>
+    </div>
+  </div>`;
+  startSelfieCamera();
+}
+
+let selfieStream=null;
+let selfieDataURL=null;
+
+async function startSelfieCamera(){
+  try{
+    selfieStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:480},height:{ideal:480}},audio:false});
+    const video=$('selfie-video');
+    if(video){video.srcObject=selfieStream;video.play();}
+  }catch(e){
+    console.error('Camera error:',e);
+    $('selfie-preview').innerHTML='<div class="flex items-center justify-center h-full text-gray-400 text-sm p-4">Camera not available.<br>Please allow camera access.</div>';
+  }
+}
+
+function stopSelfieCamera(){
+  if(selfieStream){selfieStream.getTracks().forEach(t=>t.stop());selfieStream=null;}
+}
+
+window.captureSelfie=function(){
+  const video=$('selfie-video');
+  const canvas=$('selfie-canvas');
+  if(!video||!canvas)return;
+  const ctx=canvas.getContext('2d');
+  ctx.save();
+  ctx.translate(480,0);ctx.scale(-1,1);
+  ctx.drawImage(video,0,0,480,480);
+  ctx.restore();
+  selfieDataURL=canvas.toDataURL('image/jpeg',0.8);
+  const img=$('selfie-img');
+  img.src=selfieDataURL;
+  img.classList.remove('hidden');
+  video.classList.add('hidden');
+  $('selfie-actions').classList.add('hidden');
+  $('selfie-confirm').classList.remove('hidden');
+  stopSelfieCamera();
+  vibrate(50);
+};
+
+window.retakeSelfie=function(){
+  $('selfie-img').classList.add('hidden');
+  $('selfie-video').classList.remove('hidden');
+  $('selfie-actions').classList.remove('hidden');
+  $('selfie-confirm').classList.add('hidden');
+  selfieDataURL=null;
+  startSelfieCamera();
+};
+
+window.confirmSelfie=async function(){
+  if(!selfieDataURL)return;
+  const btn=document.querySelector('#selfie-confirm button');
+  if(btn)btn.textContent='Saving...';
+  try{
+    // Save avatar to charterNodeMembers doc
+    const memberSnap=await getDocs(query(collection(db,'charterNodeMembers'),where('uid','==',currentUser.uid)));
+    if(!memberSnap.empty){
+      await updateDoc(memberSnap.docs[0].ref,{avatarURL:selfieDataURL});
+    }
+    userAvatarURL=selfieDataURL;
+    vibrate(100);playSound('done');
+    stopSelfieCamera();
+    loadUserNode();
+  }catch(e){
+    console.error('Save selfie error:',e);
+    alert('Error saving photo. Please try again.');
+    if(btn)btn.textContent='✅ Looks Good — Continue';
+  }
+};
+
 // ============ LOAD USER NODE ============
 async function loadUserNode(){
   // Check if user belongs to any node
   const snap=await getDocs(query(collection(db,'charterNodeMembers'),where('uid','==',currentUser.uid)));
   if(snap.empty){renderInviteCode();return;}
   
-  // Use first node found (can add multi-node picker later)
+  // Use first node found
   const membership=snap.docs[0].data();
   currentNodeId=membership.nodeId;
+  
+  // Check if avatar is set
+  if(!membership.avatarURL && !currentUser.photoURL){
+    renderSelfieScreen();
+    return;
+  }
+  userAvatarURL=membership.avatarURL||currentUser.photoURL||null;
   
   // Get node details
   const nodeDoc=await getDoc(doc(db,'charterNodes',currentNodeId));
@@ -594,9 +697,10 @@ function renderMainApp(){
         <div class="flex items-center gap-2">
           <button onclick="toggleView()" class="glass p-2 rounded-xl text-lg" title="Toggle view">${currentView==='list'?'🗺️':'📋'}</button>
           <button onclick="showMenu()" class="glass p-2 rounded-xl">
-            <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);border:2px solid #f0c040;box-shadow:0 0 12px rgba(240,192,64,0.3)">
-              ${(currentUser?.displayName||currentUser?.email||'?')[0].toUpperCase()}
-            </div>
+            ${userAvatarURL
+              ? `<img src="${userAvatarURL}" class="w-8 h-8 rounded-full object-cover" style="border:2px solid #f0c040;box-shadow:0 0 12px rgba(240,192,64,0.3)">`
+              : `<div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);border:2px solid #f0c040;box-shadow:0 0 12px rgba(240,192,64,0.3)">${(currentUser?.displayName||currentUser?.email||'?')[0].toUpperCase()}</div>`
+            }
           </button>
         </div>
       </div>
@@ -906,9 +1010,10 @@ window.showMenu=function(){
   modal.querySelector('.modal-content').innerHTML=`
   <div class="slide-up">
     <div class="flex items-center gap-3 mb-6">
-      <div class="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);border:2px solid #f0c040">
-        ${(currentUser?.displayName||currentUser?.email||'?')[0].toUpperCase()}
-      </div>
+      ${userAvatarURL
+        ? `<img src="${userAvatarURL}" class="w-12 h-12 rounded-full object-cover" style="border:2px solid #f0c040">`
+        : `<div class="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold" style="background:linear-gradient(135deg,#7c3aed,#6d28d9);border:2px solid #f0c040">${(currentUser?.displayName||currentUser?.email||'?')[0].toUpperCase()}</div>`
+      }
       <div>
         <p class="font-semibold">${currentUser?.displayName||'User'}</p>
         <p class="text-xs text-gray-400">${currentUser?.email}</p>
