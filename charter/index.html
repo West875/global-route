@@ -920,9 +920,7 @@ function initMap(){
   
   // Create map div if needed
   if(!container.querySelector('#map')){
-    container.innerHTML='
-<!-- Fiber Map Legend -->
-<div id="map" style="height:100%;width:100%"></div>';
+    container.innerHTML='<div id="map" style="height:100%;width:100%"></div>';
   }
   
   if(mapInstance){mapInstance.remove();mapInstance=null;}
