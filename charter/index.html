@@ -778,7 +778,7 @@ window.openPole=function(poleId){
     <div id="billing-section-${poleId}" class="hidden mb-4">
       <h3 class="font-semibold text-sm mb-2 text-gray-400">LOG BILLING</h3>
       <select id="bill-code-${poleId}" class="input-field text-sm mb-2">
-        ${CHARTER_CODES.map(c=>`<option value="${c.code}">${c.code} — ${c.name} (${c.rate?'$'+c.rate.toFixed(2):'Quote'}/${c.unit})</option>`).join('')}
+        ${CHARTER_CODES.map(c=>`<option value="${c.code}">${c.code} — ${c.name} (${c.unit})</option>`).join('')}
       </select>
       <div class="flex gap-2 mb-2">
         <input id="bill-qty-${poleId}" class="input-field text-sm flex-1" type="number" placeholder="Quantity" min="0" step="1">
@@ -788,7 +788,7 @@ window.openPole=function(poleId){
         const code=CHARTER_CODES.find(c=>c.code===b.code);
         return `<div class="glass p-2 rounded-lg flex justify-between items-center text-sm">
           <span>${b.code} — ${b.qty} ${code?.unit||''}</span>
-          <span class="text-gray-400">$${((code?.rate||0)*b.qty).toFixed(2)}</span>
+          <span class="text-gray-400">${b.qty} ${code?.unit||''}</span>
         </div>`;
       }).join('')}</div>`:''}
     </div>
