@@ -62,8 +62,8 @@ html,body{font-family:'Inter',system-ui,-apple-system,sans-serif;-webkit-font-sm
 .modal-content{background:#1e1b2e;border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:24px;max-width:400px;width:90%;max-height:80vh;overflow-y:auto}
 .invite-input{font-size:32px;text-align:center;letter-spacing:8px;text-transform:uppercase;font-weight:700;font-family:'Inter',monospace}
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
-@keyframes confettiFall { 0% { transform: translateY(0) translateX(0) rotate(0deg); opacity: 1; } 100% { transform: translateY(var(--vy, 100vh)) translateX(var(--vx, 0px)) rotate(720deg); opacity: 0; } }
-    @keyframes confettiBannerIn { 0% { opacity: 0; transform: translate(-50%,-50%) scale(0.3); } 50% { transform: translate(-50%,-50%) scale(1.1); } 100% { opacity: 1; transform: translate(-50%,-50%) scale(1); } }
+
+
     @keyframes wave { 0%,100%{transform:rotate(0deg)} 25%{transform:rotate(20deg)} 75%{transform:rotate(-20deg)} }
     @keyframes gpsPulse{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,0.5)}50%{box-shadow:0 0 0 12px rgba(59,130,246,0)}}
 </style>
@@ -708,7 +708,6 @@ function getFilteredPoles(){
   if(filterMode==='completed') poles=poles.filter(p=>completions[p.id]);
   else if(filterMode==='pending') poles=poles.filter(p=>!completions[p.id]);
   else if(filterMode==='enroute') poles=poles.filter(p=>enroutes[p.id]);
-  else if(filterMode==='flagged') poles=poles.filter(p=>flags[p.id]);
   else if(filterMode.startsWith('CO')) poles=poles.filter(p=>p.section===filterMode);
   return poles;
 }
@@ -759,7 +758,7 @@ function renderMainApp(){
           <option value="pending"${filterMode==='pending'?' selected':''}>Pending</option>
           <option value="completed"${filterMode==='completed'?' selected':''}>Done</option>
           <option value="enroute"${filterMode==='enroute'?' selected':''}>En Route</option>
-          <option value="flagged"${filterMode==='flagged'?' selected':''}>🚩 Flagged</option>
+
         </select>
       </div>
     </header>
@@ -1295,13 +1294,7 @@ window.openPole=function(poleId){
         <span>🚗</span><span class="font-semibold">${enr.userName}</span><span class="text-xs text-gray-400">${timeAgo(enr.startedAt)}</span>
       </div>
     </div>`:''}
-    
-    \${flags[poleId]?`<div class="rounded-xl p-3 mb-4" style="background:rgba(249,115,22,0.15);border:1px solid rgba(249,115,22,0.3)">
-      <div class="flex items-center gap-2">
-        <span style="animation:wave 1s ease-in-out infinite">🚩</span><span class="font-semibold text-orange-400">Flagged</span><span class="text-xs text-gray-400">\${flags[poleId].userName} • \${timeAgo(flags[poleId].flaggedAt)}</span>
-        <button onclick="unflagPole('\${poleId}')" class="ml-auto btn-primary px-3 py-1 rounded-lg text-xs" style="background:linear-gradient(135deg,#22c55e,#16a34a)">✅ Clear Flag</button>
-      </div>
-    </div>`:''}
+
     
     <!-- Directions Button -->
     <a href="${directionsUrl(pole.lat,pole.lon)}" target="_blank" class="btn-gold w-full p-3 rounded-xl flex items-center justify-center gap-2 mb-3 block text-center no-underline" onclick="claimEnroute('${poleId}')">
@@ -1314,11 +1307,11 @@ window.openPole=function(poleId){
     </div>`:''}
     
     <!-- Action Buttons -->
-    <div class="grid grid-cols-5 gap-2 mb-4">
+    <div class="grid grid-cols-4 gap-2 mb-4">
       <button onclick="toggleNotes('${poleId}')" class="btn-primary p-3 rounded-xl text-xs">💬 Notes</button>
       <button onclick="openPhotoCapture('${poleId}','pole','${pole.name}')" class="btn-primary p-3 rounded-xl text-xs" style="background:linear-gradient(135deg,#ec4899,#db2777)">📸 Photo</button>
       <button onclick="${done?`undoComplete('${poleId}')`:`markComplete('${poleId}')`}" class="btn-primary p-3 rounded-xl text-xs ${done?'btn-amber':'btn-green'}">${done?'↩️ Undo':'✅ Done'}</button>
-      <button onclick="${flags[poleId]?`unflagPole('${poleId}')`:`flagPole('${poleId}')`}" class="btn-primary p-3 rounded-xl text-xs" style="background:${flags[poleId]?'linear-gradient(135deg,#22c55e,#16a34a)':'linear-gradient(135deg,#f97316,#ea580c)'}">${flags[poleId]?'✅ Clear':'🚩 Flag'}</button>
+
       <button onclick="toggleBilling('${poleId}')" class="btn-primary p-3 rounded-xl text-xs" style="background:linear-gradient(135deg,#3b82f6,#7c3aed)">💰 Bill</button>
     </div>
     
@@ -1715,10 +1708,7 @@ window.markComplete=async function(poleId){
   });
   // Clear enroute if exists
   try{await deleteDoc(doc(db,'charterEnroute',`${currentNodeId}_${poleId}`));}catch(e){}
-  // Clear flag if exists
-  try{await deleteDoc(doc(db,'charterFlags',`${currentNodeId}_${poleId}`));}catch(e){}
   openPole(poleId);
-  setTimeout(checkConfetti,500);
 };
 
 window.undoComplete=async function(poleId){
@@ -1774,22 +1764,7 @@ window.logBilling=async function(poleId){
 };
 
 // ============ MENU ============
-// ===== FLAG ISSUE =====
-window.flagPole=async function(poleId){
-  vibrate(100);playSound('click');
-  await setDoc(doc(db,'charterFlags',currentNodeId+'_'+poleId),{
-    nodeId:currentNodeId,poleId,uid:currentUser.uid,
-    userName:currentUser.displayName||currentUser.email.split('@')[0],
-    flaggedAt:serverTimestamp()
-  });
-  openPole(poleId);
-};
 
-window.unflagPole=async function(poleId){
-  vibrate();
-  await deleteDoc(doc(db,'charterFlags',currentNodeId+'_'+poleId));
-  openPole(poleId);
-};
 
 // ===== TEAM ACTIVITY =====
 window.showTeamActivity=function(){
@@ -1851,36 +1826,7 @@ window.downloadCSV=function(){
 };
 
 // ===== CONFETTI =====
-function fireConfetti(){
-  const container=document.createElement('div');
-  container.style.cssText='position:fixed;inset:0;z-index:99999;pointer-events:none;overflow:hidden;';
-  const colors=['#f0c040','#3b82f6','#22c55e','#ec4899','#f97316','#a855f7'];
-  for(let i=0;i<80;i++){
-    const piece=document.createElement('div');
-    const c=colors[Math.floor(Math.random()*colors.length)];
-    const x=-30+Math.random()*60;
-    const dur=1.5+Math.random()*1.5;
-    const delay=Math.random()*0.6;
-    piece.style.cssText='position:absolute;top:-10px;left:'+Math.random()*100+'%;width:'+(6+Math.random()*6)+'px;height:'+(6+Math.random()*6)+'px;background:'+c+';border-radius:'+(Math.random()>0.5?'50%':'2px')+';animation:confettiFall '+dur+'s ease-in '+delay+'s forwards;--vx:'+x+'px;--vy:'+window.innerHeight+'px;';
-    container.appendChild(piece);
-  }
-  // Banner
-  const banner=document.createElement('div');
-  banner.style.cssText='position:absolute;top:35%;left:50%;transform:translate(-50%,-50%);text-align:center;z-index:100000;animation:confettiBannerIn 0.5s ease-out;';
-  banner.innerHTML='<div style="font-size:60px;margin-bottom:8px">🎊</div><div style="font-size:28px;font-weight:900;color:#f0c040;text-shadow:0 2px 10px rgba(240,192,64,0.5)">ALL POLES DONE!</div>';
-  container.appendChild(banner);
-  document.body.appendChild(container);
-  setTimeout(()=>container.remove(),4000);
-}
 
-let confettiFired=false;
-function checkConfetti(){
-  if(completedCount()>=GT30E_POLES.length && !confettiFired){
-    confettiFired=true;
-    fireConfetti();
-  }
-  if(completedCount()<GT30E_POLES.length) confettiFired=false;
-}
 
 // ===== INSTALL BANNER =====
 let installPrompt=null;
