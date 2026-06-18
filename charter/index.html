@@ -1902,17 +1902,38 @@ function removeGPSGate(){
   if(gate)gate.remove();
 }
 
+// ============ VERSION BADGE ============
+const APP_VERSION='v26';
+(function(){
+  var badge=document.createElement('div');
+  badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
+  badge.textContent=APP_VERSION;
+  document.body.appendChild(badge);
+})();
+
+// Global error handler - show errors on screen
+window.onerror=function(msg,src,line,col,err){
+  var d=document.createElement('div');
+  d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:999999;background:red;color:white;padding:12px;font-size:12px;font-family:monospace;word-break:break-all;';
+  d.textContent='ERROR L'+line+': '+msg;
+  document.body.appendChild(d);
+  setTimeout(function(){d.remove();},15000);
+};
+
 // ============ AUTH STATE ============
 onAuthStateChanged(auth,async(user)=>{
   if(user){
     currentUser=user;
     // Request GPS silently in background — no blocking gate
-    checkGPS().then(function(ok){ if(ok){ console.log('GPS granted'); } else { console.log('GPS denied — app continues without it'); } });
+    checkGPS().then(function(ok){ if(ok){ console.log('GPS granted'); } else { console.log('GPS denied'); } });
     try{
       await loadUserNode();
     }catch(e){
       console.error('loadUserNode error:',e);
-      alert('Error loading app: '+e.message);
+      var d=document.createElement('div');
+      d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:999999;background:red;color:white;padding:12px;font-size:12px;font-family:monospace;word-break:break-all;';
+      d.textContent='LOAD ERROR: '+e.message;
+      document.body.appendChild(d);
     }
   }else{
     currentUser=null;currentNode=null;currentNodeId=null;
