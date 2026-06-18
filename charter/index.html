@@ -1822,16 +1822,52 @@ function showGPSGate(){
   var gate=document.createElement('div');
   gate.id='gps-gate';
   gate.style.cssText='position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg,#0f0f1a,#1a1a2e,#16213e);display:flex;align-items:center;justify-content:center;flex-direction:column;padding:32px;text-align:center;';
-  var h='<div style="font-size:72px;margin-bottom:24px;animation:gpsBounce 2s ease-in-out infinite">📍</div>';
-  h+='<h1 style="color:white;font-size:28px;font-weight:800;margin:0 0 12px">Location Required</h1>';
-  h+='<p style="color:rgba(255,255,255,0.7);font-size:15px;max-width:320px;line-height:1.5;margin:0 0 32px">GPS location is <strong style="color:#f59e0b">mandatory</strong> to use this app. We need your position for field work tracking, crew safety, and billing verification.</p>';
-  h+='<button id="gps-allow-btn" type="button" style="background:linear-gradient(135deg,#3b82f6,#2563eb);color:white;border:none;padding:16px 48px;border-radius:14px;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(59,130,246,0.5);-webkit-tap-highlight-color:rgba(59,130,246,0.3);touch-action:manipulation">✅ Allow Location Access</button>';
-  h+='<p style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:20px;max-width:280px">If you denied GPS, open your browser settings → Site Settings → Location → Allow for this site, then refresh.</p>';
-  h+='<style>@keyframes gpsBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-15px)}}</style>';
-  gate.innerHTML=h;
+
+  // Build all elements as real DOM nodes — no innerHTML
+  var pin=document.createElement('div');
+  pin.style.cssText='font-size:72px;margin-bottom:24px;';
+  pin.textContent='\u{1F4CD}';
+
+  var h1=document.createElement('h1');
+  h1.style.cssText='color:white;font-size:28px;font-weight:800;margin:0 0 12px;';
+  h1.textContent='Location Required';
+
+  var p1=document.createElement('p');
+  p1.style.cssText='color:rgba(255,255,255,0.7);font-size:15px;max-width:320px;line-height:1.5;margin:0 0 32px;';
+  p1.innerHTML='GPS location is <strong style="color:#f59e0b">mandatory</strong> to use this app. We need your position for field work tracking, crew safety, and billing verification.';
+
+  var btn=document.createElement('button');
+  btn.type='button';
+  btn.id='gps-allow-btn';
+  btn.style.cssText='background:linear-gradient(135deg,#3b82f6,#2563eb);color:white;border:none;padding:16px 48px;border-radius:14px;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(59,130,246,0.5);touch-action:manipulation;-webkit-tap-highlight-color:rgba(59,130,246,0.3);';
+  btn.textContent='\u2705 Allow Location Access';
+  btn.addEventListener('click',function(){
+    btn.textContent='\u23F3 Requesting GPS...';
+    btn.style.opacity='0.7';
+    navigator.geolocation.getCurrentPosition(
+      function(pos){
+        userLat=pos.coords.latitude;userLon=pos.coords.longitude;gpsGranted=true;
+        removeGPSGate();
+      },
+      function(err){
+        btn.textContent='\u2705 Allow Location Access';
+        btn.style.opacity='1';
+        alert('Location denied (error '+err.code+'). Go to Chrome \u2192 tap \u22ee menu \u2192 Settings \u2192 Site Settings \u2192 Location \u2192 find this site \u2192 Allow. Then refresh.');
+      },
+      {timeout:10000,enableHighAccuracy:true}
+    );
+  });
+
+  var p2=document.createElement('p');
+  p2.style.cssText='color:rgba(255,255,255,0.4);font-size:12px;margin-top:20px;max-width:280px;';
+  p2.textContent='If you denied GPS, open your browser settings \u2192 Site Settings \u2192 Location \u2192 Allow for this site, then refresh.';
+
+  gate.appendChild(pin);
+  gate.appendChild(h1);
+  gate.appendChild(p1);
+  gate.appendChild(btn);
+  gate.appendChild(p2);
   document.body.appendChild(gate);
-  // Auto-trigger GPS permission prompt immediately
-  setTimeout(function(){ window.requestGPSPermission(); }, 500);
 }
 
 function removeGPSGate(){
@@ -1857,19 +1893,6 @@ window.requestGPSPermission=async function(){
     alert('Location access denied. On your phone: Settings > Privacy > Location Services > ensure your browser has While Using enabled.');
   }
 };
-
-// Document-level event delegation for GPS button (bulletproof mobile tap)
-document.addEventListener('click',function(e){
-  if(e.target&&(e.target.id==='gps-allow-btn'||e.target.closest&&e.target.closest('#gps-allow-btn'))){
-    window.requestGPSPermission();
-  }
-});
-document.addEventListener('touchend',function(e){
-  if(e.target&&(e.target.id==='gps-allow-btn'||e.target.closest&&e.target.closest('#gps-allow-btn'))){
-    e.preventDefault();
-    window.requestGPSPermission();
-  }
-});
 
 // ============ AUTH STATE ============
 onAuthStateChanged(auth,async(user)=>{
