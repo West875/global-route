@@ -1845,19 +1845,20 @@ window.uploadWatermarkedPhoto=async function(){
       if(pole)gps={lat:pole.lat,lon:pole.lon};
     }
 
-    const ts=Date.now();
-    const path='charter-photos/'+currentNodeId+'/'+activePhotoTarget.poleId+'/'+ts+'.jpg';
-    const sRef=storageRef(storage,path);
-    await uploadBytes(sRef,watermarkedBlob);
-    const url=await getDownloadURL(sRef);
+    // Convert blob to base64 data URL (stored in Firestore directly)
+    const dataUrl=await new Promise((resolve)=>{
+      const reader=new FileReader();
+      reader.onloadend=()=>resolve(reader.result);
+      reader.readAsDataURL(watermarkedBlob);
+    });
 
-    // Save to Firestore
+    // Save to Firestore with embedded image
     await addDoc(collection(db,'charterPhotos'),{
       nodeId:currentNodeId,
       poleId:activePhotoTarget.poleId,
       type:activePhotoTarget.type,
       name:activePhotoTarget.name,
-      url:url,
+      url:dataUrl,
       gps:gps,
       uid:currentUser.uid,
       userName:currentUser.displayName||currentUser.email,
@@ -2147,8 +2148,14 @@ window.logBilling=async function(poleId){
   const code=$('bill-code-'+poleId)?.value;
   const qty=parseFloat($('bill-qty-'+poleId)?.value);
   if(!code||!qty||qty<=0){alert('Enter a valid quantity');return;}
-  vibrate();playSound('done');
   
+  // MC04 Tree Trim requires before/after photos
+  if(code==='MC04'){
+    openTreeTrimFlow(poleId,qty);
+    return;
+  }
+  
+  vibrate();playSound('done');
   await addDoc(collection(db,'charterBilling'),{
     nodeId:currentNodeId,poleId,code,qty,uid:currentUser.uid,
     userName:currentUser.displayName||currentUser.email.split('@')[0],
@@ -2156,6 +2163,197 @@ window.logBilling=async function(poleId){
   });
   $('bill-qty-'+poleId).value='';
   openPole(poleId);
+};
+
+// ============ TREE TRIM BEFORE/AFTER FLOW ============
+let treeTrimTemp={};
+
+window.openTreeTrimFlow=function(poleId,qty){
+  const pole=GT30E_POLES.find(p=>p.id===poleId);
+  const poleName=pole?pole.name:poleId;
+  treeTrimTemp={poleId,qty,poleName,beforePhoto:null,afterPhoto:null};
+  
+  const modal=document.createElement('div');
+  modal.id='tree-trim-modal';
+  modal.className='modal-backdrop';
+  modal.onclick=function(e){if(e.target===modal)closeTreeTrim();};
+  modal.innerHTML=`
+    <div class="modal-content" style="max-width:500px">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-bold">🌳 Tree Trim — ${poleName}</h2>
+        <button onclick="closeTreeTrim()" class="text-gray-400 text-2xl">&times;</button>
+      </div>
+      <p class="text-sm text-gray-400 mb-4">Take a <strong>BEFORE</strong> photo first, then do the work, then take an <strong>AFTER</strong> photo.</p>
+      
+      <!-- Step 1: Before Photo -->
+      <div id="tt-step1" class="mb-4">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-xl">1️⃣</span>
+          <span class="font-semibold text-sm" style="color:#f59e0b">BEFORE Photo (required)</span>
+        </div>
+        <div id="tt-before-preview" style="border-radius:12px;overflow:hidden;background:#111;min-height:120px;display:flex;align-items:center;justify-content:center;margin-bottom:8px">
+          <span class="text-gray-500 text-sm">No photo yet</span>
+        </div>
+        <input type="file" id="tt-before-input" accept="image/*" capture="environment" style="display:none" onchange="handleTreeTrimPhoto('before',this)">
+        <button onclick="document.getElementById('tt-before-input').click()" class="w-full p-3 rounded-xl flex items-center justify-center gap-2 font-semibold" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#000">
+          📷 Take BEFORE Photo
+        </button>
+      </div>
+      
+      <!-- Step 2: After Photo -->
+      <div id="tt-step2" class="mb-4" style="opacity:0.4;pointer-events:none">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-xl">2️⃣</span>
+          <span class="font-semibold text-sm" style="color:#10b981">AFTER Photo (required)</span>
+        </div>
+        <div id="tt-after-preview" style="border-radius:12px;overflow:hidden;background:#111;min-height:120px;display:flex;align-items:center;justify-content:center;margin-bottom:8px">
+          <span class="text-gray-500 text-sm">Complete work first, then take photo</span>
+        </div>
+        <input type="file" id="tt-after-input" accept="image/*" capture="environment" style="display:none" onchange="handleTreeTrimPhoto('after',this)">
+        <button onclick="document.getElementById('tt-after-input').click()" class="w-full p-3 rounded-xl flex items-center justify-center gap-2 font-semibold" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff">
+          📷 Take AFTER Photo
+        </button>
+      </div>
+      
+      <!-- Submit -->
+      <button id="tt-submit-btn" onclick="submitTreeTrim()" class="w-full p-3 rounded-xl flex items-center justify-center gap-2 font-bold text-lg" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;opacity:0.4;pointer-events:none">
+        ✅ Submit Tree Trim
+      </button>
+      <div id="tt-status" class="text-center text-sm text-gray-400 mt-2"></div>
+    </div>`;
+  document.body.appendChild(modal);
+};
+
+window.closeTreeTrim=function(){
+  const m=document.getElementById('tree-trim-modal');
+  if(m)m.remove();
+  treeTrimTemp={};
+};
+
+window.handleTreeTrimPhoto=async function(phase,input){
+  if(!input.files||!input.files[0])return;
+  const file=input.files[0];
+  
+  // Get GPS
+  let gps=null;
+  try{
+    const pos=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{timeout:10000,enableHighAccuracy:true}));
+    gps={lat:pos.coords.latitude,lon:pos.coords.longitude};
+  }catch(e){
+    const pole=GT30E_POLES.find(p=>p.id===treeTrimTemp.poleId);
+    if(pole)gps={lat:pole.lat,lon:pole.lon};
+  }
+  
+  const img=new Image();
+  img.onload=function(){
+    const canvas=document.createElement('canvas');
+    const ctx=canvas.getContext('2d');
+    const maxW=1600;
+    const scale=img.width>maxW?maxW/img.width:1;
+    canvas.width=Math.round(img.width*scale);
+    canvas.height=Math.round(img.height*scale);
+    ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    
+    const label=phase==='before'?'🌳 BEFORE — Tree Trim':'✅ AFTER — Tree Trim';
+    drawTimemarkWatermark(ctx,canvas.width,canvas.height,{
+      siteName:treeTrimTemp.poleName+' '+label,
+      userName:currentUser.displayName||currentUser.email||'Crew',
+      gps:gps,
+      prefix:'🌳'
+    });
+    
+    const dataUrl=canvas.toDataURL('image/jpeg',0.75);
+    treeTrimTemp[phase+'Photo']=dataUrl;
+    treeTrimTemp[phase+'Gps']=gps;
+    
+    // Show preview
+    const preview=document.getElementById('tt-'+phase+'-preview');
+    preview.innerHTML=`<img src="${dataUrl}" style="width:100%;border-radius:12px">`;
+    
+    // Enable next step
+    if(phase==='before'){
+      const step2=document.getElementById('tt-step2');
+      step2.style.opacity='1';
+      step2.style.pointerEvents='auto';
+    }
+    if(phase==='after'||treeTrimTemp.beforePhoto&&treeTrimTemp.afterPhoto){
+      checkTreeTrimReady();
+    }
+  };
+  img.src=URL.createObjectURL(file);
+};
+
+function checkTreeTrimReady(){
+  const btn=document.getElementById('tt-submit-btn');
+  if(treeTrimTemp.beforePhoto&&treeTrimTemp.afterPhoto){
+    btn.style.opacity='1';
+    btn.style.pointerEvents='auto';
+  }
+}
+
+window.submitTreeTrim=async function(){
+  if(!treeTrimTemp.beforePhoto||!treeTrimTemp.afterPhoto){
+    alert('Both before and after photos are required');return;
+  }
+  const btn=document.getElementById('tt-submit-btn');
+  const status=document.getElementById('tt-status');
+  btn.disabled=true;
+  btn.textContent='⏳ Submitting...';
+  status.textContent='Saving tree trim entry...';
+  
+  try{
+    // Save billing entry
+    const billingRef=await addDoc(collection(db,'charterBilling'),{
+      nodeId:currentNodeId,
+      poleId:treeTrimTemp.poleId,
+      code:'MC04',
+      qty:treeTrimTemp.qty,
+      uid:currentUser.uid,
+      userName:currentUser.displayName||currentUser.email.split('@')[0],
+      createdAt:serverTimestamp()
+    });
+    
+    // Save before photo
+    await addDoc(collection(db,'charterPhotos'),{
+      nodeId:currentNodeId,
+      poleId:treeTrimTemp.poleId,
+      type:'tree-trim-before',
+      name:treeTrimTemp.poleName+' — Tree Trim BEFORE',
+      url:treeTrimTemp.beforePhoto,
+      gps:treeTrimTemp.beforeGps,
+      billingId:billingRef.id,
+      uid:currentUser.uid,
+      userName:currentUser.displayName||currentUser.email,
+      createdAt:serverTimestamp()
+    });
+    
+    // Save after photo
+    await addDoc(collection(db,'charterPhotos'),{
+      nodeId:currentNodeId,
+      poleId:treeTrimTemp.poleId,
+      type:'tree-trim-after',
+      name:treeTrimTemp.poleName+' — Tree Trim AFTER',
+      url:treeTrimTemp.afterPhoto,
+      gps:treeTrimTemp.afterGps,
+      billingId:billingRef.id,
+      uid:currentUser.uid,
+      userName:currentUser.displayName||currentUser.email,
+      createdAt:serverTimestamp()
+    });
+    
+    vibrate();playSound('complete');
+    status.textContent='✅ Tree trim logged with photos!';
+    btn.textContent='✅ Submitted';
+    setTimeout(()=>{
+      closeTreeTrim();
+      openPole(treeTrimTemp.poleId);
+    },1000);
+  }catch(e){
+    console.error('Tree trim error:',e);
+    status.textContent='❌ Error: '+e.message;
+    btn.disabled=false;
+    btn.textContent='✅ Submit Tree Trim';
+  }
 };
 
 // ============ MENU ============
@@ -2507,7 +2705,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v35d';
+  badge.textContent='v36';
   document.body.appendChild(badge);
 })();
 
