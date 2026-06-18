@@ -754,6 +754,11 @@ function renderLogin(){
           <span class="text-sm font-medium">Continue with Google</span>
         </button>
         <p id="auth-error" class="text-red-400 text-sm mt-3 text-center hidden"></p>
+        ${hasBiometricRegistered() ? `
+        <div class="relative my-4"><div class="absolute inset-0 flex items-center"><div class="w-full border-t border-white/10"></div></div><div class="relative flex justify-center"><span class="bg-[#1e1b2e] px-3 text-xs text-gray-500">or</span></div></div>
+        <button class="w-full p-3 rounded-xl flex items-center justify-center gap-3 transition" style="background:linear-gradient(135deg,#d4a843,#b8922e);color:#0f0a1a;font-weight:800" onclick="doBiometricFromLogin()">
+          <span style="font-size:20px">🔐</span> Sign in with Biometric
+        </button>` : ''}
       </div>
     </div>
   </div>`;
@@ -795,6 +800,208 @@ window.doGoogle=async function(){
   }
 }
 getRedirectResult(auth).catch(()=>{});;
+
+// ============ BIOMETRIC UNLOCK (Fingerprint / Face ID) ============
+const BIO_KEY='globalroute_bio_enabled';
+const BIO_CRED='globalroute_bio_cred';
+const BIO_UID='globalroute_bio_uid';
+const BIO_NAME='globalroute_bio_name';
+const BIO_AVATAR='globalroute_bio_avatar';
+
+function isBiometricSupported(){
+  return window.PublicKeyCredential && 
+    typeof PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable==='function';
+}
+
+async function isBiometricAvailable(){
+  if(!isBiometricSupported()) return false;
+  try{return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();}
+  catch(e){return false;}
+}
+
+async function registerBiometric(){
+  try{
+    const avail=await isBiometricAvailable();
+    if(!avail) return false;
+    const userId=new TextEncoder().encode(currentUser.uid);
+    const challenge=crypto.getRandomValues(new Uint8Array(32));
+    const cred=await navigator.credentials.create({publicKey:{
+      challenge:challenge,
+      rp:{name:'Global Route',id:window.location.hostname},
+      user:{id:userId,name:currentUser.email||currentUser.displayName||'crew',displayName:currentUser.displayName||currentUser.email||'Crew'},
+      pubKeyCredParams:[{alg:-7,type:'public-key'},{alg:-257,type:'public-key'}],
+      authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required',residentKey:'discouraged'},
+      timeout:60000
+    }});
+    const credIdArr=Array.from(new Uint8Array(cred.rawId));
+    localStorage.setItem(BIO_CRED,JSON.stringify(credIdArr));
+    localStorage.setItem(BIO_KEY,'true');
+    localStorage.setItem(BIO_UID,currentUser.uid);
+    localStorage.setItem(BIO_NAME,currentUser.displayName||currentUser.email||'');
+    return true;
+  }catch(e){console.warn('Biometric register failed:',e);return false;}
+}
+
+async function verifyBiometric(){
+  try{
+    const credIdArr=JSON.parse(localStorage.getItem(BIO_CRED));
+    if(!credIdArr) return false;
+    const credId=new Uint8Array(credIdArr);
+    const challenge=crypto.getRandomValues(new Uint8Array(32));
+    await navigator.credentials.get({publicKey:{
+      challenge:challenge,
+      allowCredentials:[{id:credId,type:'public-key',transports:['internal']}],
+      userVerification:'required',
+      timeout:60000
+    }});
+    return true;
+  }catch(e){console.warn('Biometric verify failed:',e);return false;}
+}
+
+function hasBiometricRegistered(){
+  return localStorage.getItem(BIO_KEY)==='true' && localStorage.getItem(BIO_CRED);
+}
+
+// Show prompt to enable biometric after login
+async function promptEnableBiometric(){
+  const avail=await isBiometricAvailable();
+  if(!avail) return; // device doesn't support it
+  if(hasBiometricRegistered()) return; // already set up
+  // Small delay so app loads first
+  setTimeout(()=>{
+    const overlay=document.createElement('div');
+    overlay.id='bio-prompt';
+    overlay.style.cssText='position:fixed;inset:0;z-index:999999;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(10px)';
+    overlay.innerHTML=`
+      <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:24px;padding:32px;max-width:360px;width:100%;border:1px solid rgba(212,168,67,0.3);text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.5)">
+        <div style="width:72px;height:72px;margin:0 auto 16px;background:linear-gradient(135deg,rgba(212,168,67,0.2),rgba(212,168,67,0.05));border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid rgba(212,168,67,0.3)">
+          <span style="font-size:36px">🔐</span>
+        </div>
+        <h3 style="color:white;font-size:20px;font-weight:800;margin:0 0 8px">Enable Biometric Login</h3>
+        <p style="color:rgba(255,255,255,0.6);font-size:14px;margin:0 0 24px;line-height:1.5">Use your fingerprint or Face ID to unlock Global Route instantly next time</p>
+        <button onclick="enableBiometricNow()" style="width:100%;padding:14px;border:none;border-radius:14px;background:linear-gradient(135deg,#d4a843,#b8922e);color:#0f0a1a;font-weight:800;font-size:15px;cursor:pointer;margin-bottom:10px;box-shadow:0 4px 20px rgba(212,168,67,0.3)">
+          ✅ Enable Biometric
+        </button>
+        <button onclick="document.getElementById('bio-prompt')?.remove()" style="width:100%;padding:12px;border:1px solid rgba(255,255,255,0.1);border-radius:14px;background:transparent;color:rgba(255,255,255,0.5);font-size:13px;cursor:pointer">
+          Maybe Later
+        </button>
+      </div>`;
+    document.body.appendChild(overlay);
+  },2000);
+}
+
+window.enableBiometricNow=async function(){
+  const btn=document.querySelector('#bio-prompt button');
+  if(btn)btn.textContent='Setting up...';
+  const ok=await registerBiometric();
+  if(ok){
+    // Save avatar for lock screen
+    if(userAvatarURL) localStorage.setItem(BIO_AVATAR,userAvatarURL);
+    document.getElementById('bio-prompt')?.remove();
+    showSuccessBanner('🔐 Biometric login enabled!');
+  }else{
+    if(btn)btn.textContent='❌ Not available on this device';
+    setTimeout(()=>document.getElementById('bio-prompt')?.remove(),2000);
+  }
+};
+
+// Lock screen on return visits — shown before app loads
+let biometricUnlocked=false;
+function showBiometricLockScreen(){
+  const savedName=localStorage.getItem(BIO_NAME)||'Crew';
+  const savedAvatar=localStorage.getItem(BIO_AVATAR)||'';
+  const firstName=savedName.split(' ')[0];
+  const app=document.getElementById('app');
+  if(!app) return;
+  app.innerHTML=`
+  <div class="min-h-screen flex items-center justify-center p-4" style="background:linear-gradient(135deg,#0f0a1a 0%,#1a0f2e 50%,#0f0a1a 100%)">
+    <div style="text-align:center;max-width:340px;width:100%">
+      <div style="margin-bottom:24px">
+        ${savedAvatar 
+          ? '<img src="'+savedAvatar+'" style="width:80px;height:80px;border-radius:50%;object-fit:cover;margin:0 auto;border:3px solid #d4a843;box-shadow:0 0 20px rgba(212,168,67,0.3)">'
+          : '<div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#6d28d9);display:flex;align-items:center;justify-content:center;margin:0 auto;font-size:32px;font-weight:800;color:white;border:3px solid #d4a843;box-shadow:0 0 20px rgba(212,168,67,0.3)">'+firstName[0].toUpperCase()+'</div>'
+        }
+      </div>
+      <h2 style="color:white;font-size:22px;font-weight:800;margin:0 0 4px">Welcome back, ${firstName}</h2>
+      <p style="color:rgba(255,255,255,0.5);font-size:13px;margin:0 0 32px">Use biometric to unlock</p>
+      
+      <button id="bio-unlock-btn" onclick="doBiometricUnlock()" style="width:100%;padding:16px;border:none;border-radius:16px;background:linear-gradient(135deg,#d4a843,#b8922e);color:#0f0a1a;font-weight:800;font-size:16px;cursor:pointer;margin-bottom:12px;box-shadow:0 4px 20px rgba(212,168,67,0.3);display:flex;align-items:center;justify-content:center;gap:10px">
+        <span style="font-size:24px">🔐</span> Unlock with Biometric
+      </button>
+      
+      <button onclick="bypassBiometric()" style="width:100%;padding:12px;border:1px solid rgba(255,255,255,0.1);border-radius:14px;background:transparent;color:rgba(255,255,255,0.5);font-size:13px;cursor:pointer;margin-bottom:8px">
+        Use Email & Password Instead
+      </button>
+      
+      <button onclick="disableBiometricAndLogin()" style="background:none;border:none;color:rgba(255,255,255,0.3);font-size:11px;cursor:pointer;margin-top:8px">
+        Disable biometric login
+      </button>
+    </div>
+  </div>`;
+  // Auto-trigger biometric prompt on load
+  setTimeout(()=>doBiometricUnlock(),500);
+}
+
+window.doBiometricUnlock=async function(){
+  const btn=document.getElementById('bio-unlock-btn');
+  if(btn) btn.innerHTML='<span style="font-size:24px">⏳</span> Verifying...';
+  const ok=await verifyBiometric();
+  if(ok){
+    biometricUnlocked=true;
+    if(btn) btn.innerHTML='<span style="font-size:24px">✅</span> Unlocked!';
+    // Continue with app load
+    try{await loadUserNode();}catch(e){console.error('loadUserNode error:',e);}
+  }else{
+    if(btn) btn.innerHTML='<span style="font-size:24px">🔐</span> Unlock with Biometric';
+    // Show small error
+    const err=document.createElement('p');
+    err.style.cssText='color:#ef4444;font-size:12px;text-align:center;margin-top:8px';
+    err.textContent='Biometric failed — try again or use password';
+    btn?.parentNode?.appendChild(err);
+    setTimeout(()=>err.remove(),3000);
+  }
+};
+
+window.bypassBiometric=function(){
+  biometricUnlocked=true;
+  // Sign out and show normal login
+  signOut(auth);
+};
+
+window.doBiometricFromLogin=async function(){
+  // User is on login screen but has biometric registered — Firebase session may still be valid
+  const ok=await verifyBiometric();
+  if(ok){
+    biometricUnlocked=true;
+    // If Firebase session is still valid, onAuthStateChanged already fired with user
+    // We need to reload to trigger it again
+    if(currentUser){
+      try{await loadUserNode();}catch(e){console.error(e);}
+    }else{
+      // Session expired — can't auto-login with biometric alone
+      showAuthError('Session expired — please sign in with email/password or Google');
+    }
+  }
+};
+
+window.disableBiometricAndLogin=function(){
+  localStorage.removeItem(BIO_KEY);
+  localStorage.removeItem(BIO_CRED);
+  localStorage.removeItem(BIO_UID);
+  localStorage.removeItem(BIO_NAME);
+  localStorage.removeItem(BIO_AVATAR);
+  biometricUnlocked=true;
+  // Continue loading
+  loadUserNode().catch(e=>console.error(e));
+};
+
+function showSuccessBanner(msg){
+  const b=document.createElement('div');
+  b.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:999999;background:linear-gradient(135deg,#059669,#047857);color:white;padding:12px 24px;border-radius:14px;font-weight:700;font-size:14px;box-shadow:0 8px 30px rgba(0,0,0,0.3);animation:slideDown 0.3s ease';
+  b.textContent=msg;
+  document.body.appendChild(b);
+  setTimeout(()=>{b.style.opacity='0';b.style.transition='opacity 0.3s';setTimeout(()=>b.remove(),300);},2500);
+}
 
 // ============ INVITE CODE ============
 function renderInviteCode(){
@@ -2382,6 +2589,7 @@ window.showMenu=function(){
         <span class="text-gray-400">Progress:</span> <span class="font-semibold">${completedCount()}/${GT30E_POLES.length} (${progressPct()}%)</span>
       </div>
       <button onclick="changeAvatar()" class="w-full p-3 rounded-xl text-sm glass">📸 Change Photo</button>
+      <button onclick="toggleBiometricSetting()" class="w-full p-3 rounded-xl text-sm glass">${hasBiometricRegistered() ? '🔓 Disable Biometric Login' : '🔐 Enable Biometric Login'}</button>
       <button onclick="downloadCSV()" class="btn-primary w-full p-3 rounded-xl text-sm mt-2">📥 Download CSV</button>
       <button onclick="doSignOut();closeMenu()" class="w-full p-3 rounded-xl text-sm text-gray-400 glass mt-2">Sign Out</button>
     </div>
@@ -2390,7 +2598,29 @@ window.showMenu=function(){
 };
 
 window.closeMenu=function(){ $('menu-modal').classList.add('hidden'); };
-window.doSignOut=function(){ signOut(auth); };
+window.doSignOut=function(){ signOut(auth); biometricUnlocked=false; };
+
+window.toggleBiometricSetting=async function(){
+  closeMenu();
+  if(hasBiometricRegistered()){
+    // Disable
+    localStorage.removeItem(BIO_KEY);
+    localStorage.removeItem(BIO_CRED);
+    localStorage.removeItem(BIO_UID);
+    localStorage.removeItem(BIO_NAME);
+    localStorage.removeItem(BIO_AVATAR);
+    showSuccessBanner('🔓 Biometric login disabled');
+  }else{
+    // Enable
+    const ok=await registerBiometric();
+    if(ok){
+      if(userAvatarURL) localStorage.setItem(BIO_AVATAR,userAvatarURL);
+      showSuccessBanner('🔐 Biometric login enabled!');
+    }else{
+      showSuccessBanner('❌ Biometric not available on this device');
+    }
+  }
+};
 
 window.changeAvatar=function(){
   closeMenu();
@@ -2713,7 +2943,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v36b';
+  badge.textContent='v37';
   document.body.appendChild(badge);
 })();
 
@@ -2732,8 +2962,17 @@ onAuthStateChanged(auth,async(user)=>{
     currentUser=user;
     // Request GPS silently in background — no blocking gate
     checkGPS().then(function(ok){ if(ok){ console.log('GPS granted'); } else { console.log('GPS denied'); } });
+    
+    // Check if biometric lock screen is needed
+    if(hasBiometricRegistered() && !biometricUnlocked && localStorage.getItem(BIO_UID)===user.uid){
+      showBiometricLockScreen();
+      return; // Don't load app until biometric verified
+    }
+    
     try{
       await loadUserNode();
+      // After successful load, prompt to enable biometric if not set up
+      promptEnableBiometric();
     }catch(e){
       console.error('loadUserNode error:',e);
       var d=document.createElement('div');
