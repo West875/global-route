@@ -2461,7 +2461,7 @@ function renderTeamStrip(){
     const isMe = m.uid === currentUser?.uid;
     const isOnline = (now - (m.updatedAt?.toMillis?.() || 0)) < 10*60*1000;
     const name = (m.displayName || 'Crew').split(' ')[0];
-    const photo = m.photoURL || '';
+    const photo = m.photoURL || (window._memberPhotos && window._memberPhotos[m.uid]) || '';
     const borderColor = isMe ? '#f0c040' : '#3b82f6';
     const dotColor = isOnline ? '#22c55e' : '#94a3b8';
     
@@ -2584,16 +2584,24 @@ function subscribeToData(){
   if(currentUser && !window._presenceWatchStarted){
     window._presenceWatchStarted = true;
     const myPresenceRef = doc(db, 'charterPresence', currentUser.uid);
+    // Write presence immediately at login (photo + name, even before GPS)
+    setDoc(myPresenceRef, {
+      uid: currentUser.uid,
+      displayName: currentUser.displayName || currentUser.email,
+      photoURL: userAvatarURL || currentUser.photoURL || '',
+      updatedAt: serverTimestamp()
+    }, {merge:true}).catch(()=>{});
     let lastPresenceWrite = 0;
     navigator.geolocation.watchPosition(pos => {
       const now = Date.now();
       if(now - lastPresenceWrite < 30000) return;
       lastPresenceWrite = now;
       setDoc(myPresenceRef, {
+        uid: currentUser.uid,
         lat: pos.coords.latitude,
         lon: pos.coords.longitude,
         displayName: currentUser.displayName || currentUser.email,
-        photoURL: currentUser.photoURL || '',
+        photoURL: userAvatarURL || currentUser.photoURL || '',
         updatedAt: serverTimestamp()
       }, {merge:true});
     }, ()=>{}, {enableHighAccuracy:true, maximumAge:10000, timeout:15000});
@@ -2705,7 +2713,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v36';
+  badge.textContent='v36b';
   document.body.appendChild(badge);
 })();
 
