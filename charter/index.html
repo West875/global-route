@@ -933,38 +933,24 @@ function initMap(){
   };
   const labelsLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:20,pane:'overlayPane'});
   baseLayers['Satellite'].addTo(mapInstance);
-  let currentBase = 'Satellite';
-  
-  // Layer switcher button (bottom-right, above GPS)
-  const layerNames = ['Satellite','Terrain','Street','Hybrid'];
-  const layerIcons = {'Satellite':'🛰️','Terrain':'🏔️','Street':'🗺️','Hybrid':'🛰️+'};
+
+  // Leaflet built-in layer control (top-right crosshatch — same as OLT-57)
+  L.control.layers({
+    '🛰️ Satellite': baseLayers['Satellite'],
+    '⛰️ Terrain': baseLayers['Terrain'],
+    '🗺️ Street': baseLayers['Street']
+  }, null, { position: 'topright', collapsed: true }).addTo(mapInstance);
+
+  // Team Activity button (bottom-right, safe position)
   const mapC2 = document.getElementById('map-container');
-  const layerBtn = document.createElement('button');
-  layerBtn.id = 'layerSwitchBtn';
-  layerBtn.innerHTML = '🛰️';
-  layerBtn.title = 'Switch map type';
-  layerBtn.style.cssText = 'position:absolute;bottom:84px;right:16px;z-index:1000;width:50px;height:50px;border-radius:50%;border:2px solid rgba(255,255,255,0.4);background:rgba(20,20,30,0.92);backdrop-filter:blur(12px);color:white;font-size:22px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;';
   mapC2.style.position='relative';
-  mapC2.appendChild(layerBtn);
-  
-  // Team Activity button
   var teamBtn=document.createElement('button');
   teamBtn.id='teamActivityBtn';
-  teamBtn.style.cssText='position:absolute;bottom:144px;right:16px;z-index:1000;width:50px;height:50px;border-radius:50%;border:2px solid rgba(255,255,255,0.4);background:rgba(20,20,30,0.92);backdrop-filter:blur(12px);color:white;font-size:22px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;';
+  teamBtn.style.cssText='position:absolute;bottom:20px;right:16px;z-index:1000;width:50px;height:50px;border-radius:50%;border:2px solid rgba(255,255,255,0.4);background:rgba(20,20,30,0.92);backdrop-filter:blur(12px);color:white;font-size:22px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;';
   teamBtn.textContent='👥';
   teamBtn.title='Team Activity';
   teamBtn.onclick=function(){showTeamActivity();};
   mapC2.appendChild(teamBtn);
-  layerBtn.addEventListener('click',()=>{
-    const idx = (layerNames.indexOf(currentBase)+1)%layerNames.length;
-    mapInstance.removeLayer(baseLayers[currentBase]);
-    if(currentBase==='Hybrid') mapInstance.removeLayer(labelsLayer);
-    currentBase = layerNames[idx];
-    baseLayers[currentBase].addTo(mapInstance);
-    if(currentBase==='Hybrid') labelsLayer.addTo(mapInstance);
-    layerBtn.innerHTML = layerIcons[currentBase];
-    layerBtn.title = currentBase;
-  });
   
   // Add markers
   GT30E_POLES.forEach(p=>{
@@ -1816,6 +1802,7 @@ function renderTeamStrip(){
     return;
   }
   
+  if(currentView==='map'){ strip.style.display='none'; return; }
   strip.style.display = 'block';
   const onlineCount = members.filter(m => (now - (m.updatedAt?.toMillis?.() || 0)) < 10*60*1000).length;
   
@@ -2021,7 +2008,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v33g';
+  badge.textContent='v33h';
   document.body.appendChild(badge);
 })();
 
