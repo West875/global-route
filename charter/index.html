@@ -1825,11 +1825,13 @@ function showGPSGate(){
   var h='<div style="font-size:72px;margin-bottom:24px;animation:gpsBounce 2s ease-in-out infinite">📍</div>';
   h+='<h1 style="color:white;font-size:28px;font-weight:800;margin:0 0 12px">Location Required</h1>';
   h+='<p style="color:rgba(255,255,255,0.7);font-size:15px;max-width:320px;line-height:1.5;margin:0 0 32px">GPS location is <strong style="color:#f59e0b">mandatory</strong> to use this app. We need your position for field work tracking, crew safety, and billing verification.</p>';
-  h+='<button onclick="requestGPSPermission()" style="background:linear-gradient(135deg,#3b82f6,#2563eb);color:white;border:none;padding:16px 48px;border-radius:14px;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(59,130,246,0.5)">✅ Allow Location Access</button>';
+  h+='<button id="gps-allow-btn" type="button" style="background:linear-gradient(135deg,#3b82f6,#2563eb);color:white;border:none;padding:16px 48px;border-radius:14px;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(59,130,246,0.5);-webkit-tap-highlight-color:rgba(59,130,246,0.3);touch-action:manipulation">✅ Allow Location Access</button>';
   h+='<p style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:20px;max-width:280px">If you denied GPS, open your browser settings → Site Settings → Location → Allow for this site, then refresh.</p>';
   h+='<style>@keyframes gpsBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-15px)}}</style>';
   gate.innerHTML=h;
   document.body.appendChild(gate);
+  var allowBtn=document.getElementById('gps-allow-btn');
+  if(allowBtn){allowBtn.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();window.requestGPSPermission();});}
 }
 
 function removeGPSGate(){
