@@ -1132,35 +1132,60 @@ function initMap(){
     gpsWatchId=navigator.geolocation.watchPosition(updatePos,onErr,{enableHighAccuracy:true,maximumAge:5000});
   });
 
-  // ===== CREW LOCATION TRACKING =====
+  // ===== CREW LOCATION TRACKING (48px avatar + orange pulsing glow + 🚗 badge) =====
   const crewMarkers = {};
   const presenceRef = collection(db, 'charterPresence');
+  
+  // CSS for orange pulsing glow on crew pins
+  if(!document.getElementById('crew-pin-style')){
+    const sty=document.createElement('style');
+    sty.id='crew-pin-style';
+    sty.textContent=`
+      @keyframes crewPulse{0%,100%{box-shadow:0 0 8px 2px rgba(249,115,22,0.6)}50%{box-shadow:0 0 16px 6px rgba(249,115,22,0.9)}}
+      .crew-pin-photo{width:48px;height:48px;border-radius:50%;border:3px solid #f97316;object-fit:cover;animation:crewPulse 2s ease-in-out infinite}
+      .crew-pin-letter{width:48px;height:48px;border-radius:50%;background:#3b82f6;border:3px solid #f97316;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:18px;animation:crewPulse 2s ease-in-out infinite}
+    `;
+    document.head.appendChild(sty);
+  }
+  
+  function buildCrewIcon(uid, d){
+    const name = (d.displayName || 'Crew').split(' ')[0];
+    const photo = d.photoURL || (window._memberPhotos && window._memberPhotos[uid]) || '';
+    const photoHtml = photo
+      ? '<img src="'+photo+'" class="crew-pin-photo" referrerpolicy="no-referrer">'
+      : '<div class="crew-pin-letter">'+name[0]+'</div>';
+    const html = '<div style="position:relative;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.5));">'+photoHtml+'<div style="position:absolute;bottom:-4px;right:-4px;font-size:16px;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.5));">🚗</div></div>';
+    return L.divIcon({className:'',html:html,iconSize:[54,54],iconAnchor:[27,27]});
+  }
+  
   onSnapshot(presenceRef, snap => {
     const now = Date.now();
+    const activeUids = new Set();
     snap.forEach(docSnap => {
       const d = docSnap.data();
       const uid = docSnap.id;
-      // Show all users including self // skip self (shown by GPS button)
       const age = now - (d.updatedAt?.toMillis?.() || 0);
       if(age > 10*60*1000){ // stale > 10 min
         if(crewMarkers[uid]){ mapInstance.removeLayer(crewMarkers[uid]); delete crewMarkers[uid]; }
         return;
       }
+      activeUids.add(uid);
       const name = (d.displayName || 'Crew').split(' ')[0];
-      const photo = d.photoURL || '';
-      const photoHtml = photo
-        ? '<img src="'+photo+'" style="width:36px;height:36px;border-radius:50%;border:2px solid #3b82f6;object-fit:cover;">'
-        : '<div style="width:36px;height:36px;border-radius:50%;background:#3b82f6;border:2px solid white;display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:14px;">'+name[0]+'</div>';
-      const iconHtml = '<div style="position:relative;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4));">'+photoHtml+'<div style="position:absolute;bottom:-2px;right:-2px;font-size:14px;">🚗</div></div>';
+      const icon = buildCrewIcon(uid, d);
       
       if(crewMarkers[uid]){
         crewMarkers[uid].setLatLng([d.lat, d.lon]);
+        crewMarkers[uid].setIcon(icon);
       } else {
         crewMarkers[uid] = L.marker([d.lat, d.lon], {
-          icon: L.divIcon({className:'',html:iconHtml,iconSize:[40,40],iconAnchor:[20,20]}),
+          icon: icon,
           zIndexOffset: 8000
         }).bindPopup('<b>'+name+'</b><br>Last seen: '+ new Date(d.updatedAt?.toMillis?.() || now).toLocaleTimeString()).addTo(mapInstance);
       }
+    });
+    // Remove markers for users no longer in snapshot
+    Object.keys(crewMarkers).forEach(uid=>{
+      if(!activeUids.has(uid)){ mapInstance.removeLayer(crewMarkers[uid]); delete crewMarkers[uid]; }
     });
   });
 
@@ -1889,6 +1914,21 @@ function subscribeToData(){
     err=>console.error('presence sub error:',err)
   ));
 
+  // Member photos cache (for crew markers)
+  unsubscribers.push(onSnapshot(
+    query(collection(db,'charterNodeMembers'),where('nodeId','==',currentNodeId)),
+    snap=>{
+      window._memberPhotos={};
+      snap.forEach(d=>{
+        const data=d.data();
+        if(data.uid && (data.photoURL||data.avatarURL)){
+          window._memberPhotos[data.uid]=data.photoURL||data.avatarURL;
+        }
+      });
+    },
+    err=>console.error('memberPhotos sub error:',err)
+  ));
+
   // Broadcast own location to charterPresence — throttled to every 30s
   if(currentUser && !window._presenceWatchStarted){
     window._presenceWatchStarted = true;
@@ -2014,7 +2054,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v34';
+  badge.textContent='v34b';
   document.body.appendChild(badge);
 })();
 
