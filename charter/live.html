@@ -911,9 +911,10 @@ function initMap(){
   var container=document.getElementById('map-container');
   if(!container){console.error('initMap: no map-container');return;}
   
-  // Create map div if needed
+  // Create map div — use fixed pixel height (not 100vh which flickers on mobile)
   if(!container.querySelector('#map')){
-    container.innerHTML='<div id="map" style="height:calc(100vh - 140px);width:100%"></div>';
+    var mapH = window.innerHeight - 140;
+    container.innerHTML='<div id="map" style="height:'+mapH+'px;width:100%;position:relative;z-index:1"></div>';
   }
   
   if(mapInstance){try{mapInstance.remove();}catch(e){}mapInstance=null;}
@@ -922,7 +923,7 @@ function initMap(){
   const lons=GT30E_POLES.map(p=>p.lon);
   const bounds=[[Math.min(...lats)-0.002,Math.min(...lons)-0.003],[Math.max(...lats)+0.002,Math.max(...lons)+0.003]];
   
-  mapInstance=L.map('map',{zoomControl:false,attributionControl:false}).fitBounds(bounds);
+  mapInstance=L.map('map',{zoomControl:false,attributionControl:false,fadeAnimation:false,zoomAnimation:false,markerZoomAnimation:false}).fitBounds(bounds);
   // Map tile layers
   const baseLayers = {
     'Satellite': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:20}),
@@ -1775,14 +1776,17 @@ window.toggleView=function(){
   var listEl=document.getElementById('list-view');
   var mapEl=document.getElementById('map-container');
   var toggleBtn=document.querySelector('[onclick="toggleView()"]');
+  var teamStrip=document.getElementById('team-strip');
   if(currentView==='map'){
     if(listEl) listEl.style.display='none';
     if(mapEl) mapEl.style.display='block';
+    if(teamStrip) teamStrip.style.display='none';
     if(toggleBtn) toggleBtn.textContent='📋';
     if(!window._mapInited) initMap();
   } else {
     if(listEl) listEl.style.display='block';
     if(mapEl) mapEl.style.display='none';
+    if(teamStrip) teamStrip.style.display='flex';
     if(toggleBtn) toggleBtn.textContent='🗺️';
   }
 };
@@ -2017,7 +2021,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v33d';
+  badge.textContent='v33e';
   document.body.appendChild(badge);
 })();
 
