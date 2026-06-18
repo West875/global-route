@@ -1843,11 +1843,11 @@ function showGPSGate(){
   btn.style.cssText='background:linear-gradient(135deg,#3b82f6,#2563eb);color:white;border:none;padding:16px 48px;border-radius:14px;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(59,130,246,0.5);touch-action:manipulation;-webkit-tap-highlight-color:rgba(59,130,246,0.3);user-select:none;';
   btn.textContent='\u2705 Allow Location Access';
 
-  // Skip link (hidden initially, shown after first denial)
+  // Skip link (always visible)
   var skipLink=document.createElement('a');
   skipLink.href='#';
   skipLink.id='gps-skip-link';
-  skipLink.style.cssText='color:#f59e0b;font-size:14px;margin-top:24px;display:none;text-decoration:underline;';
+  skipLink.style.cssText='color:#f59e0b;font-size:14px;margin-top:24px;display:block;text-decoration:underline;';
   skipLink.textContent='Continue without GPS (limited features)';
   skipLink.addEventListener('click',function(e){
     e.preventDefault();
@@ -1906,10 +1906,8 @@ function removeGPSGate(){
 onAuthStateChanged(auth,async(user)=>{
   if(user){
     currentUser=user;
-    // Show GPS gate immediately (never block rendering)
-    showGPSGate();
-    // Try GPS in background — gate removes itself on success
-    checkGPS().then(function(ok){ if(ok) removeGPSGate(); });
+    // Request GPS silently in background — no blocking gate
+    checkGPS().then(function(ok){ if(ok){ console.log('GPS granted'); } else { console.log('GPS denied — app continues without it'); } });
     try{
       await loadUserNode();
     }catch(e){
