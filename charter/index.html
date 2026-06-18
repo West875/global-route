@@ -1830,8 +1830,8 @@ function showGPSGate(){
   h+='<style>@keyframes gpsBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-15px)}}</style>';
   gate.innerHTML=h;
   document.body.appendChild(gate);
-  var allowBtn=document.getElementById('gps-allow-btn');
-  if(allowBtn){allowBtn.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();window.requestGPSPermission();});}
+  // Auto-trigger GPS permission prompt immediately
+  setTimeout(function(){ window.requestGPSPermission(); }, 500);
 }
 
 function removeGPSGate(){
@@ -1857,6 +1857,19 @@ window.requestGPSPermission=async function(){
     alert('Location access denied. On your phone: Settings > Privacy > Location Services > ensure your browser has While Using enabled.');
   }
 };
+
+// Document-level event delegation for GPS button (bulletproof mobile tap)
+document.addEventListener('click',function(e){
+  if(e.target&&(e.target.id==='gps-allow-btn'||e.target.closest&&e.target.closest('#gps-allow-btn'))){
+    window.requestGPSPermission();
+  }
+});
+document.addEventListener('touchend',function(e){
+  if(e.target&&(e.target.id==='gps-allow-btn'||e.target.closest&&e.target.closest('#gps-allow-btn'))){
+    e.preventDefault();
+    window.requestGPSPermission();
+  }
+});
 
 // ============ AUTH STATE ============
 onAuthStateChanged(auth,async(user)=>{
