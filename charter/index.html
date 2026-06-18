@@ -778,12 +778,12 @@ function renderMainApp(){
     </header>
 
     <!-- Team Presence Strip -->
-    <div id="team-strip" style="display:none;padding:8px 16px;background:rgba(14,14,26,0.6);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,0.06);overflow-x:auto;white-space:nowrap"></div>
+    <div id="team-strip" style="display:flex;align-items:center;min-height:44px;padding:6px 16px;background:rgba(14,14,26,0.6);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,0.06);overflow-x:auto;white-space:nowrap"><span style="color:#6b7280;font-size:12px">Loading crew…</span></div>
 
     <!-- Content -->
     <main class="flex-1 relative" style="min-height:0;overflow:hidden">
-      <div id="list-view" style="display:${currentView==='list'?'block':'none'};padding:16px;padding-bottom:80px;overflow-y:auto;height:calc(100vh - 140px)"></div>
-      <div id="map-container" style="display:${currentView==='map'?'block':'none'};position:absolute;top:0;left:0;right:0;bottom:0;height:calc(100vh - 140px)">
+      <div id="list-view" style="display:${currentView==='list'?'block':'none'};padding:16px;padding-bottom:80px;overflow-y:auto;height:calc(100vh - 184px)"></div>
+      <div id="map-container" style="display:${currentView==='map'?'block':'none'};position:absolute;top:0;left:0;right:0;bottom:0;height:calc(100vh - 184px)">
 <div id="mapLegend" style="position:absolute;bottom:10px;left:10px;z-index:1000;background:rgba(0,0,0,.85);backdrop-filter:blur(10px);border-radius:12px;padding:10px 12px;color:#fff;font-size:11px;font-family:Inter,sans-serif;display:block;min-width:150px">
   <div style="font-weight:700;margin-bottom:6px;color:#d4a843">🗺️ MAP KEY</div>
   <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">
@@ -1164,24 +1164,6 @@ function initMap(){
     });
   });
 
-  // Broadcast own location to charterPresence — throttled to every 30s
-  if(currentUser && !window._presenceWatchStarted){
-    window._presenceWatchStarted = true;
-    const myPresenceRef = doc(db, 'charterPresence', currentUser.uid);
-    let lastPresenceWrite = 0;
-    navigator.geolocation.watchPosition(pos => {
-      const now = Date.now();
-      if(now - lastPresenceWrite < 30000) return; // max once per 30s
-      lastPresenceWrite = now;
-      setDoc(myPresenceRef, {
-        lat: pos.coords.latitude,
-        lon: pos.coords.longitude,
-        displayName: currentUser.displayName || currentUser.email,
-        photoURL: currentUser.photoURL || '',
-        updatedAt: serverTimestamp()
-      }, {merge:true});
-    }, ()=>{}, {enableHighAccuracy:true, maximumAge:10000, timeout:15000});
-  }
   window._mapInited = true;
   }catch(mapErr){
     console.error('initMap error:',mapErr);
@@ -1775,13 +1757,11 @@ window.toggleView=function(){
   if(currentView==='map'){
     if(listEl) listEl.style.display='none';
     if(mapEl) mapEl.style.display='block';
-    if(teamStrip) teamStrip.style.display='none';
     if(toggleBtn) toggleBtn.textContent='📋';
     if(!window._mapInited) initMap();
   } else {
     if(listEl) listEl.style.display='block';
     if(mapEl) mapEl.style.display='none';
-    if(teamStrip) teamStrip.style.display='flex';
     if(toggleBtn) toggleBtn.textContent='🗺️';
   }
 };
@@ -1807,12 +1787,10 @@ function renderTeamStrip(){
   });
   
   if(members.length === 0){
-    strip.style.display = 'none';
+    strip.innerHTML = '<span style="color:#6b7280;font-size:12px">No crew online</span>';
     return;
   }
-  
-  if(currentView==='map'){ strip.style.display='none'; return; }
-  strip.style.display = 'block';
+  strip.style.display = 'flex';
   const onlineCount = members.filter(m => (now - (m.updatedAt?.toMillis?.() || 0)) < 10*60*1000).length;
   
   let html = '<div style="display:inline-flex;align-items:center;gap:12px">';
@@ -1910,6 +1888,25 @@ function subscribeToData(){
     },
     err=>console.error('presence sub error:',err)
   ));
+
+  // Broadcast own location to charterPresence — throttled to every 30s
+  if(currentUser && !window._presenceWatchStarted){
+    window._presenceWatchStarted = true;
+    const myPresenceRef = doc(db, 'charterPresence', currentUser.uid);
+    let lastPresenceWrite = 0;
+    navigator.geolocation.watchPosition(pos => {
+      const now = Date.now();
+      if(now - lastPresenceWrite < 30000) return;
+      lastPresenceWrite = now;
+      setDoc(myPresenceRef, {
+        lat: pos.coords.latitude,
+        lon: pos.coords.longitude,
+        displayName: currentUser.displayName || currentUser.email,
+        photoURL: currentUser.photoURL || '',
+        updatedAt: serverTimestamp()
+      }, {merge:true});
+    }, ()=>{}, {enableHighAccuracy:true, maximumAge:10000, timeout:15000});
+  }
 }
 
 // ============ GPS CHECK — MANDATORY GATE ============
@@ -2017,7 +2014,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v33j';
+  badge.textContent='v34';
   document.body.appendChild(badge);
 })();
 
