@@ -826,10 +826,18 @@ function renderMainApp(){
   if(currentView==='map') initMap();
 }
 
+// Debounced render — batches rapid-fire subscription updates into one paint
+let _renderTimer=null;
+function renderPoleListDebounced(){
+  if(_renderTimer) return;
+  _renderTimer=requestAnimationFrame(()=>{_renderTimer=null;renderPoleList();});
+}
+
 function renderPoleList(){
   var poles=getFilteredPoles();
   var container=document.getElementById('list-view');
   if(!container){console.error('renderPoleList: list-view NOT FOUND');return;}
+  var savedScroll=container.scrollTop;
   
   if(!poles.length){
     container.innerHTML='<div style="text-align:center;color:#999;padding:40px">No poles found</div>';
@@ -878,6 +886,7 @@ function renderPoleList(){
   }
   
   container.innerHTML=html;
+  container.scrollTop=savedScroll;
 }
 
 // ============ MAP ============
@@ -1860,7 +1869,7 @@ function subscribeToData(){
     snap=>{
       polePhotos={};
       snap.forEach(d=>{polePhotos[d.id]={...d.data(),id:d.id};});
-      renderPoleList();
+      renderPoleListDebounced();
     },
     err=>console.error('photos sub error:',err)
   ));
@@ -1982,7 +1991,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v33b';
+  badge.textContent='v33c';
   document.body.appendChild(badge);
 })();
 
