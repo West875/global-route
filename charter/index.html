@@ -96,15 +96,17 @@ const storage=getStorage(app);
 
 // Charter billing codes
 const CHARTER_CODES=[
-{code:"AC02",name:"Fiber Composite (Strand+Lash)",unit:"Per Ft",type:"footage"},
-{code:"AS02",name:"Place Strand Only",unit:"Per Ft",type:"footage"},
-{code:"AS07",name:"Overlash Fiber 1000'+",unit:"Per Ft",type:"footage"},
-{code:"AS07A",name:"Overlash Fiber 1'–999'",unit:"Per Ft",type:"footage"},
-{code:"MC04",name:"Tree Trimming",unit:"Per Span",type:"each"},
-{code:"AS18",name:"Make Ready & Compliance",unit:"Per Pole",type:"each"},
-{code:"AC05",name:"De/Relash",unit:"Per Ft",type:"footage"},
-{code:"AS01",name:"Set/Replace Pole",unit:"Each",type:"quote"},
-{code:"AS26",name:"Top Pole",unit:"Each",type:"each"},
+{code:"AC02",name:"Fiber Composite (Strand+Lash)",unit:"Per Ft",type:"footage",rate:0.40},
+{code:"AC02-1",name:"Strand Portion",unit:"Per Ft",type:"footage",rate:0.16},
+{code:"AC02-2",name:"Fiber Lash Portion",unit:"Per Ft",type:"footage",rate:0.24},
+{code:"AS02",name:"Place Strand Only",unit:"Per Ft",type:"footage",rate:0.13},
+{code:"AS07",name:"Overlash Fiber 1000'+",unit:"Per Ft",type:"footage",rate:0.20},
+{code:"AS07A",name:"Overlash Fiber 1'–999'",unit:"Per Ft",type:"footage",rate:0.20},
+{code:"MC04",name:"Tree Trimming",unit:"Per Span",type:"each",rate:16.50},
+{code:"AS18",name:"Make Ready & Compliance",unit:"Per Pole",type:"each",rate:15.02},
+{code:"AC05",name:"De/Relash",unit:"Per Ft",type:"footage",rate:0.35},
+{code:"AS01",name:"Set/Replace Pole",unit:"Each",type:"quote",rate:0},
+{code:"AS26",name:"Top Pole",unit:"Each",type:"each",rate:6.60},
 ];
 
 
@@ -1020,7 +1022,7 @@ function renderMainApp(){
           <div>
             <h1 class="gold-text text-lg leading-tight">${currentNode?.name||'Charter'}</h1>
             <p class="text-xs text-gray-400">${completed}/${total} poles</p>
-            ${(function(){const sf=spanFootageStats();return sf.strandFt||sf.lashedFt?'<p class="text-xs" style="margin-top:1px"><span style="color:#eab308">🟡 '+sf.strandFt.toLocaleString()+'ft</span> <span style="color:#22c55e">🟢 '+sf.lashedFt.toLocaleString()+'ft</span></p>':'';})()}
+            ${(function(){const sf=spanFootageStats();if(!sf.strandFt&&!sf.lashedFt) return '';const earn=(sf.strandFt*0.16)+(sf.lashedFt*0.40);return '<p class="text-xs" style="margin-top:1px"><span style="color:#eab308">🟡 '+sf.strandFt.toLocaleString()+'ft</span> <span style="color:#22c55e">🟢 '+sf.lashedFt.toLocaleString()+'ft</span>'+(earn?' <span style="color:#f0d060;font-weight:700">$'+earn.toFixed(2)+'</span>':'')+'</p>';})()}
           </div>
         </div>
         <div class="flex items-center gap-2">
@@ -1562,7 +1564,7 @@ window.openPole=function(poleId){
     <div id="billing-section-${poleId}" class="hidden mb-4">
       <h3 class="font-semibold text-sm mb-2 text-gray-400">LOG BILLING</h3>
       <select id="bill-code-${poleId}" class="input-field text-sm mb-2">
-        ${CHARTER_CODES.map(c=>`<option value="${c.code}">${c.code} — ${c.name} (${c.unit})</option>`).join('')}
+        ${CHARTER_CODES.map(c=>`<option value="${c.code}">${c.code} — ${c.name} ${c.rate?'$'+c.rate.toFixed(2)+'/'+c.unit.replace('Per ',''):''}</option>`).join('')}
       </select>
       <div class="flex gap-2 mb-2">
         <input id="bill-qty-${poleId}" class="input-field text-sm flex-1" type="number" placeholder="Quantity" min="0" step="1">
@@ -1570,9 +1572,10 @@ window.openPole=function(poleId){
       </div>
       ${poleBilling.length?`<div class="space-y-1">${poleBilling.map(([id,b])=>{
         const code=CHARTER_CODES.find(c=>c.code===b.code);
+        const amt=code&&code.rate?(b.qty*code.rate):0;
         return `<div class="glass p-2 rounded-lg flex justify-between items-center text-sm">
           <span>${b.code} — ${b.qty} ${code?.unit||''}</span>
-          <span class="text-gray-400">${b.qty} ${code?.unit||''}</span>
+          ${amt?`<span class="font-bold" style="color:var(--gold-light)">$${amt.toFixed(2)}</span>`:''}
         </div>`;
       }).join('')}</div>`:''}
     </div>
@@ -1985,11 +1988,16 @@ function showSpanModal(span, spanKey, p1, p2){
         <span style="color:#94a3b8"> → </span>
         <span style="color:#60a5fa;font-weight:600">${label2}</span>
       </div>
-      <div style="color:#fbbf24;font-size:13px;font-weight:600;margin-bottom:16px">📏 ${span.ft.toLocaleString()} ft</div>
+      <div style="color:#fbbf24;font-size:13px;font-weight:600;margin-bottom:8px">📏 ${span.ft.toLocaleString()} ft</div>
+      <div style="color:#94a3b8;font-size:12px;margin-bottom:16px">
+        ${stage==='strand'?'🟡 $'+(span.ft*0.16).toFixed(2)+' (AC02-1)':
+          stage==='lashed'?'🟢 $'+(span.ft*0.40).toFixed(2)+' (AC02)':
+          'Select a stage below'}
+      </div>
       <div style="display:flex;gap:8px;margin-bottom:16px">
         ${stageBtn('none','⬜','No Work', stage==='none')}
-        ${stageBtn('strand','🟡','Strand', stage==='strand')}
-        ${stageBtn('lashed','🟢','Lashed', stage==='lashed')}
+        ${stageBtn('strand','🟡','Strand<br><span style=font-size:11px>$0.16/ft</span>', stage==='strand')}
+        ${stageBtn('lashed','🟢','Lashed<br><span style=font-size:11px>$0.40/ft</span>', stage==='lashed')}
       </div>
       <div style="color:#64748b;font-size:11px;text-align:center">Tap a stage to update • Changes sync in real-time</div>
     </div>
@@ -2499,7 +2507,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v35b';
+  badge.textContent='v35c';
   document.body.appendChild(badge);
 })();
 
