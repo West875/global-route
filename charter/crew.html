@@ -905,6 +905,9 @@ window.toggleMapLegend=function(){
 
 function initMap(){
   try{
+  // Guard against re-initialization
+  if(window._mapInited && mapInstance) { mapInstance.invalidateSize(); return; }
+  
   var container=document.getElementById('map-container');
   if(!container){console.error('initMap: no map-container');return;}
   
@@ -1165,10 +1168,15 @@ function initMap(){
     });
   });
 
-  // Broadcast own location to charterPresence
-  if(currentUser){
+  // Broadcast own location to charterPresence — throttled to every 30s
+  if(currentUser && !window._presenceWatchStarted){
+    window._presenceWatchStarted = true;
     const myPresenceRef = doc(db, 'charterPresence', currentUser.uid);
-    let presenceWatchId = navigator.geolocation.watchPosition(pos => {
+    let lastPresenceWrite = 0;
+    navigator.geolocation.watchPosition(pos => {
+      const now = Date.now();
+      if(now - lastPresenceWrite < 30000) return; // max once per 30s
+      lastPresenceWrite = now;
       setDoc(myPresenceRef, {
         lat: pos.coords.latitude,
         lon: pos.coords.longitude,
@@ -1178,6 +1186,7 @@ function initMap(){
       }, {merge:true});
     }, ()=>{}, {enableHighAccuracy:true, maximumAge:10000, timeout:15000});
   }
+  window._mapInited = true;
   }catch(mapErr){
     console.error('initMap error:',mapErr);
     var mc=document.getElementById('map-container');
@@ -1763,10 +1772,27 @@ window.downloadCSV=function(){
 // ============ VIEW TOGGLE ============
 window.toggleView=function(){
   currentView=currentView==='list'?'map':'list';
-  renderMainApp();
+  var listEl=document.getElementById('list-view');
+  var mapEl=document.getElementById('map-container');
+  var toggleBtn=document.querySelector('[onclick="toggleView()"]');
+  if(currentView==='map'){
+    if(listEl) listEl.style.display='none';
+    if(mapEl) mapEl.style.display='block';
+    if(toggleBtn) toggleBtn.textContent='📋';
+    if(!window._mapInited) initMap();
+  } else {
+    if(listEl) listEl.style.display='block';
+    if(mapEl) mapEl.style.display='none';
+    if(toggleBtn) toggleBtn.textContent='🗺️';
+  }
 };
 
 // ============ TEAM PRESENCE STRIP ============
+let _teamStripTimer=null;
+function renderTeamStripDebounced(){
+  if(_teamStripTimer) clearTimeout(_teamStripTimer);
+  _teamStripTimer=setTimeout(()=>{_teamStripTimer=null;renderTeamStrip();},500);
+}
 function renderTeamStrip(){
   const strip = document.getElementById('team-strip');
   if(!strip) return;
@@ -1880,7 +1906,7 @@ function subscribeToData(){
     snap=>{
       teamPresence={};
       snap.forEach(d=>{teamPresence[d.id]={...d.data(),uid:d.id};});
-      renderTeamStrip();
+      renderTeamStripDebounced();
     },
     err=>console.error('presence sub error:',err)
   ));
@@ -1991,7 +2017,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v33c';
+  badge.textContent='v33d';
   document.body.appendChild(badge);
 })();
 
