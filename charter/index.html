@@ -759,9 +759,9 @@ function renderMainApp(){
     </header>
 
     <!-- Content -->
-    <main class="flex-1 relative">
-      <div id="list-view" class="${currentView==='list'?'':'hidden'} p-4 pb-20"></div>
-      <div id="map-container" class="${currentView==='map'?'':'hidden'}" style="position:absolute;inset:0">
+    <main class="flex-1 relative" style="min-height:0;overflow:hidden">
+      <div id="list-view" style="display:${currentView==='list'?'block':'none'};padding:16px;padding-bottom:80px;overflow-y:auto;height:calc(100vh - 140px)"></div>
+      <div id="map-container" style="display:${currentView==='map'?'block':'none'};position:absolute;top:0;left:0;right:0;bottom:0;height:calc(100vh - 140px)">
 <div id="mapLegend" style="position:absolute;bottom:60px;right:10px;z-index:1000;background:rgba(0,0,0,.85);backdrop-filter:blur(10px);border-radius:12px;padding:10px 12px;color:#fff;font-size:11px;font-family:Inter,sans-serif;display:block;min-width:150px">
   <div style="font-weight:700;margin-bottom:6px;color:#d4a843">🗺️ MAP KEY</div>
   <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">
@@ -873,15 +873,16 @@ window.toggleMapLegend=function(){
 };
 
 function initMap(){
-  const container=$('map-container');
-  if(!container) return;
+  try{
+  var container=document.getElementById('map-container');
+  if(!container){console.error('initMap: no map-container');return;}
   
   // Create map div if needed
   if(!container.querySelector('#map')){
-    container.innerHTML='<div id="map" style="height:100%;width:100%"></div>';
+    container.innerHTML='<div id="map" style="height:calc(100vh - 140px);width:100%"></div>';
   }
   
-  if(mapInstance){mapInstance.remove();mapInstance=null;}
+  if(mapInstance){try{mapInstance.remove();}catch(e){}mapInstance=null;}
   
   const lats=GT30E_POLES.map(p=>p.lat);
   const lons=GT30E_POLES.map(p=>p.lon);
@@ -1145,6 +1146,11 @@ function initMap(){
         updatedAt: serverTimestamp()
       }, {merge:true});
     }, ()=>{}, {enableHighAccuracy:true, maximumAge:10000, timeout:15000});
+  }
+  }catch(mapErr){
+    console.error('initMap error:',mapErr);
+    var mc=document.getElementById('map-container');
+    if(mc) mc.innerHTML='<div style="padding:40px;text-align:center;color:#f87171">Map failed to load: '+mapErr.message+'</div>';
   }
 }
 
@@ -1868,7 +1874,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v30';
+  badge.textContent='v31';
   document.body.appendChild(badge);
 })();
 
