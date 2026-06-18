@@ -784,7 +784,7 @@ function renderMainApp(){
     <main class="flex-1 relative" style="min-height:0;overflow:hidden">
       <div id="list-view" style="display:${currentView==='list'?'block':'none'};padding:16px;padding-bottom:80px;overflow-y:auto;height:calc(100vh - 140px)"></div>
       <div id="map-container" style="display:${currentView==='map'?'block':'none'};position:absolute;top:0;left:0;right:0;bottom:0;height:calc(100vh - 140px)">
-<div id="mapLegend" style="position:absolute;bottom:60px;right:10px;z-index:1000;background:rgba(0,0,0,.85);backdrop-filter:blur(10px);border-radius:12px;padding:10px 12px;color:#fff;font-size:11px;font-family:Inter,sans-serif;display:block;min-width:150px">
+<div id="mapLegend" style="position:absolute;bottom:10px;left:10px;z-index:1000;background:rgba(0,0,0,.85);backdrop-filter:blur(10px);border-radius:12px;padding:10px 12px;color:#fff;font-size:11px;font-family:Inter,sans-serif;display:block;min-width:150px">
   <div style="font-weight:700;margin-bottom:6px;color:#d4a843">🗺️ MAP KEY</div>
   <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">
     <input type="checkbox" checked onchange="toggleFiberLayer('trunk',this.checked)" style="accent-color:#ef4444">
@@ -946,20 +946,12 @@ function initMap(){
   mapC2.style.position='relative';
   const mapBtnStyle='position:absolute;right:10px;z-index:1000;width:48px;height:48px;border-radius:6px;background:white;border:none;box-shadow:0 2px 8px rgba(0,0,0,0.35);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s;';
 
-  // GPS Recenter button (crosshair SVG — matches OLT-57)
+  // GPS Recenter button (crosshair SVG — matches OLT-57) — click handled by delegated listener below
   var gpsBtn=document.createElement('button');
+  gpsBtn.id='gpsLocateBtn';
   gpsBtn.title='Re-center on my location';
   gpsBtn.style.cssText=mapBtnStyle+'top:60px;';
   gpsBtn.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3.5" stroke="#333" stroke-width="2" fill="none"/><line x1="12" y1="1" x2="12" y2="5" stroke="#333" stroke-width="2"/><line x1="12" y1="19" x2="12" y2="23" stroke="#333" stroke-width="2"/><line x1="1" y1="12" x2="5" y2="12" stroke="#333" stroke-width="2"/><line x1="19" y1="12" x2="23" y2="12" stroke="#333" stroke-width="2"/></svg>';
-  gpsBtn.onclick=function(){
-    if(!mapInstance) return;
-    navigator.geolocation.getCurrentPosition(function(pos){
-      mapInstance.flyTo([pos.coords.latitude,pos.coords.longitude],15,{duration:0.8});
-    },function(){alert('Could not get location');},{enableHighAccuracy:true,timeout:8000});
-    if(navigator.vibrate) navigator.vibrate(20);
-  };
-  gpsBtn.ontouchstart=function(){this.style.background='#e0e0e0';};
-  gpsBtn.ontouchend=function(){this.style.background='white';};
   mapC2.appendChild(gpsBtn);
 
   // Team Activity button (below GPS)
@@ -1094,14 +1086,7 @@ function initMap(){
   // Store for toggle
   window._fiberLayers=fiberLayers;
 
-  // ===== GPS CROSSHAIR BUTTON (floating over map) =====
-  const mapContainer = document.getElementById('map-container');
-  if(!document.getElementById('gpsLocateBtn')){
-    const gpsDiv = document.createElement('div');
-    gpsDiv.innerHTML = '<button id="gpsLocateBtn" style="position:absolute;bottom:24px;right:16px;z-index:1000;width:50px;height:50px;border-radius:50%;border:2px solid rgba(255,255,255,0.4);background:rgba(20,20,30,0.92);backdrop-filter:blur(12px);color:white;font-size:20px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;" title="My Location"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg></button>';
-    mapContainer.style.position='relative';
-    mapContainer.appendChild(gpsDiv);
-  }
+  // GPS button already created above as white OLT-57 style at top:60px
 
   let gpsMarker=null, gpsCircle=null, gpsTracking=false, gpsWatchId=null;
   document.addEventListener('click',function(e){
@@ -1113,13 +1098,15 @@ function initMap(){
       gpsWatchId=null;
       if(gpsMarker){mapInstance.removeLayer(gpsMarker);gpsMarker=null;}
       if(gpsCircle){mapInstance.removeLayer(gpsCircle);gpsCircle=null;}
-      btn.style.background='rgba(20,20,30,0.9)';
-      btn.style.borderColor='rgba(255,255,255,0.3)';
+      btn.style.background='white';
+      btn.style.borderColor='transparent';
+      btn.querySelector('svg').querySelectorAll('circle,line').forEach(el=>{el.setAttribute('stroke','#333');});
       return;
     }
     gpsTracking=true;
-    btn.style.background='rgba(59,130,246,0.9)';
-    btn.style.borderColor='rgba(59,130,246,0.8)';
+    btn.style.background='#3b82f6';
+    btn.style.borderColor='#3b82f6';
+    btn.querySelector('svg').querySelectorAll('circle,line').forEach(el=>{el.setAttribute('stroke','white');});
     function updatePos(pos){
       const lat=pos.coords.latitude,lon=pos.coords.longitude,acc=pos.coords.accuracy;
       if(gpsMarker){
@@ -1137,8 +1124,9 @@ function initMap(){
     }
     function onErr(err){
       gpsTracking=false;
-      btn.style.background='rgba(20,20,30,0.9)';
-      btn.style.borderColor='rgba(255,255,255,0.3)';
+      btn.style.background='white';
+      btn.style.borderColor='transparent';
+      btn.querySelector('svg').querySelectorAll('circle,line').forEach(el=>{el.setAttribute('stroke','#333');});
     }
     navigator.geolocation.getCurrentPosition(updatePos,onErr,{enableHighAccuracy:true,timeout:10000});
     gpsWatchId=navigator.geolocation.watchPosition(updatePos,onErr,{enableHighAccuracy:true,maximumAge:5000});
@@ -2029,7 +2017,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v33i';
+  badge.textContent='v33j';
   document.body.appendChild(badge);
 })();
 
