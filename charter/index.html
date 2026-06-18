@@ -941,15 +941,36 @@ function initMap(){
     '🗺️ Street': baseLayers['Street']
   }, null, { position: 'topright', collapsed: true }).addTo(mapInstance);
 
-  // Team Activity button (bottom-right, safe position)
+  // Map control buttons (top-right, below layer control — same style as OLT-57)
   const mapC2 = document.getElementById('map-container');
   mapC2.style.position='relative';
+  const mapBtnStyle='position:absolute;right:10px;z-index:1000;width:48px;height:48px;border-radius:6px;background:white;border:none;box-shadow:0 2px 8px rgba(0,0,0,0.35);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 0.2s;';
+
+  // GPS Recenter button (crosshair SVG — matches OLT-57)
+  var gpsBtn=document.createElement('button');
+  gpsBtn.title='Re-center on my location';
+  gpsBtn.style.cssText=mapBtnStyle+'top:60px;';
+  gpsBtn.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3.5" stroke="#333" stroke-width="2" fill="none"/><line x1="12" y1="1" x2="12" y2="5" stroke="#333" stroke-width="2"/><line x1="12" y1="19" x2="12" y2="23" stroke="#333" stroke-width="2"/><line x1="1" y1="12" x2="5" y2="12" stroke="#333" stroke-width="2"/><line x1="19" y1="12" x2="23" y2="12" stroke="#333" stroke-width="2"/></svg>';
+  gpsBtn.onclick=function(){
+    if(!mapInstance) return;
+    navigator.geolocation.getCurrentPosition(function(pos){
+      mapInstance.flyTo([pos.coords.latitude,pos.coords.longitude],15,{duration:0.8});
+    },function(){alert('Could not get location');},{enableHighAccuracy:true,timeout:8000});
+    if(navigator.vibrate) navigator.vibrate(20);
+  };
+  gpsBtn.ontouchstart=function(){this.style.background='#e0e0e0';};
+  gpsBtn.ontouchend=function(){this.style.background='white';};
+  mapC2.appendChild(gpsBtn);
+
+  // Team Activity button (below GPS)
   var teamBtn=document.createElement('button');
   teamBtn.id='teamActivityBtn';
-  teamBtn.style.cssText='position:absolute;bottom:20px;right:16px;z-index:1000;width:50px;height:50px;border-radius:50%;border:2px solid rgba(255,255,255,0.4);background:rgba(20,20,30,0.92);backdrop-filter:blur(12px);color:white;font-size:22px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;';
-  teamBtn.textContent='👥';
   teamBtn.title='Team Activity';
+  teamBtn.style.cssText=mapBtnStyle+'top:116px;';
+  teamBtn.innerHTML='<span style="font-size:22px">👥</span>';
   teamBtn.onclick=function(){showTeamActivity();};
+  teamBtn.ontouchstart=function(){this.style.background='#e0e0e0';};
+  teamBtn.ontouchend=function(){this.style.background='white';};
   mapC2.appendChild(teamBtn);
   
   // Add markers
@@ -2008,7 +2029,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v33h';
+  badge.textContent='v33i';
   document.body.appendChild(badge);
 })();
 
