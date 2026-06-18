@@ -1263,7 +1263,7 @@ window.openPole=function(poleId){
             <div><span style="color:#9ca3af">Attach Height</span><br><span class="font-semibold" style="color:#34d399">${d.ah||'—'}</span></div>
             <div><span style="color:#9ca3af">Bottom Equip</span><br><span class="font-semibold">${d.bh||'—'} ${d.bt||''}</span></div>
           </div>
-          ${d.ad?`<div style="margin-top:8px;padding:8px 10px;background:rgba(52,211,153,0.08);border-radius:10px;border:1px solid rgba(52,211,153,0.2);font-size:13px"><span style="color:#34d399;font-weight:600">📌 Attachment:</span> ${d.ad}</div>`:''}
+          ${d.ad?`<div style="margin-top:8px;padding:8px 10px;background:rgba(251,191,36,0.1);border-radius:10px;border:1px solid rgba(251,191,36,0.3);font-size:13px"><span style="color:#fbbf24;font-weight:600">📌 Attachment:</span> <span style="color:#e5e7eb">${d.ad}</span></div>`:''}
           ${d.awd?`<div style="margin-top:8px;padding:8px 10px;background:rgba(245,158,11,0.08);border-radius:10px;border:1px solid rgba(245,158,11,0.2);font-size:13px"><span style="color:#f59e0b;font-weight:600">⚠️ APC Work:</span> ${d.awd}</div>`:''}
           ${d.np?`<div style="margin-top:8px;padding:8px 10px;background:rgba(239,68,68,0.08);border-radius:10px;border:1px solid rgba(239,68,68,0.2);font-size:13px"><span style="color:#f87171;font-weight:600">🔄 New Pole:</span> ${d.np}</div>`:''}
         </div>
@@ -2021,7 +2021,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v33e';
+  badge.textContent='v33f';
   document.body.appendChild(badge);
 })();
 
