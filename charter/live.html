@@ -422,6 +422,7 @@ let notes = {};
 let billingEntries = {};
 let polePhotos = {};
 let ticMarks = {};
+let teamPresence = {};
 let unsubscribers = [];
 let mapInstance = null;
 let markers = {};
@@ -758,6 +759,9 @@ function renderMainApp(){
         </select>
       </div>
     </header>
+
+    <!-- Team Presence Strip -->
+    <div id="team-strip" style="display:none;padding:8px 16px;background:rgba(14,14,26,0.6);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,0.06);overflow-x:auto;white-space:nowrap"></div>
 
     <!-- Content -->
     <main class="flex-1 relative" style="min-height:0;overflow:hidden">
@@ -1736,6 +1740,55 @@ window.toggleView=function(){
   renderMainApp();
 };
 
+// ============ TEAM PRESENCE STRIP ============
+function renderTeamStrip(){
+  const strip = document.getElementById('team-strip');
+  if(!strip) return;
+  const now = Date.now();
+  const members = Object.values(teamPresence).filter(m => {
+    const age = now - (m.updatedAt?.toMillis?.() || 0);
+    return age < 30 * 60 * 1000; // active in last 30 min
+  }).sort((a,b) => {
+    // Current user first, then by recency
+    if(a.uid === currentUser?.uid) return -1;
+    if(b.uid === currentUser?.uid) return 1;
+    return (b.updatedAt?.toMillis?.() || 0) - (a.updatedAt?.toMillis?.() || 0);
+  });
+  
+  if(members.length === 0){
+    strip.style.display = 'none';
+    return;
+  }
+  
+  strip.style.display = 'block';
+  const onlineCount = members.filter(m => (now - (m.updatedAt?.toMillis?.() || 0)) < 10*60*1000).length;
+  
+  let html = '<div style="display:inline-flex;align-items:center;gap:12px">';
+  html += '<div style="display:flex;flex-direction:column;margin-right:4px"><span style="font-size:11px;font-weight:700;color:#d4a843">CREW</span><span style="font-size:10px;color:#22c55e;font-weight:600">' + onlineCount + ' online</span></div>';
+  
+  members.forEach(m => {
+    const isMe = m.uid === currentUser?.uid;
+    const isOnline = (now - (m.updatedAt?.toMillis?.() || 0)) < 10*60*1000;
+    const name = (m.displayName || 'Crew').split(' ')[0];
+    const photo = m.photoURL || '';
+    const borderColor = isMe ? '#f0c040' : '#3b82f6';
+    const dotColor = isOnline ? '#22c55e' : '#94a3b8';
+    
+    html += '<div style="display:inline-flex;flex-direction:column;align-items:center;gap:2px;position:relative">';
+    if(photo){
+      html += '<img src="' + photo + '" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid ' + borderColor + ';box-shadow:0 0 8px ' + (isMe ? 'rgba(240,192,64,0.3)' : 'rgba(59,130,246,0.3)') + '">';
+    } else {
+      html += '<div style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;color:white;background:linear-gradient(135deg,#7c3aed,#6d28d9);border:2px solid ' + borderColor + ';box-shadow:0 0 8px ' + (isMe ? 'rgba(240,192,64,0.3)' : 'rgba(59,130,246,0.3)') + '">' + name[0].toUpperCase() + '</div>';
+    }
+    html += '<div style="position:absolute;top:0;right:-1px;width:10px;height:10px;background:' + dotColor + ';border-radius:50%;border:2px solid #0f0f1a;' + (isOnline ? 'box-shadow:0 0 6px ' + dotColor : '') + '"></div>';
+    html += '<span style="font-size:9px;color:' + (isMe ? '#f0c040' : '#94a3b8') + ';font-weight:' + (isMe ? '700' : '500') + ';max-width:48px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (isMe ? 'You' : name) + '</span>';
+    html += '</div>';
+  });
+  
+  html += '</div>';
+  strip.innerHTML = html;
+}
+
 // ============ FIRESTORE SUBSCRIPTIONS ============
 function subscribeToData(){
   // Clear old subs
@@ -1793,6 +1846,17 @@ function subscribeToData(){
       renderPoleList();
     },
     err=>console.error('photos sub error:',err)
+  ));
+
+  // Team Presence
+  unsubscribers.push(onSnapshot(
+    collection(db,'charterPresence'),
+    snap=>{
+      teamPresence={};
+      snap.forEach(d=>{teamPresence[d.id]={...d.data(),uid:d.id};});
+      renderTeamStrip();
+    },
+    err=>console.error('presence sub error:',err)
   ));
 }
 
@@ -1901,7 +1965,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v32';
+  badge.textContent='v33';
   document.body.appendChild(badge);
 })();
 
