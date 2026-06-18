@@ -54,7 +54,7 @@ html,body{font-family:'Inter',system-ui,-apple-system,sans-serif;-webkit-font-sm
 .pulse-ring{animation:pulse-ring 2s ease-out infinite}
 @keyframes pulse-ring{0%{box-shadow:0 0 0 0 rgba(245,158,11,0.4)}70%{box-shadow:0 0 0 10px rgba(245,158,11,0)}100%{box-shadow:0 0 0 0 rgba(245,158,11,0)}}
 .progress-ring{transform:rotate(-90deg)}
-.slide-up{animation:slideUp .3s ease-out}
+.slide-up{animation:slideUp .3s ease-out forwards}
 @keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
 .completion-banner{animation:bannerIn .4s ease-out}
 @keyframes bannerIn{from{transform:translateY(-100%);opacity:0}to{transform:translateY(0);opacity:1}}
@@ -666,7 +666,6 @@ window.confirmSelfie=async function(){
 
 // ============ LOAD USER NODE ============
 async function loadUserNode(){
-  try{
   // Check if user belongs to any node
   const snap=await getDocs(query(collection(db,'charterNodeMembers'),where('uid','==',currentUser.uid)));
   if(snap.empty){renderInviteCode();return;}
@@ -689,7 +688,6 @@ async function loadUserNode(){
   
   renderMainApp();
   subscribeToData();
-  }catch(err){console.error('loadUserNode error:',err);var d=document.createElement('div');d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:999999;background:red;color:white;padding:12px;font-size:12px;font-family:monospace;';d.textContent='ERROR: '+err.message;document.body.appendChild(d);}
 }
 
 // ============ MAIN APP ============
@@ -759,9 +757,6 @@ function renderMainApp(){
         </select>
       </div>
     </header>
-    
-    <!-- Debug bar -->
-    <div id="debug-info" style="background:#1a1a2e;color:#0f0;font-size:11px;padding:4px 8px;font-family:monospace;z-index:999">Loading...</div>
 
     <!-- Content -->
     <main class="flex-1 relative">
@@ -812,9 +807,6 @@ function renderMainApp(){
 function renderPoleList(){
   const poles=getFilteredPoles();
   const container=$('list-view');
-  // Debug: show count on screen
-  const dbg=$('debug-info');
-  if(dbg) dbg.textContent=`Poles: ${poles.length} | Container: ${container?'YES':'NO'} | View: ${currentView}`;
   if(!container){console.error('list-view container NOT FOUND');return;}
   
   // Group by section
@@ -905,9 +897,10 @@ function renderPoleList(){
     }
   });
   
-  container.innerHTML=html;
   if(!poles.length){
-    container.innerHTML=`<div class="text-center text-gray-500 py-12">No poles found</div>`;
+    container.innerHTML='<div class="text-center text-gray-500 py-12">No poles found</div>';
+  }else{
+    container.innerHTML='<div style="text-align:center;color:#6b6580;font-size:11px;padding:4px 0 8px;letter-spacing:0.5px">'+poles.length+' poles loaded</div>'+html;
   }
 }
 
@@ -1769,7 +1762,8 @@ function subscribeToData(){
       completions={};
       snap.forEach(d=>{const data=d.data();completions[data.poleId]=data;});
       renderPoleList();
-    }
+    },
+    err=>console.error('completions sub error:',err)
   ));
   
   // Enroutes
@@ -1779,7 +1773,8 @@ function subscribeToData(){
       enroutes={};
       snap.forEach(d=>{const data=d.data();enroutes[data.poleId]=data;});
       renderPoleList();
-    }
+    },
+    err=>console.error('enroute sub error:',err)
   ));
   
   // Notes
@@ -1788,7 +1783,8 @@ function subscribeToData(){
     snap=>{
       notes={};
       snap.forEach(d=>{notes[d.id]={...d.data(),id:d.id};});
-    }
+    },
+    err=>console.error('notes sub error:',err)
   ));
   
   // Billing
@@ -1797,7 +1793,8 @@ function subscribeToData(){
     snap=>{
       billingEntries={};
       snap.forEach(d=>{billingEntries[d.id]={...d.data(),id:d.id};});
-    }
+    },
+    err=>console.error('billing sub error:',err)
   ));
   
   // Photos
@@ -1807,7 +1804,8 @@ function subscribeToData(){
       polePhotos={};
       snap.forEach(d=>{polePhotos[d.id]={...d.data(),id:d.id};});
       renderPoleList();
-    }
+    },
+    err=>console.error('photos sub error:',err)
   ));
 }
 
@@ -1916,7 +1914,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v28';
+  badge.textContent='v29';
   document.body.appendChild(badge);
 })();
 
