@@ -1514,12 +1514,12 @@ window.openPole=function(poleId){
     </a>
     
     <!-- Action Buttons -->
-    <div class="grid grid-cols-4 gap-2 mb-4">
+    <div class="grid grid-cols-3 gap-2 mb-3">
       <button onclick="toggleNotes('${poleId}')" class="btn-primary p-3 rounded-xl text-sm">💬 Notes</button>
       <button onclick="openPhotoCapture('${poleId}','pole','${pole.name}')" class="btn-primary p-3 rounded-xl text-sm" style="background:linear-gradient(135deg,#ec4899,#db2777)">📸 Photo</button>
       <button onclick="${done?`undoComplete('${poleId}')`:`markComplete('${poleId}')`}" class="btn-primary p-3 rounded-xl text-sm ${done?'btn-amber':'btn-green'}">${done?'↩️ Undo':'✅ Done'}</button>
-      <button onclick="toggleBilling('${poleId}')" class="btn-primary p-3 rounded-xl text-sm" style="background:linear-gradient(135deg,#3b82f6,#7c3aed)">💰 Bill</button>
     </div>
+    <button onclick="toggleBilling('${poleId}')" class="btn-primary w-full p-3 rounded-xl text-sm mb-4 flex items-center justify-center gap-2" style="background:linear-gradient(135deg,#3b82f6,#7c3aed)">💰 Log Work / Billing</button>
     
     <!-- Directive Info -->
     ${(()=>{
@@ -2507,7 +2507,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v35c';
+  badge.textContent='v35d';
   document.body.appendChild(badge);
 })();
 
