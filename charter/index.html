@@ -62,10 +62,7 @@ html,body{font-family:'Inter',system-ui,-apple-system,sans-serif;-webkit-font-sm
 .modal-content{background:#1e1b2e;border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:24px;max-width:400px;width:90%;max-height:80vh;overflow-y:auto}
 .invite-input{font-size:32px;text-align:center;letter-spacing:8px;text-transform:uppercase;font-weight:700;font-family:'Inter',monospace}
 ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:2px}
-
-
-    @keyframes wave { 0%,100%{transform:rotate(0deg)} 25%{transform:rotate(20deg)} 75%{transform:rotate(-20deg)} }
-    @keyframes gpsPulse{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,0.5)}50%{box-shadow:0 0 0 12px rgba(59,130,246,0)}}
+@keyframes gpsPulse{0%,100%{box-shadow:0 0 0 0 rgba(59,130,246,0.5)}50%{box-shadow:0 0 0 12px rgba(59,130,246,0)}}
 </style>
 </head>
 <body>
@@ -424,7 +421,6 @@ let notes = {};
 let billingEntries = {};
 let polePhotos = {};
 let ticMarks = {};
-let flags = {};
 let unsubscribers = [];
 let mapInstance = null;
 let markers = {};
@@ -758,7 +754,6 @@ function renderMainApp(){
           <option value="pending"${filterMode==='pending'?' selected':''}>Pending</option>
           <option value="completed"${filterMode==='completed'?' selected':''}>Done</option>
           <option value="enroute"${filterMode==='enroute'?' selected':''}>En Route</option>
-
         </select>
       </div>
     </header>
@@ -766,7 +761,7 @@ function renderMainApp(){
     <!-- Content -->
     <main class="flex-1 relative">
       <div id="list-view" class="${currentView==='list'?'':'hidden'} p-4 pb-20"></div>
-      <div id="map-container" style="position:relative;inset:0;flex:1;min-height:400px;" class="${currentView==='map'?'':'hidden'}">
+      <div id="map-container" class="${currentView==='map'?'':'hidden'}" style="position:absolute;inset:0">
 <div id="mapLegend" style="position:absolute;bottom:60px;right:10px;z-index:1000;background:rgba(0,0,0,.85);backdrop-filter:blur(10px);border-radius:12px;padding:10px 12px;color:#fff;font-size:11px;font-family:Inter,sans-serif;display:block;min-width:150px">
   <div style="font-weight:700;margin-bottom:6px;color:#d4a843">🗺️ MAP KEY</div>
   <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">
@@ -928,7 +923,7 @@ function initMap(){
   
   // Create map div if needed
   if(!container.querySelector('#map')){
-    container.innerHTML='<div id="onlineCrew" style="position:absolute;top:8px;left:8px;z-index:1000;display:none;align-items:center;background:rgba(20,20,30,0.85);backdrop-filter:blur(10px);border-radius:20px;padding:4px 10px;box-shadow:0 2px 10px rgba(0,0,0,0.4);"></div><div id="map" style="height:100%;width:100%"></div>';
+    container.innerHTML='<div id="map" style="height:100%;width:100%"></div>';
   }
   
   if(mapInstance){mapInstance.remove();mapInstance=null;}
@@ -960,6 +955,15 @@ function initMap(){
   layerBtn.style.cssText = 'position:absolute;bottom:84px;right:16px;z-index:1000;width:50px;height:50px;border-radius:50%;border:2px solid rgba(255,255,255,0.4);background:rgba(20,20,30,0.92);backdrop-filter:blur(12px);color:white;font-size:22px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;';
   mapC2.style.position='relative';
   mapC2.appendChild(layerBtn);
+  
+  // Team Activity button
+  var teamBtn=document.createElement('button');
+  teamBtn.id='teamActivityBtn';
+  teamBtn.style.cssText='position:absolute;bottom:144px;right:16px;z-index:1000;width:50px;height:50px;border-radius:50%;border:2px solid rgba(255,255,255,0.4);background:rgba(20,20,30,0.92);backdrop-filter:blur(12px);color:white;font-size:22px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;';
+  teamBtn.textContent='👥';
+  teamBtn.title='Team Activity';
+  teamBtn.onclick=function(){showTeamActivity();};
+  mapC2.appendChild(teamBtn);
   layerBtn.addEventListener('click',()=>{
     const idx = (layerNames.indexOf(currentBase)+1)%layerNames.length;
     mapInstance.removeLayer(baseLayers[currentBase]);
@@ -1142,41 +1146,6 @@ function initMap(){
     gpsWatchId=navigator.geolocation.watchPosition(updatePos,onErr,{enableHighAccuracy:true,maximumAge:5000});
   });
 
-  // ===== LAYER SWITCH BUTTON =====
-  const layerBtn2 = document.getElementById('layerSwitchBtn');
-  if(layerBtn2){
-    const tileSets = [
-      {name:'Satellite',url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',icon:'🛰️'},
-      {name:'Terrain',url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',icon:'⛰️'},
-      {name:'Street',url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',icon:'🗺️'},
-      {name:'Hybrid',url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',icon:'🌐'}
-    ];
-    let tileIdx=0;
-    let labelsLayer=null;
-    layerBtn2.onclick=()=>{
-      tileIdx=(tileIdx+1)%tileSets.length;
-      const t=tileSets[tileIdx];
-      if(window._baseTile) mapInstance.removeLayer(window._baseTile);
-      if(labelsLayer) mapInstance.removeLayer(labelsLayer);
-      window._baseTile=L.tileLayer(t.url,{maxZoom:20,attribution:''}).addTo(mapInstance);
-      if(t.name==='Hybrid'){
-        labelsLayer=L.tileLayer('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:20}).addTo(mapInstance);
-      }
-      layerBtn2.textContent=t.icon;
-      layerBtn2.title=t.name;
-      vibrate(30);
-    };
-  }
-
-  // ===== TEAM ACTIVITY BUTTON =====
-  const teamBtn = document.getElementById('teamLocBtn');
-  if(teamBtn){
-    teamBtn.onclick=()=>{
-      vibrate();playSound('click');
-      showTeamActivity();
-    };
-  }
-
   // ===== CREW LOCATION TRACKING =====
   const crewMarkers = {};
   const presenceRef = collection(db, 'charterPresence');
@@ -1185,6 +1154,7 @@ function initMap(){
     snap.forEach(docSnap => {
       const d = docSnap.data();
       const uid = docSnap.id;
+      // Show all users including self // skip self (shown by GPS button)
       const age = now - (d.updatedAt?.toMillis?.() || 0);
       if(age > 10*60*1000){ // stale > 10 min
         if(crewMarkers[uid]){ mapInstance.removeLayer(crewMarkers[uid]); delete crewMarkers[uid]; }
@@ -1206,56 +1176,21 @@ function initMap(){
         }).bindPopup('<b>'+name+'</b><br>Last seen: '+ new Date(d.updatedAt?.toMillis?.() || now).toLocaleTimeString()).addTo(mapInstance);
       }
     });
-    // Update online crew indicator
-    const onlineDiv = document.getElementById('onlineCrew');
-    if(onlineDiv){
-      const onlineNames = [];
-      snap.forEach(ds => {
-        const d = ds.data();
-        const age = Date.now() - (d.updatedAt?.toMillis?.() || 0);
-        if(age < 10*60*1000) onlineNames.push({name:(d.displayName||'').split(' ')[0]||'Crew', photo:d.photoURL||'', isSelf:ds.id===currentUser?.uid});
-      });
-      if(onlineNames.length){
-        onlineDiv.innerHTML = onlineNames.map(c=>{
-          const border = c.isSelf ? 'border:2px solid #facc15;' : 'border:2px solid #3b82f6;';
-          return c.photo 
-            ? '<img src="'+c.photo+'" title="'+c.name+'" style="width:32px;height:32px;border-radius:50%;'+border+'object-fit:cover;margin-right:4px;">'
-            : '<div title="'+c.name+'" style="width:32px;height:32px;border-radius:50%;background:#3b82f6;'+border+'display:flex;align-items:center;justify-content:center;color:white;font-weight:700;font-size:13px;margin-right:4px;">'+c.name[0]+'</div>';
-        }).join('');
-        onlineDiv.style.display='flex';
-      } else {
-        onlineDiv.style.display='none';
-      }
-    }
   });
 
-  // Broadcast own location to charterPresence  
-  function startPresenceBroadcast(){
-    const user = currentUser || window._charterUser;
-    if(!user) { setTimeout(startPresenceBroadcast, 2000); return; }
-    const myPresenceRef = doc(db, 'charterPresence', user.uid);
-    // Immediate position first
-    navigator.geolocation.getCurrentPosition(pos => {
+  // Broadcast own location to charterPresence
+  if(currentUser){
+    const myPresenceRef = doc(db, 'charterPresence', currentUser.uid);
+    let presenceWatchId = navigator.geolocation.watchPosition(pos => {
       setDoc(myPresenceRef, {
         lat: pos.coords.latitude,
         lon: pos.coords.longitude,
-        displayName: user.displayName || user.email || 'Crew',
-        photoURL: user.photoURL || '',
-        updatedAt: serverTimestamp()
-      }, {merge:true}).then(()=>console.log('✅ Presence broadcast started'));
-    }, ()=>{}, {enableHighAccuracy:true, timeout:10000});
-    // Continuous tracking
-    navigator.geolocation.watchPosition(pos => {
-      setDoc(myPresenceRef, {
-        lat: pos.coords.latitude,
-        lon: pos.coords.longitude,
-        displayName: user.displayName || user.email || 'Crew',
-        photoURL: user.photoURL || '',
+        displayName: currentUser.displayName || currentUser.email,
+        photoURL: currentUser.photoURL || '',
         updatedAt: serverTimestamp()
       }, {merge:true});
     }, ()=>{}, {enableHighAccuracy:true, maximumAge:10000, timeout:15000});
   }
-  startPresenceBroadcast();
 }
 
 // ============ POLE DETAIL ============
@@ -1293,25 +1228,18 @@ window.openPole=function(poleId){
         <span>🚗</span><span class="font-semibold">${enr.userName}</span><span class="text-xs text-gray-400">${timeAgo(enr.startedAt)}</span>
       </div>
     </div>`:''}
-
     
     <!-- Directions Button -->
     <a href="${directionsUrl(pole.lat,pole.lon)}" target="_blank" class="btn-gold w-full p-3 rounded-xl flex items-center justify-center gap-2 mb-3 block text-center no-underline" onclick="claimEnroute('${poleId}')">
       🧭 Get Directions
     </a>
-    ${enr&&!done&&enr.uid!==currentUser?.uid?`<div class="rounded-xl p-3 mb-3" style="background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.3)">
-      <div class="flex items-center gap-2">
-        <span>💡</span><span class="text-sm"><b>${enr.userName}</b> is already heading here</span>
-      </div>
-    </div>`:''}
     
     <!-- Action Buttons -->
     <div class="grid grid-cols-4 gap-2 mb-4">
-      <button onclick="toggleNotes('${poleId}')" class="btn-primary p-3 rounded-xl text-xs">💬 Notes</button>
-      <button onclick="openPhotoCapture('${poleId}','pole','${pole.name}')" class="btn-primary p-3 rounded-xl text-xs" style="background:linear-gradient(135deg,#ec4899,#db2777)">📸 Photo</button>
-      <button onclick="${done?`undoComplete('${poleId}')`:`markComplete('${poleId}')`}" class="btn-primary p-3 rounded-xl text-xs ${done?'btn-amber':'btn-green'}">${done?'↩️ Undo':'✅ Done'}</button>
-
-      <button onclick="toggleBilling('${poleId}')" class="btn-primary p-3 rounded-xl text-xs" style="background:linear-gradient(135deg,#3b82f6,#7c3aed)">💰 Bill</button>
+      <button onclick="toggleNotes('${poleId}')" class="btn-primary p-3 rounded-xl text-sm">💬 Notes</button>
+      <button onclick="openPhotoCapture('${poleId}','pole','${pole.name}')" class="btn-primary p-3 rounded-xl text-sm" style="background:linear-gradient(135deg,#ec4899,#db2777)">📸 Photo</button>
+      <button onclick="${done?`undoComplete('${poleId}')`:`markComplete('${poleId}')`}" class="btn-primary p-3 rounded-xl text-sm ${done?'btn-amber':'btn-green'}">${done?'↩️ Undo':'✅ Done'}</button>
+      <button onclick="toggleBilling('${poleId}')" class="btn-primary p-3 rounded-xl text-sm" style="background:linear-gradient(135deg,#3b82f6,#7c3aed)">💰 Bill</button>
     </div>
     
     <!-- Tic Mark -->
@@ -1763,103 +1691,6 @@ window.logBilling=async function(poleId){
 };
 
 // ============ MENU ============
-
-
-// ===== TEAM ACTIVITY =====
-window.showTeamActivity=function(){
-  vibrate();playSound('click');
-  // Gather completions by user
-  const byUser={};
-  Object.values(completions).forEach(c=>{
-    const key=c.uid||'unknown';
-    if(!byUser[key]) byUser[key]={name:c.userName||'Unknown',count:0,poles:[]};
-    byUser[key].count++;
-    const pole=GT30E_POLES.find(p=>p.id===c.poleId);
-    if(pole) byUser[key].poles.push(pole.name);
-  });
-  const sorted=Object.entries(byUser).sort((a,b)=>b[1].count-a[1].count);
-  const isSelf=(uid)=>uid===currentUser?.uid;
-  
-  const modal=$('pole-modal');
-  const mc=$('pole-modal-content');
-  mc.innerHTML=`
-  <div class="slide-up">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="text-xl font-bold">👥 Team Activity</h2>
-      <button onclick="closePoleModal()" class="text-gray-400 text-2xl">&times;</button>
-    </div>
-    <div class="text-center mb-4">
-      <div class="text-4xl font-bold gold-text">${completedCount()}</div>
-      <div class="text-sm text-gray-400">of ${GT30E_POLES.length} poles completed</div>
-    </div>
-    ${sorted.map(([uid,u])=>`
-      <div class="glass rounded-xl p-4 mb-3" style="border:2px solid ${isSelf(uid)?'#facc15':'#3b82f6'}">
-        <div class="flex items-center justify-between mb-2">
-          <span class="font-bold">${u.name}</span>
-          <span class="badge ${isSelf(uid)?'badge-success':'badge-info'}">${u.count} poles</span>
-        </div>
-        <div class="text-xs text-gray-400">${u.poles.slice(0,8).join(', ')}${u.poles.length>8?'...':''}</div>
-      </div>
-    `).join('')}
-    ${sorted.length===0?'<p class="text-gray-400 text-center py-8">No completions yet</p>':''}
-    <button onclick="downloadCSV()" class="btn-gold w-full p-3 rounded-xl mt-4">📥 DOWNLOAD CSV</button>
-  </div>`;
-  modal.classList.remove('hidden');
-};
-
-// ===== DOWNLOAD CSV =====
-window.downloadCSV=function(){
-  let csv='Pole,Section,Status,Completed By,Date\n';
-  GT30E_POLES.forEach(p=>{
-    const c=completions[p.id];
-    const status=c?'Completed':'Pending';
-    const who=c?c.userName:'';
-    const when=c?.completedAt?.toDate?.()?.toLocaleDateString()||'';
-    csv+='"'+p.name+'","'+p.section+'","'+status+'","'+who+'","'+when+'"\n';
-  });
-  const blob=new Blob([csv],{type:'text/csv'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');a.href=url;a.download='charter-production.csv';a.click();
-  URL.revokeObjectURL(url);
-  vibrate();
-};
-
-// ===== CONFETTI =====
-
-
-// ===== INSTALL BANNER =====
-let installPrompt=null;
-window.addEventListener('beforeinstallprompt',e=>{
-  e.preventDefault();
-  installPrompt=e;
-  if(!sessionStorage.getItem('installDismissed')) showInstallBanner();
-});
-
-function showInstallBanner(){
-  if(document.getElementById('install-overlay')) return;
-  const overlay=document.createElement('div');
-  overlay.id='install-overlay';
-  overlay.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.85);backdrop-filter:blur(20px);display:flex;align-items:center;justify-content:center;padding:24px;';
-  overlay.innerHTML=`
-    <div style="background:rgba(30,30,40,0.98);border:1px solid rgba(240,192,64,0.3);border-radius:24px;padding:32px;max-width:360px;text-align:center;">
-      <div style="font-size:64px;margin-bottom:16px">📱</div>
-      <h2 style="font-size:22px;font-weight:800;color:#f0c040;margin-bottom:8px">Install Global Route</h2>
-      <p style="color:#9ca3af;font-size:14px;margin-bottom:24px">Add to your home screen for the best experience — works offline!</p>
-      <button onclick="doInstall()" style="width:100%;padding:14px;border-radius:16px;border:none;background:linear-gradient(135deg,#f0c040,#d4a030);color:#000;font-weight:800;font-size:16px;cursor:pointer;margin-bottom:12px;box-shadow:0 4px 20px rgba(240,192,64,0.4)">INSTALL APP</button>
-      <button onclick="dismissInstall()" style="width:100%;padding:12px;border-radius:16px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:#9ca3af;font-size:14px;cursor:pointer">Not now</button>
-    </div>`;
-  document.body.appendChild(overlay);
-}
-
-window.doInstall=function(){
-  if(installPrompt){installPrompt.prompt();installPrompt=null;}
-  const o=document.getElementById('install-overlay');if(o)o.remove();
-};
-window.dismissInstall=function(){
-  sessionStorage.setItem('installDismissed','1');
-  const o=document.getElementById('install-overlay');if(o)o.remove();
-};
-
 window.showMenu=function(){
   const modal=$('menu-modal');
   modal.querySelector('.modal-content').innerHTML=`
@@ -1972,7 +1803,7 @@ function subscribeToData(){
   ));
 }
 
-// ============ GPS CHECK ============
+// ============ GPS CHECK — MANDATORY GATE ============
 let gpsGranted=false;
 function checkGPS(){
   return new Promise((resolve)=>{
@@ -1985,56 +1816,43 @@ function checkGPS(){
   });
 }
 
-// MANDATORY GPS GATE — full blocking screen, no bypass
 function showGPSGate(){
-  // Remove existing gate if any
-  const existing = document.getElementById('gps-gate');
-  if(existing) existing.remove();
-  
-  const gate = document.createElement('div');
-  gate.id = 'gps-gate';
-  gate.innerHTML = `
-    <div style="position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg,#0f0f1a 0%,#1a1a2e 50%,#16213e 100%);display:flex;align-items:center;justify-content:center;flex-direction:column;padding:32px;text-align:center;">
-      <div style="font-size:72px;margin-bottom:24px;animation:gpsBounce 2s ease-in-out infinite;">📍</div>
-      <h1 style="color:white;font-size:28px;font-weight:800;margin:0 0 12px;">Location Required</h1>
-      <p style="color:rgba(255,255,255,0.7);font-size:15px;max-width:320px;line-height:1.5;margin:0 0 32px;">
-        GPS location is <strong style="color:#f59e0b;">mandatory</strong> to use this app. 
-        We need your position for field work tracking, crew safety, and billing verification.
-      </p>
-      <button onclick="requestGPSPermission()" style="background:linear-gradient(135deg,#3b82f6,#2563eb);color:white;border:none;padding:16px 48px;border-radius:14px;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(59,130,246,0.5);letter-spacing:0.5px;">
-        ✅ Allow Location Access
-      </button>
-      <p style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:20px;max-width:280px;">
-        If you denied GPS, open your browser settings → Site Settings → Location → Allow for this site, then refresh.
-      </p>
-    </div>
-    <style>
-      @keyframes gpsBounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-15px)} }
-    </style>
-  `;
+  var existing=document.getElementById('gps-gate');
+  if(existing)existing.remove();
+  var gate=document.createElement('div');
+  gate.id='gps-gate';
+  gate.style.cssText='position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg,#0f0f1a,#1a1a2e,#16213e);display:flex;align-items:center;justify-content:center;flex-direction:column;padding:32px;text-align:center;';
+  var h='<div style="font-size:72px;margin-bottom:24px;animation:gpsBounce 2s ease-in-out infinite">📍</div>';
+  h+='<h1 style="color:white;font-size:28px;font-weight:800;margin:0 0 12px">Location Required</h1>';
+  h+='<p style="color:rgba(255,255,255,0.7);font-size:15px;max-width:320px;line-height:1.5;margin:0 0 32px">GPS location is <strong style="color:#f59e0b">mandatory</strong> to use this app. We need your position for field work tracking, crew safety, and billing verification.</p>';
+  h+='<button onclick="requestGPSPermission()" style="background:linear-gradient(135deg,#3b82f6,#2563eb);color:white;border:none;padding:16px 48px;border-radius:14px;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(59,130,246,0.5)">✅ Allow Location Access</button>';
+  h+='<p style="color:rgba(255,255,255,0.4);font-size:12px;margin-top:20px;max-width:280px">If you denied GPS, open your browser settings → Site Settings → Location → Allow for this site, then refresh.</p>';
+  h+='<style>@keyframes gpsBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-15px)}}</style>';
+  gate.innerHTML=h;
   document.body.appendChild(gate);
 }
 
 function removeGPSGate(){
-  const gate = document.getElementById('gps-gate');
-  if(gate) gate.remove();
-  const banner = document.getElementById('gps-banner');
-  if(banner) banner.remove();
+  var gate=document.getElementById('gps-gate');
+  if(gate)gate.remove();
+}
+
+function requestGPSBlocking(){
+  checkGPS().then(function(ok){
+    if(ok){
+      removeGPSGate();
+    }else{
+      showGPSGate();
+    }
+  });
 }
 
 window.requestGPSPermission=async function(){
-  try{
-    const ok = await checkGPS();
-    if(ok){
-      gpsGranted=true;
-      removeGPSGate();
-      // Reload the app now that GPS is granted
-      if(currentUser) loadUserNode();
-    } else {
-      alert('📍 GPS was denied. Please enable location in your browser/phone settings and refresh the page.');
-    }
-  }catch(e){
-    alert('📍 Could not get location: '+e.message);
+  var ok=await checkGPS();
+  if(ok){
+    removeGPSGate();
+  }else{
+    alert('Location access denied. On your phone: Settings > Privacy > Location Services > ensure your browser has While Using enabled.');
   }
 };
 
@@ -2042,27 +1860,81 @@ window.requestGPSPermission=async function(){
 onAuthStateChanged(auth,async(user)=>{
   if(user){
     currentUser=user;
-    window._charterUser=user;
-    // MANDATORY GPS CHECK — block until granted
-    const gpsOk = await checkGPS();
-    if(!gpsOk){
-      showGPSGate();
-      return; // Don't load app until GPS is granted
-    }
-    gpsGranted=true;
-    removeGPSGate();
+    // Try GPS - mandatory blocking gate
+    checkGPS().then(function(ok){ if(!ok) showGPSGate(); else removeGPSGate(); });
     try{
       await loadUserNode();
     }catch(e){
       console.error('loadUserNode error:',e);
       alert('Error loading app: '+e.message);
     }
+    // Show GPS gate if not granted
+    if(!gpsGranted) showGPSGate();
   }else{
     currentUser=null;currentNode=null;currentNodeId=null;
     unsubscribers.forEach(u=>u());unsubscribers=[];
     renderLogin();
   }
 });
+
+// Team Activity view
+window.showTeamActivity=function(){
+  var html='<div style="position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)this.remove()">';
+  html+='<div style="background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:20px;padding:24px;max-width:400px;width:100%;max-height:80vh;overflow-y:auto;border:1px solid rgba(255,255,255,0.1)">';
+  html+='<h2 style="color:white;font-size:20px;font-weight:800;margin:0 0 16px;text-align:center">👥 Team Activity</h2>';
+  
+  var byUser={};
+  Object.keys(completions).forEach(function(pid){
+    var c=completions[pid];
+    var name=c.userName||'Unknown';
+    var uid=c.uid||'unknown';
+    if(!byUser[uid])byUser[uid]={name:name,avatar:c.userAvatar||'',count:0,poles:[]};
+    byUser[uid].count++;
+    var pole=GT30E_POLES.find(function(p){return p.id===pid;});
+    byUser[uid].poles.push(pole?pole.name:pid);
+  });
+  
+  var uids=Object.keys(byUser);
+  if(uids.length===0){
+    html+='<p style="color:rgba(255,255,255,0.5);text-align:center">No completions yet</p>';
+  }else{
+    uids.sort(function(a,b){return byUser[b].count-byUser[a].count;});
+    uids.forEach(function(uid){
+      var u=byUser[uid];
+      var isMe=currentUser&&uid===currentUser.uid;
+      var border=isMe?'border:2px solid #22c55e':'border:2px solid #3b82f6';
+      html+='<div style="background:rgba(255,255,255,0.05);border-radius:14px;padding:14px;margin-bottom:10px;'+border+'">';
+      html+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">';
+      if(u.avatar)html+='<img src="'+u.avatar+'" style="width:36px;height:36px;border-radius:50%;object-fit:cover">';
+      html+='<div><div style="color:white;font-weight:700">'+u.name+(isMe?' (You)':'')+'</div>';
+      html+='<div style="color:rgba(255,255,255,0.5);font-size:12px">'+u.count+' poles completed</div></div></div>';
+      html+='<div style="display:flex;flex-wrap:wrap;gap:4px">';
+      u.poles.forEach(function(p){html+='<span style="background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);padding:2px 8px;border-radius:8px;font-size:11px">'+p+'</span>';});
+      html+='</div></div>';
+    });
+  }
+  
+  html+='<button onclick="downloadCSV()" style="width:100%;margin-top:12px;background:linear-gradient(135deg,#3b82f6,#2563eb);color:white;border:none;padding:12px;border-radius:12px;font-weight:700;font-size:14px;cursor:pointer">📥 DOWNLOAD CSV</button>';
+  html+='</div></div>';
+  
+  var div=document.createElement('div');
+  div.innerHTML=html;
+  document.body.appendChild(div.firstChild);
+};
+
+window.downloadCSV=function(){
+  var rows=[['Pole','Section','Status','Completed By','Latitude','Longitude']];
+  GT30E_POLES.forEach(function(p){
+    var c=completions[p.id];
+    rows.push([p.name,p.section||'',c?'Done':'Pending',c?(c.userName||''):'',p.lat,p.lon]);
+  });
+  var csv=rows.map(function(r){return r.join(',');}).join('\n');
+  var blob=new Blob([csv],{type:'text/csv'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='charter-production-'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+};
 </script>
 </body>
 </html>
