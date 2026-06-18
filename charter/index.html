@@ -6,7 +6,22 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0f0a1a">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Global Route — Charter Alabama</title>
+<script>
+// Nuclear cache buster - force reload if stale
+(function(){
+  var v='22nuke';
+  if(localStorage.getItem('charter_v')!==v){
+    localStorage.setItem('charter_v',v);
+    if(window.caches){caches.keys().then(function(k){k.forEach(function(n){caches.delete(n)})});}
+    if(navigator.serviceWorker){navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(w){w.unregister()})});}
+    location.reload(true);
+  }
+})();
+</script>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧭</text></svg>">
 <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet"/>
