@@ -1816,14 +1816,15 @@ function checkGPS(){
   });
 }
 
+var gpsGateAttempts=0;
+
 function showGPSGate(){
   var existing=document.getElementById('gps-gate');
-  if(existing)existing.remove();
+  if(existing) return; // Don't recreate if already showing
   var gate=document.createElement('div');
   gate.id='gps-gate';
   gate.style.cssText='position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg,#0f0f1a,#1a1a2e,#16213e);display:flex;align-items:center;justify-content:center;flex-direction:column;padding:32px;text-align:center;';
 
-  // Build all elements as real DOM nodes — no innerHTML
   var pin=document.createElement('div');
   pin.style.cssText='font-size:72px;margin-bottom:24px;';
   pin.textContent='\u{1F4CD}';
@@ -1839,9 +1840,21 @@ function showGPSGate(){
   var btn=document.createElement('button');
   btn.type='button';
   btn.id='gps-allow-btn';
-  btn.style.cssText='background:linear-gradient(135deg,#3b82f6,#2563eb);color:white;border:none;padding:16px 48px;border-radius:14px;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(59,130,246,0.5);touch-action:manipulation;-webkit-tap-highlight-color:rgba(59,130,246,0.3);';
+  btn.style.cssText='background:linear-gradient(135deg,#3b82f6,#2563eb);color:white;border:none;padding:16px 48px;border-radius:14px;font-size:17px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(59,130,246,0.5);touch-action:manipulation;-webkit-tap-highlight-color:rgba(59,130,246,0.3);user-select:none;';
   btn.textContent='\u2705 Allow Location Access';
-  btn.addEventListener('click',function(){
+
+  // Skip link (hidden initially, shown after first denial)
+  var skipLink=document.createElement('a');
+  skipLink.href='#';
+  skipLink.id='gps-skip-link';
+  skipLink.style.cssText='color:#f59e0b;font-size:14px;margin-top:24px;display:none;text-decoration:underline;';
+  skipLink.textContent='Continue without GPS (limited features)';
+  skipLink.addEventListener('click',function(e){
+    e.preventDefault();
+    removeGPSGate();
+  });
+
+  function doGPSRequest(){
     btn.textContent='\u23F3 Requesting GPS...';
     btn.style.opacity='0.7';
     navigator.geolocation.getCurrentPosition(
@@ -1850,15 +1863,25 @@ function showGPSGate(){
         removeGPSGate();
       },
       function(err){
-        btn.textContent='\u2705 Allow Location Access';
+        gpsGateAttempts++;
+        btn.textContent='\u2705 Tap to Retry';
         btn.style.opacity='1';
-        alert('Location denied (error '+err.code+'). Go to Chrome \u2192 tap \u22ee menu \u2192 Settings \u2192 Site Settings \u2192 Location \u2192 find this site \u2192 Allow. Then refresh.');
+        // Show skip link after first denial
+        skipLink.style.display='block';
+        var p2El=document.getElementById('gps-help-text');
+        if(p2El) p2El.textContent='GPS denied (error '+err.code+'). Tap the \u22ee menu in Chrome \u2192 Settings \u2192 Site Settings \u2192 Location \u2192 Allow for this site, then refresh.';
       },
       {timeout:10000,enableHighAccuracy:true}
     );
-  });
+  }
+
+  // Click handler
+  btn.addEventListener('click', doGPSRequest);
+  // Backup: ontouchstart for stubborn mobile browsers
+  btn.ontouchstart=function(e){ e.preventDefault(); doGPSRequest(); };
 
   var p2=document.createElement('p');
+  p2.id='gps-help-text';
   p2.style.cssText='color:rgba(255,255,255,0.4);font-size:12px;margin-top:20px;max-width:280px;';
   p2.textContent='If you denied GPS, open your browser settings \u2192 Site Settings \u2192 Location \u2192 Allow for this site, then refresh.';
 
@@ -1866,8 +1889,12 @@ function showGPSGate(){
   gate.appendChild(h1);
   gate.appendChild(p1);
   gate.appendChild(btn);
+  gate.appendChild(skipLink);
   gate.appendChild(p2);
   document.body.appendChild(gate);
+
+  // Auto-try GPS 500ms after gate appears
+  setTimeout(doGPSRequest, 500);
 }
 
 function removeGPSGate(){
@@ -1875,39 +1902,19 @@ function removeGPSGate(){
   if(gate)gate.remove();
 }
 
-function requestGPSBlocking(){
-  checkGPS().then(function(ok){
-    if(ok){
-      removeGPSGate();
-    }else{
-      showGPSGate();
-    }
-  });
-}
-
-window.requestGPSPermission=async function(){
-  var ok=await checkGPS();
-  if(ok){
-    removeGPSGate();
-  }else{
-    alert('Location access denied. On your phone: Settings > Privacy > Location Services > ensure your browser has While Using enabled.');
-  }
-};
-
 // ============ AUTH STATE ============
 onAuthStateChanged(auth,async(user)=>{
   if(user){
     currentUser=user;
-    // Try GPS - mandatory blocking gate
-    checkGPS().then(function(ok){ if(!ok) showGPSGate(); else removeGPSGate(); });
+    // Try GPS - mandatory blocking gate (single call, no duplicates)
+    var gpsOk=await checkGPS();
+    if(!gpsOk) showGPSGate();
     try{
       await loadUserNode();
     }catch(e){
       console.error('loadUserNode error:',e);
       alert('Error loading app: '+e.message);
     }
-    // Show GPS gate if not granted
-    if(!gpsGranted) showGPSGate();
   }else{
     currentUser=null;currentNode=null;currentNodeId=null;
     unsubscribers.forEach(u=>u());unsubscribers=[];
