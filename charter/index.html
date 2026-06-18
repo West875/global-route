@@ -1906,9 +1906,10 @@ function removeGPSGate(){
 onAuthStateChanged(auth,async(user)=>{
   if(user){
     currentUser=user;
-    // Try GPS - mandatory blocking gate (single call, no duplicates)
-    var gpsOk=await checkGPS();
-    if(!gpsOk) showGPSGate();
+    // Show GPS gate immediately (never block rendering)
+    showGPSGate();
+    // Try GPS in background — gate removes itself on success
+    checkGPS().then(function(ok){ if(ok) removeGPSGate(); });
     try{
       await loadUserNode();
     }catch(e){
