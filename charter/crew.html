@@ -1771,11 +1771,12 @@ window.openPole=function(poleId){
     <!-- Billing Entries -->
     <div id="billing-section-${poleId}" class="hidden mb-4" style="transition:all 0.3s ease">
       <h3 class="font-semibold text-sm mb-2" style="color:#7c3aed">💰 LOG BILLING</h3>
+      <p class="text-xs mb-2" style="color:#d97706">📏 Footage billing (AS07) auto-tracked when you mark spans on the map</p>
       <select id="bill-code-${poleId}" class="input-field text-sm mb-2">
-        ${CHARTER_CODES.map(c=>`<option value="${c.code}">${c.code} — ${c.name} ${c.rate?'$'+c.rate.toFixed(2)+'/'+c.unit.replace('Per ',''):''}</option>`).join('')}
+        ${CHARTER_CODES.filter(c=>c.type!=='footage').map(c=>`<option value="${c.code}">${c.code} — ${c.name} ${c.rate?'$'+c.rate.toFixed(2)+'/'+c.unit.replace('Per ',''):''}</option>`).join('')}
       </select>
       <div class="flex gap-2 mb-2">
-        <input id="bill-qty-${poleId}" class="input-field text-base flex-1 p-3" type="number" placeholder="Quantity" min="0" step="1" inputmode="numeric">
+        <input id="bill-qty-${poleId}" class="input-field text-base flex-1 p-3" type="number" placeholder="Quantity" min="0" step="1" inputmode="numeric" value="1">
         <button onclick="logBilling('${poleId}')" class="btn-green p-3 rounded-xl text-base font-semibold px-6" style="min-height:48px;min-width:80px">💾 Log</button>
       </div>
       ${poleBilling.length?`<div class="space-y-1">${poleBilling.map(([id,b])=>{
@@ -2224,12 +2225,23 @@ window.setSpanStage = async function(spanKey, stage){
   vibrate(50);
   
   const docRef = doc(db, 'charterSpanStages', currentNodeId + '_' + spanKey);
-  const today = new Date().toISOString().slice(0,10); // YYYY-MM-DD
-  const footage = SPAN_DATA.find(s => s.f+'_'+s.t === spanKey)?.ft || 0;
+  const today = new Date().toISOString().slice(0,10);
+  const spanInfo = SPAN_DATA.find(s => s.f+'_'+s.t === spanKey);
+  const footage = spanInfo?.ft || 0;
   const userName = currentUser.displayName || currentUser.email.split('@')[0];
+  // GT30E = all overlash: AS07 (1000'+) or AS07A (1'–999')
+  const billingCode = footage >= 1000 ? 'AS07' : 'AS07A';
+  const crewRate = 0.20; // $0.20/ft crew rate
+  const clientRate = 0.60; // $0.60/ft client rate
   
   if(stage === 'none'){
     try { await deleteDoc(docRef); } catch(e){}
+    // Remove auto-billing entry
+    try {
+      const billingDocId = currentNodeId + '_span_' + spanKey;
+      await deleteDoc(doc(db, 'charterBilling', billingDocId));
+    } catch(e){}
+    showBanner('Span reset — billing removed','#6b7280');
   } else if(stage === 'strand'){
     await setDoc(docRef, {
       nodeId: currentNodeId,
@@ -2244,8 +2256,31 @@ window.setSpanStage = async function(spanKey, stage){
       userName: userName,
       updatedAt: serverTimestamp()
     });
+    // Auto-bill AS07/AS07A for strand
+    const billingDocId = currentNodeId + '_span_' + spanKey;
+    await setDoc(doc(db, 'charterBilling', billingDocId), {
+      nodeId: currentNodeId,
+      spanKey: spanKey,
+      fromPole: spanInfo?.f || '',
+      toPole: spanInfo?.t || '',
+      code: billingCode,
+      name: billingCode === 'AS07' ? 'Overlash Fiber 1000\'+' : 'Overlash Fiber 1\'–999\'',
+      qty: footage,
+      unit: 'ft',
+      crewRate: crewRate,
+      clientRate: clientRate,
+      crewTotal: Math.round(footage * crewRate * 100) / 100,
+      clientTotal: Math.round(footage * clientRate * 100) / 100,
+      stage: 'strand',
+      billedBy: currentUser.uid,
+      billedByName: userName,
+      billedAt: serverTimestamp(),
+      date: today,
+      type: 'auto-span'
+    });
+    const earn = (footage * crewRate).toFixed(2);
+    showBanner(`🟡 Strand — ${footage.toLocaleString()} ft → ${billingCode} → $${earn}`,'#d97706');
   } else if(stage === 'lashed'){
-    // Check if strand was placed on a different day
     let existingStrandDate = today;
     let existingStrandBy = currentUser.uid;
     let existingStrandByName = userName;
@@ -2258,9 +2293,6 @@ window.setSpanStage = async function(spanKey, stage){
       }
     } catch(e){}
     
-    // Determine billing: same day = AC02, split days = AC02-1 + AC02-2
-    const sameDay = (existingStrandDate === today);
-    
     await setDoc(docRef, {
       nodeId: currentNodeId,
       spanKey: spanKey,
@@ -2269,17 +2301,42 @@ window.setSpanStage = async function(spanKey, stage){
       strandDate: existingStrandDate,
       strandBy: existingStrandBy,
       strandByName: existingStrandByName,
-      strandAt: serverTimestamp(), // preserve concept; overwritten only if no prior
+      strandAt: serverTimestamp(),
       lashedAt: serverTimestamp(),
       lashDate: today,
       lashedBy: currentUser.uid,
       lashedByName: userName,
-      billingMode: sameDay ? 'composite' : 'split',
-      // composite = AC02 $1.20/ft | split = AC02-1 $0.48 + AC02-2 $0.72
+      billingMode: 'overlash',
       updatedBy: currentUser.uid,
       userName: userName,
       updatedAt: serverTimestamp()
     });
+    // Auto-bill AS07/AS07A for lash complete
+    const billingDocId = currentNodeId + '_span_' + spanKey;
+    await setDoc(doc(db, 'charterBilling', billingDocId), {
+      nodeId: currentNodeId,
+      spanKey: spanKey,
+      fromPole: spanInfo?.f || '',
+      toPole: spanInfo?.t || '',
+      code: billingCode,
+      name: billingCode === 'AS07' ? 'Overlash Fiber 1000\'+' : 'Overlash Fiber 1\'–999\'',
+      qty: footage,
+      unit: 'ft',
+      crewRate: crewRate,
+      clientRate: clientRate,
+      crewTotal: Math.round(footage * crewRate * 100) / 100,
+      clientTotal: Math.round(footage * clientRate * 100) / 100,
+      stage: 'lashed',
+      billedBy: currentUser.uid,
+      billedByName: userName,
+      billedAt: serverTimestamp(),
+      date: today,
+      strandDate: existingStrandDate,
+      lashDate: today,
+      type: 'auto-span'
+    });
+    const earn = (footage * crewRate).toFixed(2);
+    showBanner(`🟢 Lashed — ${footage.toLocaleString()} ft → ${billingCode} → $${earn}`,'#16a34a');
   }
   
   // Close modal
@@ -2955,7 +3012,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v37c';
+  badge.textContent='v38';
   document.body.appendChild(badge);
 })();
 
