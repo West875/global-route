@@ -1769,8 +1769,8 @@ window.openPole=function(poleId){
     </div>
     
     <!-- Billing Entries -->
-    <div id="billing-section-${poleId}" class="hidden mb-4">
-      <h3 class="font-semibold text-sm mb-2 text-gray-400">LOG BILLING</h3>
+    <div id="billing-section-${poleId}" class="hidden mb-4" style="transition:all 0.3s ease">
+      <h3 class="font-semibold text-sm mb-2" style="color:#7c3aed">💰 LOG BILLING</h3>
       <select id="bill-code-${poleId}" class="input-field text-sm mb-2">
         ${CHARTER_CODES.map(c=>`<option value="${c.code}">${c.code} — ${c.name} ${c.rate?'$'+c.rate.toFixed(2)+'/'+c.unit.replace('Per ',''):''}</option>`).join('')}
       </select>
@@ -2294,7 +2294,18 @@ window.toggleNotes=function(id){
 
 window.toggleBilling=function(id){
   const el=$('billing-section-'+id);
-  if(el) el.classList.toggle('hidden');
+  if(!el) return;
+  const wasHidden = el.classList.contains('hidden');
+  el.classList.toggle('hidden');
+  if(wasHidden){
+    // Scroll billing section into view inside the modal
+    setTimeout(()=>{
+      el.scrollIntoView({behavior:'smooth',block:'center'});
+      // Also focus the qty input so keyboard opens
+      const qtyInput=$('bill-qty-'+id);
+      if(qtyInput) setTimeout(()=>qtyInput.focus(),400);
+    },100);
+  }
 };
 
 // ============ ACTIONS ============
@@ -2944,7 +2955,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v37b';
+  badge.textContent='v37c';
   document.body.appendChild(badge);
 })();
 
