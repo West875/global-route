@@ -995,9 +995,10 @@ window.disableBiometricAndLogin=function(){
   loadUserNode().catch(e=>console.error(e));
 };
 
-function showSuccessBanner(msg){
+function showSuccessBanner(msg){showBanner(msg,'#059669');}
+function showBanner(msg,color){
   const b=document.createElement('div');
-  b.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:999999;background:linear-gradient(135deg,#059669,#047857);color:white;padding:12px 24px;border-radius:14px;font-weight:700;font-size:14px;box-shadow:0 8px 30px rgba(0,0,0,0.3);animation:slideDown 0.3s ease';
+  b.style.cssText='position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:999999;background:linear-gradient(135deg,'+(color||'#059669')+','+(color||'#047857')+');color:white;padding:12px 24px;border-radius:14px;font-weight:700;font-size:14px;box-shadow:0 8px 30px rgba(0,0,0,0.3);animation:slideDown 0.3s ease;max-width:90vw;text-align:center';
   b.textContent=msg;
   document.body.appendChild(b);
   setTimeout(()=>{b.style.opacity='0';b.style.transition='opacity 0.3s';setTimeout(()=>b.remove(),300);},2500);
@@ -3012,7 +3013,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v38';
+  badge.textContent='v38b';
   document.body.appendChild(badge);
 })();
 
