@@ -1772,9 +1772,9 @@ window.openPole=function(poleId){
     <!-- Billing Entries -->
     <div id="billing-section-${poleId}" class="hidden mb-4" style="transition:all 0.3s ease">
       <h3 class="font-semibold text-sm mb-2" style="color:#7c3aed">💰 LOG BILLING</h3>
-      <p class="text-xs mb-2" style="color:#d97706">📏 Footage billing (AS07) auto-tracked when you mark spans on the map</p>
-      <select id="bill-code-${poleId}" class="input-field text-sm mb-2">
-        ${CHARTER_CODES.filter(c=>c.type!=='footage').map(c=>`<option value="${c.code}">${c.code} — ${c.name} ${c.rate?'$'+c.rate.toFixed(2)+'/'+c.unit.replace('Per ',''):''}</option>`).join('')}
+      <p class="text-xs mb-2" style="color:#d97706">📏 Footage billing (AC02-1/AC02) auto-tracked when you mark spans on the map</p>
+      <select id="bill-code-${poleId}" class="input-field text-sm mb-2" onchange="updateBillQtyLabel('${poleId}')">
+        ${CHARTER_CODES.filter(c=>c.type!=='footage'||c.code==='AS02').map(c=>`<option value="${c.code}">${c.code} — ${c.name} ${c.rate?'$'+c.rate.toFixed(2)+'/'+c.unit.replace('Per ',''):''}</option>`).join('')}
       </select>
       <div class="flex gap-2 mb-2">
         <input id="bill-qty-${poleId}" class="input-field text-base flex-1 p-3" type="number" placeholder="Quantity" min="0" step="1" inputmode="numeric" value="1">
@@ -2230,17 +2230,22 @@ window.setSpanStage = async function(spanKey, stage){
   const spanInfo = SPAN_DATA.find(s => s.f+'_'+s.t === spanKey);
   const footage = spanInfo?.ft || 0;
   const userName = currentUser.displayName || currentUser.email.split('@')[0];
-  // GT30E = all overlash: AS07 (1000'+) or AS07A (1'–999')
-  const billingCode = footage >= 1000 ? 'AS07' : 'AS07A';
-  const crewRate = 0.20; // $0.20/ft crew rate
-  const clientRate = 0.60; // $0.60/ft client rate
+  // GT30E billing: strand=AC02-1, lash same day=AC02 composite, lash diff day=AC02-1+AC02-2
+  const crewRateStrand = 0.16;   // AC02-1 crew $0.16/ft
+  const clientRateStrand = 0.48; // AC02-1 client $0.48/ft
+  const crewRateComposite = 0.40;   // AC02 crew $0.40/ft
+  const clientRateComposite = 1.20; // AC02 client $1.20/ft
+  const crewRateLash = 0.24;    // AC02-2 crew $0.24/ft
+  const clientRateLash = 0.72;  // AC02-2 client $0.72/ft
   
   if(stage === 'none'){
     try { await deleteDoc(docRef); } catch(e){}
-    // Remove auto-billing entry
+    // Remove auto-billing entries (both strand + lash docs)
     try {
       const billingDocId = currentNodeId + '_span_' + spanKey;
       await deleteDoc(doc(db, 'charterBilling', billingDocId));
+      const lashDocId = billingDocId + '_lash';
+      await deleteDoc(doc(db, 'charterBilling', lashDocId));
     } catch(e){}
     showBanner('Span reset — billing removed','#6b7280');
   } else if(stage === 'strand'){
@@ -2257,30 +2262,31 @@ window.setSpanStage = async function(spanKey, stage){
       userName: userName,
       updatedAt: serverTimestamp()
     });
-    // Auto-bill AS07/AS07A for strand
+    // Auto-bill AC02-1 for strand placed
     const billingDocId = currentNodeId + '_span_' + spanKey;
     await setDoc(doc(db, 'charterBilling', billingDocId), {
       nodeId: currentNodeId,
       spanKey: spanKey,
       fromPole: spanInfo?.f || '',
       toPole: spanInfo?.t || '',
-      code: billingCode,
-      name: billingCode === 'AS07' ? 'Overlash Fiber 1000\'+' : 'Overlash Fiber 1\'–999\'',
+      code: 'AC02-1',
+      name: 'Strand Portion',
       qty: footage,
       unit: 'ft',
-      crewRate: crewRate,
-      clientRate: clientRate,
-      crewTotal: Math.round(footage * crewRate * 100) / 100,
-      clientTotal: Math.round(footage * clientRate * 100) / 100,
+      crewRate: crewRateStrand,
+      clientRate: clientRateStrand,
+      crewTotal: Math.round(footage * crewRateStrand * 100) / 100,
+      clientTotal: Math.round(footage * clientRateStrand * 100) / 100,
       stage: 'strand',
       billedBy: currentUser.uid,
       billedByName: userName,
       billedAt: serverTimestamp(),
       date: today,
+      strandDate: today,
       type: 'auto-span'
     });
-    const earn = (footage * crewRate).toFixed(2);
-    showBanner(`🟡 Strand — ${footage.toLocaleString()} ft → ${billingCode} → $${earn}`,'#d97706');
+    const earn = (footage * crewRateStrand).toFixed(2);
+    showBanner(`🟡 Strand — ${footage.toLocaleString()} ft → AC02-1 → $${earn}`,'#d97706');
   } else if(stage === 'lashed'){
     let existingStrandDate = today;
     let existingStrandBy = currentUser.uid;
@@ -2312,32 +2318,61 @@ window.setSpanStage = async function(spanKey, stage){
       userName: userName,
       updatedAt: serverTimestamp()
     });
-    // Auto-bill AS07/AS07A for lash complete
+    // Billing depends on whether strand+lash same day or different day
+    const sameDay = (existingStrandDate === today);
     const billingDocId = currentNodeId + '_span_' + spanKey;
-    await setDoc(doc(db, 'charterBilling', billingDocId), {
-      nodeId: currentNodeId,
-      spanKey: spanKey,
-      fromPole: spanInfo?.f || '',
-      toPole: spanInfo?.t || '',
-      code: billingCode,
-      name: billingCode === 'AS07' ? 'Overlash Fiber 1000\'+' : 'Overlash Fiber 1\'–999\'',
-      qty: footage,
-      unit: 'ft',
-      crewRate: crewRate,
-      clientRate: clientRate,
-      crewTotal: Math.round(footage * crewRate * 100) / 100,
-      clientTotal: Math.round(footage * clientRate * 100) / 100,
-      stage: 'lashed',
-      billedBy: currentUser.uid,
-      billedByName: userName,
-      billedAt: serverTimestamp(),
-      date: today,
-      strandDate: existingStrandDate,
-      lashDate: today,
-      type: 'auto-span'
-    });
-    const earn = (footage * crewRate).toFixed(2);
-    showBanner(`🟢 Lashed — ${footage.toLocaleString()} ft → ${billingCode} → $${earn}`,'#16a34a');
+    
+    if(sameDay){
+      // Same day = AC02 Composite ($1.20/ft client, $0.40/ft crew)
+      await setDoc(doc(db, 'charterBilling', billingDocId), {
+        nodeId: currentNodeId, spanKey, fromPole: spanInfo?.f||'', toPole: spanInfo?.t||'',
+        code: 'AC02', name: 'Fiber Composite (Strand+Lash)',
+        qty: footage, unit: 'ft',
+        crewRate: crewRateComposite, clientRate: clientRateComposite,
+        crewTotal: Math.round(footage * crewRateComposite * 100) / 100,
+        clientTotal: Math.round(footage * clientRateComposite * 100) / 100,
+        stage: 'lashed', billingMode: 'composite',
+        billedBy: currentUser.uid, billedByName: userName,
+        billedAt: serverTimestamp(), date: today,
+        strandDate: existingStrandDate, lashDate: today,
+        type: 'auto-span'
+      });
+      const earn = (footage * crewRateComposite).toFixed(2);
+      showBanner(`🟢 Composite — ${footage.toLocaleString()} ft → AC02 → $${earn}`,'#16a34a');
+    } else {
+      // Different day = keep AC02-1 for strand + add AC02-2 for lash
+      // Update existing doc to confirm AC02-1 strand
+      await setDoc(doc(db, 'charterBilling', billingDocId), {
+        nodeId: currentNodeId, spanKey, fromPole: spanInfo?.f||'', toPole: spanInfo?.t||'',
+        code: 'AC02-1', name: 'Strand Portion',
+        qty: footage, unit: 'ft',
+        crewRate: crewRateStrand, clientRate: clientRateStrand,
+        crewTotal: Math.round(footage * crewRateStrand * 100) / 100,
+        clientTotal: Math.round(footage * clientRateStrand * 100) / 100,
+        stage: 'lashed', billingMode: 'split',
+        billedBy: currentUser.uid, billedByName: userName,
+        billedAt: serverTimestamp(), date: existingStrandDate,
+        strandDate: existingStrandDate, lashDate: today,
+        type: 'auto-span'
+      });
+      // Add AC02-2 lash entry
+      const lashDocId = currentNodeId + '_span_' + spanKey + '_lash';
+      await setDoc(doc(db, 'charterBilling', lashDocId), {
+        nodeId: currentNodeId, spanKey, fromPole: spanInfo?.f||'', toPole: spanInfo?.t||'',
+        code: 'AC02-2', name: 'Fiber Lash Portion',
+        qty: footage, unit: 'ft',
+        crewRate: crewRateLash, clientRate: clientRateLash,
+        crewTotal: Math.round(footage * crewRateLash * 100) / 100,
+        clientTotal: Math.round(footage * clientRateLash * 100) / 100,
+        stage: 'lashed', billingMode: 'split',
+        billedBy: currentUser.uid, billedByName: userName,
+        billedAt: serverTimestamp(), date: today,
+        strandDate: existingStrandDate, lashDate: today,
+        type: 'auto-span'
+      });
+      const earn = (footage * (crewRateStrand + crewRateLash)).toFixed(2);
+      showBanner(`🟢 Split — ${footage.toLocaleString()} ft → AC02-1 + AC02-2 → $${earn}`,'#16a34a');
+    }
   }
   
   // Close modal
@@ -2726,6 +2761,22 @@ window.runDailyReport=async function(){
   }
 };
 
+// Update qty label based on selected billing code
+window.updateBillQtyLabel=function(poleId){
+  const code=$('bill-code-'+poleId)?.value;
+  const inp=$('bill-qty-'+poleId);
+  if(!inp) return;
+  if(code==='AS02'){
+    inp.placeholder='Footage (ft)';
+    inp.value='';
+    inp.step='1';
+  } else {
+    inp.placeholder='Quantity';
+    inp.value='1';
+    inp.step='1';
+  }
+};
+
 // ============ VIEW TOGGLE ============
 window.toggleView=function(){
   currentView=currentView==='list'?'map':'list';
@@ -3031,7 +3082,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v39';
+  badge.textContent='v39b';
   document.body.appendChild(badge);
 })();
 
