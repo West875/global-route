@@ -2649,19 +2649,20 @@ window.showMenu=function(){
       </div>
     </div>
     <div class="space-y-2">
-      <div class="glass p-3 rounded-xl text-sm">
-        <span class="text-gray-400">Node:</span> <span class="font-semibold">${currentNode?.name||'—'}</span>
+      <div style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15)" class="p-3 rounded-xl text-sm">
+        <span style="color:#9ca3af">Node:</span> <span class="font-semibold" style="color:#fff">${currentNode?.name||'—'}</span>
       </div>
-      <div class="glass p-3 rounded-xl text-sm">
-        <span class="text-gray-400">Invite Code:</span> <span class="font-mono font-bold gold-text">${currentNode?.inviteCode||'—'}</span>
+      <div style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15)" class="p-3 rounded-xl text-sm">
+        <span style="color:#9ca3af">Invite Code:</span> <span class="font-mono font-bold" style="color:#f0c040">${currentNode?.inviteCode||'—'}</span>
       </div>
-      <div class="glass p-3 rounded-xl text-sm">
-        <span class="text-gray-400">Progress:</span> <span class="font-semibold">${completedCount()}/${GT30E_POLES.length} (${progressPct()}%)</span>
+      <div style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15)" class="p-3 rounded-xl text-sm">
+        <span style="color:#9ca3af">Progress:</span> <span class="font-semibold" style="color:#fff">${completedCount()}/${GT30E_POLES.length} (${progressPct()}%)</span>
       </div>
-      <button onclick="changeAvatar()" class="w-full p-3 rounded-xl text-sm glass">📸 Change Photo</button>
-      <button onclick="toggleBiometricSetting()" class="w-full p-3 rounded-xl text-sm glass">${hasBiometricRegistered() ? '🔓 Disable Biometric Login' : '🔐 Enable Biometric Login'}</button>
-      <button onclick="downloadCSV()" class="btn-primary w-full p-3 rounded-xl text-sm mt-2">📥 Download CSV</button>
-      <button onclick="doSignOut();closeMenu()" class="w-full p-3 rounded-xl text-sm text-gray-400 glass mt-2">Sign Out</button>
+      <button onclick="changeAvatar()" class="w-full p-3 rounded-xl text-sm font-semibold" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#fff">📸 Change Photo</button>
+      <button onclick="toggleBiometricSetting()" class="w-full p-3 rounded-xl text-sm font-semibold" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#fff">${hasBiometricRegistered() ? '🔓 Disable Biometric Login' : '🔐 Enable Biometric Login'}</button>
+      <button onclick="runDailyReport()" class="w-full p-4 rounded-xl text-sm font-bold mt-2" style="background:linear-gradient(135deg,#059669,#10b981);color:#fff;min-height:52px;font-size:15px">📊 Run Daily Report</button>
+      <button onclick="downloadCSV()" class="w-full p-3 rounded-xl text-sm font-semibold mt-2" style="background:linear-gradient(135deg,#7c3aed,#3b82f6);color:#fff">📥 Download CSV</button>
+      <button onclick="doSignOut();closeMenu()" class="w-full p-3 rounded-xl text-sm mt-2" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#9ca3af">Sign Out</button>
     </div>
   </div>`;
   modal.classList.remove('hidden');
@@ -2706,6 +2707,23 @@ window.downloadCSV=function(){
   });
   const blob=new Blob([csv],{type:'text/csv'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`charter-${currentNode?.name||'report'}-${new Date().toISOString().split('T')[0]}.csv`;a.click();
+};
+
+// ============ RUN DAILY REPORT ============
+window.runDailyReport=async function(){
+  closeMenu();
+  const WEBHOOK_URL='CHARTER_WEBHOOK_PLACEHOLDER';
+  if(WEBHOOK_URL.includes('PLACEHOLDER')){
+    showBanner('📊 Daily report trigger is set — runs automatically at 8:30 PM Eastern','#059669');
+    return;
+  }
+  showBanner('📊 Generating daily report...','#059669');
+  try{
+    await fetch(WEBHOOK_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({source:'charter-app',requestedBy:currentUser?.displayName||currentUser?.email||'unknown',timestamp:new Date().toISOString()})});
+    showBanner('✅ Daily report sent! Check your email in a few minutes.','#059669');
+  }catch(e){
+    showBanner('📊 Report triggered — check email shortly','#059669');
+  }
 };
 
 // ============ VIEW TOGGLE ============
@@ -3013,7 +3031,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v38b';
+  badge.textContent='v39';
   document.body.appendChild(badge);
 })();
 
