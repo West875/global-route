@@ -2318,12 +2318,24 @@ window.setSpanStage = async function(spanKey, stage){
       userName: userName,
       updatedAt: serverTimestamp()
     });
-    // Billing depends on whether strand+lash same day or different day
-    const sameDay = (existingStrandDate === today);
+    // Billing week = Friday → Thursday (cutoff Thu 4 PM Central)
+    // Same billing week → convert AC02-1 to AC02 (clean composite)
+    // Different billing week → AC02-1 already submitted, just add AC02-2
+    function getBillingWeekStart(dateStr){
+      const d = new Date(dateStr + 'T12:00:00');
+      const day = d.getDay(); // 0=Sun..6=Sat
+      const offset = (day - 5 + 7) % 7; // days since Friday
+      const fri = new Date(d);
+      fri.setDate(fri.getDate() - offset);
+      return fri.toISOString().slice(0,10);
+    }
+    const strandWeek = getBillingWeekStart(existingStrandDate);
+    const todayWeek = getBillingWeekStart(today);
+    const sameBillingWeek = (strandWeek === todayWeek);
     const billingDocId = currentNodeId + '_span_' + spanKey;
     
-    if(sameDay){
-      // Same day = AC02 Composite ($1.20/ft client, $0.40/ft crew)
+    if(sameBillingWeek){
+      // Same billing week → convert to AC02 Composite ($1.20/ft client, $0.40/ft crew)
       await setDoc(doc(db, 'charterBilling', billingDocId), {
         nodeId: currentNodeId, spanKey, fromPole: spanInfo?.f||'', toPole: spanInfo?.t||'',
         code: 'AC02', name: 'Fiber Composite (Strand+Lash)',
@@ -2335,27 +2347,15 @@ window.setSpanStage = async function(spanKey, stage){
         billedBy: currentUser.uid, billedByName: userName,
         billedAt: serverTimestamp(), date: today,
         strandDate: existingStrandDate, lashDate: today,
+        billingWeek: strandWeek,
         type: 'auto-span'
       });
+      // Remove any orphaned AC02-2 doc from same week
+      try { await deleteDoc(doc(db, 'charterBilling', billingDocId + '_lash')); } catch(e){}
       const earn = (footage * crewRateComposite).toFixed(2);
-      showBanner(`🟢 Composite — ${footage.toLocaleString()} ft → AC02 → $${earn}`,'#16a34a');
+      showBanner(`🟢 AC02 — ${footage.toLocaleString()} ft → $${earn}`,'#16a34a');
     } else {
-      // Different day = keep AC02-1 for strand + add AC02-2 for lash
-      // Update existing doc to confirm AC02-1 strand
-      await setDoc(doc(db, 'charterBilling', billingDocId), {
-        nodeId: currentNodeId, spanKey, fromPole: spanInfo?.f||'', toPole: spanInfo?.t||'',
-        code: 'AC02-1', name: 'Strand Portion',
-        qty: footage, unit: 'ft',
-        crewRate: crewRateStrand, clientRate: clientRateStrand,
-        crewTotal: Math.round(footage * crewRateStrand * 100) / 100,
-        clientTotal: Math.round(footage * clientRateStrand * 100) / 100,
-        stage: 'lashed', billingMode: 'split',
-        billedBy: currentUser.uid, billedByName: userName,
-        billedAt: serverTimestamp(), date: existingStrandDate,
-        strandDate: existingStrandDate, lashDate: today,
-        type: 'auto-span'
-      });
-      // Add AC02-2 lash entry
+      // Different billing week → AC02-1 already billed, just add AC02-2 for fiber
       const lashDocId = currentNodeId + '_span_' + spanKey + '_lash';
       await setDoc(doc(db, 'charterBilling', lashDocId), {
         nodeId: currentNodeId, spanKey, fromPole: spanInfo?.f||'', toPole: spanInfo?.t||'',
@@ -2368,10 +2368,11 @@ window.setSpanStage = async function(spanKey, stage){
         billedBy: currentUser.uid, billedByName: userName,
         billedAt: serverTimestamp(), date: today,
         strandDate: existingStrandDate, lashDate: today,
+        billingWeek: todayWeek,
         type: 'auto-span'
       });
-      const earn = (footage * (crewRateStrand + crewRateLash)).toFixed(2);
-      showBanner(`🟢 Split — ${footage.toLocaleString()} ft → AC02-1 + AC02-2 → $${earn}`,'#16a34a');
+      const earn = (footage * crewRateLash).toFixed(2);
+      showBanner(`🟢 AC02-2 — ${footage.toLocaleString()} ft → $${earn}`,'#16a34a');
     }
   }
   
@@ -3082,7 +3083,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v39b';
+  badge.textContent='v39c';
   document.body.appendChild(badge);
 })();
 
