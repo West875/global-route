@@ -1197,15 +1197,16 @@ function getFilteredPoles(){
 function completedCount(){ return GT30E_POLES.filter(p=>completions[p.id]).length; }
 function progressPct(){ return Math.round((completedCount()/GT30E_POLES.length)*100); }
 function spanFootageStats(){
-  let strandFt=0, lashedFt=0, totalFt=0;
+  let strandFt=0, lashedFt=0, strandOnlyFt=0, totalFt=0;
   SPAN_DATA.forEach(s=>{
     totalFt+=s.ft;
     const key=s.f+'_'+s.t;
     const stage=spanStages[key];
-    if(stage==='strand') strandFt+=s.ft;
+    if(stage==='strand' && window._spanStrandOnly?.[key]) strandOnlyFt+=s.ft;
+    else if(stage==='strand') strandFt+=s.ft;
     else if(stage==='lashed'){ lashedFt+=s.ft; }
   });
-  return {strandFt, lashedFt, totalFt, spansDone: Object.keys(spanStages).length};
+  return {strandFt, lashedFt, strandOnlyFt, totalFt, spansDone: Object.keys(spanStages).length};
 }
 
 function renderMainApp(){
@@ -1230,7 +1231,7 @@ function renderMainApp(){
           <div>
             <h1 class="gold-text text-lg leading-tight">${currentNode?.name||'Charter'}</h1>
             <p class="text-xs text-gray-400">${completed}/${total} poles</p>
-            ${(function(){const sf=spanFootageStats();if(!sf.strandFt&&!sf.lashedFt) return '';const earn=(sf.strandFt*0.16)+(sf.lashedFt*0.40);return '<p class="text-xs" style="margin-top:1px"><span style="color:#eab308">🟡 '+sf.strandFt.toLocaleString()+'ft</span> <span style="color:#22c55e">🟢 '+sf.lashedFt.toLocaleString()+'ft</span>'+(earn?' <span style="color:#f0d060;font-weight:700">$'+earn.toFixed(2)+'</span>':'')+'</p>';})()}
+            ${(function(){const sf=spanFootageStats();if(!sf.strandFt&&!sf.lashedFt&&!sf.strandOnlyFt) return '';const earn=(sf.strandFt*0.16)+(sf.lashedFt*0.40)+(sf.strandOnlyFt*0.13);let parts=[];if(sf.strandFt) parts.push('<span style="color:#eab308">🟡 '+sf.strandFt.toLocaleString()+'ft</span>');if(sf.strandOnlyFt) parts.push('<span style="color:#f97316">🔧 '+sf.strandOnlyFt.toLocaleString()+'ft</span>');if(sf.lashedFt) parts.push('<span style="color:#22c55e">🟢 '+sf.lashedFt.toLocaleString()+'ft</span>');return '<p class="text-xs" style="margin-top:1px">'+parts.join(' ')+(earn?' <span style="color:#f0d060;font-weight:700">$'+earn.toFixed(2)+'</span>':'')+'</p>';})()}
           </div>
         </div>
         <div class="flex items-center gap-2">
@@ -2146,7 +2147,8 @@ function renderSpanLines(){
     
     const spanKey = s.f + '_' + s.t;
     const stage = spanStages[spanKey] || 'none';
-    const color = SPAN_COLORS[stage] || SPAN_COLORS.none;
+    const isStrandOnly = window._spanStrandOnly?.[spanKey];
+    const color = isStrandOnly ? '#f97316' : (SPAN_COLORS[stage] || SPAN_COLORS.none);
     const weight = stage === 'none' ? 3 : 5;
     const opacity = stage === 'none' ? 0.4 : 0.85;
     
@@ -2201,15 +2203,19 @@ function showSpanModal(span, spanKey, p1, p2){
       </div>
       <div style="color:#fbbf24;font-size:13px;font-weight:600;margin-bottom:8px">📏 ${span.ft.toLocaleString()} ft</div>
       <div style="color:#94a3b8;font-size:12px;margin-bottom:16px">
-        ${stage==='strand'?'🟡 $'+(span.ft*0.16).toFixed(2)+' (AC02-1)':
+        ${window._spanStrandOnly?.[spanKey]?'🔧 $'+(span.ft*0.13).toFixed(2)+' (AS02 Strand Only)':
+          stage==='strand'?'🟡 $'+(span.ft*0.16).toFixed(2)+' (AC02-1)':
           stage==='lashed'?'🟢 $'+(span.ft*0.40).toFixed(2)+' (AC02)':
           'Select a stage below'}
       </div>
-      <div style="display:flex;gap:8px;margin-bottom:16px">
+      <div style="display:flex;gap:8px;margin-bottom:12px">
         ${stageBtn('none','⬜','No Work', stage==='none')}
-        ${stageBtn('strand','🟡','Strand<br><span style=font-size:11px>$0.16/ft</span>', stage==='strand')}
+        ${stageBtn('strand','🟡','Strand<br><span style=font-size:11px>$0.16/ft</span>', stage==='strand' && !window._spanStrandOnly?.[spanKey])}
         ${stageBtn('lashed','🟢','Lashed<br><span style=font-size:11px>$0.40/ft</span>', stage==='lashed')}
       </div>
+      <button onclick="setSpanStage('${spanKey}','strandOnly')" style="width:100%;padding:14px;border-radius:12px;background:${window._spanStrandOnly?.[spanKey]?'#d97706':'rgba(217,119,6,0.15)'};border:2px solid ${window._spanStrandOnly?.[spanKey]?'white':'rgba(217,119,6,0.4)'};color:${window._spanStrandOnly?.[spanKey]?'#000':'#fbbf24'};font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;transition:all 0.2s">
+        🔧 Strand Only — No Fiber (AS02 $0.13/ft)
+      </button>
       <div style="color:#64748b;font-size:11px;text-align:center">Tap a stage to update • Changes sync in real-time</div>
     </div>
   `;
@@ -2221,6 +2227,8 @@ function showSpanModal(span, spanKey, p1, p2){
   document.body.appendChild(modal);
 }
 
+if(!window._spanStrandOnly) window._spanStrandOnly = {};
+
 window.setSpanStage = async function(spanKey, stage){
   if(!currentUser || !currentNodeId) return;
   vibrate(50);
@@ -2230,15 +2238,18 @@ window.setSpanStage = async function(spanKey, stage){
   const spanInfo = SPAN_DATA.find(s => s.f+'_'+s.t === spanKey);
   const footage = spanInfo?.ft || 0;
   const userName = currentUser.displayName || currentUser.email.split('@')[0];
-  // GT30E billing: strand=AC02-1, lash same day=AC02 composite, lash diff day=AC02-1+AC02-2
+  // GT30E billing rates
   const crewRateStrand = 0.16;   // AC02-1 crew $0.16/ft
   const clientRateStrand = 0.48; // AC02-1 client $0.48/ft
   const crewRateComposite = 0.40;   // AC02 crew $0.40/ft
   const clientRateComposite = 1.20; // AC02 client $1.20/ft
   const crewRateLash = 0.24;    // AC02-2 crew $0.24/ft
   const clientRateLash = 0.72;  // AC02-2 client $0.72/ft
+  const crewRateAS02 = 0.13;    // AS02 crew $0.13/ft
+  const clientRateAS02 = 0.40;  // AS02 client $0.40/ft
   
   if(stage === 'none'){
+    window._spanStrandOnly[spanKey] = false;
     try { await deleteDoc(docRef); } catch(e){}
     // Remove auto-billing entries (both strand + lash docs)
     try {
@@ -2248,11 +2259,50 @@ window.setSpanStage = async function(spanKey, stage){
       await deleteDoc(doc(db, 'charterBilling', lashDocId));
     } catch(e){}
     showBanner('Span reset — billing removed','#6b7280');
-  } else if(stage === 'strand'){
+  } else if(stage === 'strandOnly'){
+    // AS02 — Strand only, no fiber will be placed
     await setDoc(docRef, {
       nodeId: currentNodeId,
       spanKey: spanKey,
       stage: 'strand',
+      strandOnly: true,
+      footage: footage,
+      strandAt: serverTimestamp(),
+      strandDate: today,
+      strandBy: currentUser.uid,
+      strandByName: userName,
+      billingMode: 'strandOnly',
+      updatedBy: currentUser.uid,
+      userName: userName,
+      updatedAt: serverTimestamp()
+    });
+    // Bill AS02
+    const billingDocId = currentNodeId + '_span_' + spanKey;
+    await setDoc(doc(db, 'charterBilling', billingDocId), {
+      nodeId: currentNodeId, spanKey, fromPole: spanInfo?.f||'', toPole: spanInfo?.t||'',
+      code: 'AS02', name: 'Strand Only (No Fiber)',
+      qty: footage, unit: 'ft',
+      crewRate: crewRateAS02, clientRate: clientRateAS02,
+      crewTotal: Math.round(footage * crewRateAS02 * 100) / 100,
+      clientTotal: Math.round(footage * clientRateAS02 * 100) / 100,
+      stage: 'strand', billingMode: 'strandOnly',
+      billedBy: currentUser.uid, billedByName: userName,
+      billedAt: serverTimestamp(), date: today,
+      strandDate: today,
+      type: 'auto-span'
+    });
+    // Remove any lash billing doc
+    try { await deleteDoc(doc(db, 'charterBilling', billingDocId + '_lash')); } catch(e){}
+    window._spanStrandOnly[spanKey] = true;
+    const earn = (footage * crewRateAS02).toFixed(2);
+    showBanner(`🔧 AS02 Strand Only — ${footage.toLocaleString()} ft → $${earn}`,'#d97706');
+  } else if(stage === 'strand'){
+    window._spanStrandOnly[spanKey] = false;
+    await setDoc(docRef, {
+      nodeId: currentNodeId,
+      spanKey: spanKey,
+      stage: 'strand',
+      strandOnly: false,
       footage: footage,
       strandAt: serverTimestamp(),
       strandDate: today,
@@ -2925,9 +2975,12 @@ function subscribeToData(){
     query(collection(db,'charterSpanStages'),where('nodeId','==',currentNodeId)),
     snap=>{
       spanStages={};
+      if(!window._spanStrandOnly) window._spanStrandOnly={};
       snap.forEach(d=>{
         const data=d.data();
         if(data.spanKey && data.stage) spanStages[data.spanKey]=data.stage;
+        if(data.spanKey && data.strandOnly) window._spanStrandOnly[data.spanKey]=true;
+        else if(data.spanKey) window._spanStrandOnly[data.spanKey]=false;
       });
       renderSpanLines();
       renderPoleListDebounced();
@@ -3083,7 +3136,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v39c';
+  badge.textContent='v40';
   document.body.appendChild(badge);
 })();
 
