@@ -85,13 +85,17 @@ window.addEventListener('unhandledrejection',function(e){
 <script type="module">
 import{initializeApp}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import{getAuth,onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,signInWithPopup,signInWithRedirect,getRedirectResult,GoogleAuthProvider,updateProfile,signOut}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import{getFirestore,collection,doc,setDoc,getDoc,getDocs,onSnapshot,query,where,orderBy,deleteDoc,updateDoc,serverTimestamp,Timestamp,addDoc}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import{getFirestore,collection,doc,setDoc,getDoc,getDocs,onSnapshot,query,where,orderBy,deleteDoc,updateDoc,serverTimestamp,Timestamp,addDoc,enableIndexedDbPersistence}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import{getStorage,ref as storageRef,uploadBytes,getDownloadURL}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
 const firebaseConfig={apiKey:"AIzaSyD-s8Pg4GeSZhOzYpusiHGEEcQuav-IBOo",authDomain:"global-route-79e25.firebaseapp.com",projectId:"global-route-79e25",storageBucket:"global-route-79e25.firebasestorage.app",messagingSenderId:"780041424093",appId:"1:780041424093:web:43ed17f4a12764db6f5f34"};
 const app=initializeApp(firebaseConfig);
 const auth=getAuth(app);
 const db=getFirestore(app);
+enableIndexedDbPersistence(db).catch(e=>{
+  if(e.code==='failed-precondition')console.warn('Offline: multiple tabs open');
+  else if(e.code==='unimplemented')console.warn('Offline: browser unsupported');
+});
 const storage=getStorage(app);
 
 // Charter billing codes
@@ -99,14 +103,15 @@ const CHARTER_CODES=[
 {code:"AC02",name:"When Fiber Portion of AC02 is placed in same day",unit:"Per Ft",type:"footage",rate:0.40},
 {code:"AC02-1",name:"Strand Portion of AC02",unit:"Per Ft",type:"footage",rate:0.16},
 {code:"AC02-2",name:"Fiber Portion of AC02",unit:"Per Ft",type:"footage",rate:0.24},
-{code:"AS02",name:"Place Strand Only",unit:"Per Ft",type:"footage",rate:0.13},
+{code:"AS02",name:"Place New Strand. But fiber never go there",unit:"Per Ft",type:"footage",rate:0.13},
 {code:"AS07",name:"Overlash Fiber 1000'+",unit:"Per Ft",type:"footage",rate:0.20},
 {code:"AS07A",name:"Overlash Fiber 1'–999'",unit:"Per Ft",type:"footage",rate:0.20},
 {code:"MC04",name:"Tree Trimming",unit:"Per Span",type:"each",rate:16.50},
-{code:"AS18",name:"Make Ready & Compliance",unit:"Per Pole",type:"each",rate:15.02},
+{code:"AS18",name:"Make Ready and Compliance",unit:"Per Pole",type:"each",rate:15.02},
 {code:"AC05",name:"De/Relash",unit:"Per Ft",type:"footage",rate:0.35},
 {code:"AS01",name:"Set/Replace Pole",unit:"Each",type:"quote",rate:0},
 {code:"AS26",name:"Top Pole",unit:"Each",type:"each",rate:6.60},
+{code:"AS12",name:"Pole Transfer",unit:"Per Pole",type:"each",rate:0},
 ];
 
 
@@ -2512,9 +2517,10 @@ window.logBilling=async function(poleId){
   const qty=parseFloat($('bill-qty-'+poleId)?.value);
   if(!code||!qty||qty<=0){alert('Enter a valid quantity');return;}
   
-  // MC04 Tree Trim requires before/after photos
-  if(code==='MC04'){
-    openTreeTrimFlow(poleId,qty);
+  // These codes require before/after photos
+  const PHOTO_REQUIRED=['MC04','AS12','AS18'];
+  if(PHOTO_REQUIRED.includes(code)){
+    openPhotoRequiredFlow(poleId,qty,code);
     return;
   }
   
@@ -2528,74 +2534,83 @@ window.logBilling=async function(poleId){
   openPole(poleId);
 };
 
-// ============ TREE TRIM BEFORE/AFTER FLOW ============
-let treeTrimTemp={};
+// ============ BEFORE/AFTER PHOTO BILLING FLOW ============
+// Works for MC04 (Tree Trim), AS12 (Pole Transfer), AS18 (Make Ready)
+let photoFlowTemp={};
 
-window.openTreeTrimFlow=function(poleId,qty){
+const PHOTO_CODE_INFO={
+  'MC04':{icon:'🌳',title:'Tree Trim',color1:'#16a34a',color2:'#15803d'},
+  'AS12':{icon:'🔄',title:'Pole Transfer',color1:'#2563eb',color2:'#1d4ed8'},
+  'AS18':{icon:'🔧',title:'Make Ready and Compliance',color1:'#7c3aed',color2:'#6d28d9'}
+};
+
+window.openPhotoRequiredFlow=function(poleId,qty,code){
   const pole=GT30E_POLES.find(p=>p.id===poleId);
   const poleName=pole?pole.name:poleId;
-  treeTrimTemp={poleId,qty,poleName,beforePhoto:null,afterPhoto:null};
+  const info=PHOTO_CODE_INFO[code]||{icon:'📷',title:code,color1:'#2563eb',color2:'#1d4ed8'};
+  photoFlowTemp={poleId,qty,poleName,code,info,beforePhoto:null,afterPhoto:null};
   
   const modal=document.createElement('div');
-  modal.id='tree-trim-modal';
+  modal.id='photo-flow-modal';
   modal.className='modal-backdrop';
-  modal.onclick=function(e){if(e.target===modal)closeTreeTrim();};
+  modal.onclick=function(e){if(e.target===modal)closePhotoFlow();};
   modal.innerHTML=`
     <div class="modal-content" style="max-width:500px">
       <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-bold">🌳 Tree Trim — ${poleName}</h2>
-        <button onclick="closeTreeTrim()" class="text-gray-400 text-2xl">&times;</button>
+        <h2 class="text-lg font-bold">${info.icon} ${info.title} — ${poleName}</h2>
+        <button onclick="closePhotoFlow()" class="text-gray-400 text-2xl">&times;</button>
       </div>
       <p class="text-sm text-gray-400 mb-4">Take a <strong>BEFORE</strong> photo first, then do the work, then take an <strong>AFTER</strong> photo.</p>
       
       <!-- Step 1: Before Photo -->
-      <div id="tt-step1" class="mb-4">
+      <div id="pf-step1" class="mb-4">
         <div class="flex items-center gap-2 mb-2">
           <span class="text-xl">1️⃣</span>
           <span class="font-semibold text-sm" style="color:#f59e0b">BEFORE Photo (required)</span>
         </div>
-        <div id="tt-before-preview" style="border-radius:12px;overflow:hidden;background:#111;min-height:120px;display:flex;align-items:center;justify-content:center;margin-bottom:8px">
+        <div id="pf-before-preview" style="border-radius:12px;overflow:hidden;background:#111;min-height:120px;display:flex;align-items:center;justify-content:center;margin-bottom:8px">
           <span class="text-gray-500 text-sm">No photo yet</span>
         </div>
-        <input type="file" id="tt-before-input" accept="image/*" capture="environment" style="display:none" onchange="handleTreeTrimPhoto('before',this)">
-        <button onclick="document.getElementById('tt-before-input').click()" class="w-full p-3 rounded-xl flex items-center justify-center gap-2 font-semibold" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#000">
+        <input type="file" id="pf-before-input" accept="image/*" capture="environment" style="display:none" onchange="handlePhotoFlowPhoto('before',this)">
+        <button onclick="document.getElementById('pf-before-input').click()" class="w-full p-3 rounded-xl flex items-center justify-center gap-2 font-semibold" style="background:linear-gradient(135deg,#f59e0b,#d97706);color:#000">
           📷 Take BEFORE Photo
         </button>
       </div>
       
       <!-- Step 2: After Photo -->
-      <div id="tt-step2" class="mb-4" style="opacity:0.4;pointer-events:none">
+      <div id="pf-step2" class="mb-4" style="opacity:0.4;pointer-events:none">
         <div class="flex items-center gap-2 mb-2">
           <span class="text-xl">2️⃣</span>
           <span class="font-semibold text-sm" style="color:#10b981">AFTER Photo (required)</span>
         </div>
-        <div id="tt-after-preview" style="border-radius:12px;overflow:hidden;background:#111;min-height:120px;display:flex;align-items:center;justify-content:center;margin-bottom:8px">
+        <div id="pf-after-preview" style="border-radius:12px;overflow:hidden;background:#111;min-height:120px;display:flex;align-items:center;justify-content:center;margin-bottom:8px">
           <span class="text-gray-500 text-sm">Complete work first, then take photo</span>
         </div>
-        <input type="file" id="tt-after-input" accept="image/*" capture="environment" style="display:none" onchange="handleTreeTrimPhoto('after',this)">
-        <button onclick="document.getElementById('tt-after-input').click()" class="w-full p-3 rounded-xl flex items-center justify-center gap-2 font-semibold" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff">
+        <input type="file" id="pf-after-input" accept="image/*" capture="environment" style="display:none" onchange="handlePhotoFlowPhoto('after',this)">
+        <button onclick="document.getElementById('pf-after-input').click()" class="w-full p-3 rounded-xl flex items-center justify-center gap-2 font-semibold" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff">
           📷 Take AFTER Photo
         </button>
       </div>
       
       <!-- Submit -->
-      <button id="tt-submit-btn" onclick="submitTreeTrim()" class="w-full p-3 rounded-xl flex items-center justify-center gap-2 font-bold text-lg" style="background:linear-gradient(135deg,#10b981,#059669);color:#fff;opacity:0.4;pointer-events:none">
-        ✅ Submit Tree Trim
+      <button id="pf-submit-btn" onclick="submitPhotoFlow()" class="w-full p-3 rounded-xl flex items-center justify-center gap-2 font-bold text-lg" style="background:linear-gradient(135deg,${info.color1},${info.color2});color:#fff;opacity:0.4;pointer-events:none">
+        ✅ Submit ${info.title}
       </button>
-      <div id="tt-status" class="text-center text-sm text-gray-400 mt-2"></div>
+      <div id="pf-status" class="text-center text-sm text-gray-400 mt-2"></div>
     </div>`;
   document.body.appendChild(modal);
 };
 
-window.closeTreeTrim=function(){
-  const m=document.getElementById('tree-trim-modal');
+window.closePhotoFlow=function(){
+  const m=document.getElementById('photo-flow-modal');
   if(m)m.remove();
-  treeTrimTemp={};
+  photoFlowTemp={};
 };
 
-window.handleTreeTrimPhoto=async function(phase,input){
+window.handlePhotoFlowPhoto=async function(phase,input){
   if(!input.files||!input.files[0])return;
   const file=input.files[0];
+  const info=photoFlowTemp.info||{icon:'📷',title:photoFlowTemp.code};
   
   // Get GPS
   let gps=null;
@@ -2603,7 +2618,7 @@ window.handleTreeTrimPhoto=async function(phase,input){
     const pos=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{timeout:10000,enableHighAccuracy:true}));
     gps={lat:pos.coords.latitude,lon:pos.coords.longitude};
   }catch(e){
-    const pole=GT30E_POLES.find(p=>p.id===treeTrimTemp.poleId);
+    const pole=GT30E_POLES.find(p=>p.id===photoFlowTemp.poleId);
     if(pole)gps={lat:pole.lat,lon:pole.lon};
   }
   
@@ -2617,73 +2632,70 @@ window.handleTreeTrimPhoto=async function(phase,input){
     canvas.height=Math.round(img.height*scale);
     ctx.drawImage(img,0,0,canvas.width,canvas.height);
     
-    const label=phase==='before'?'🌳 BEFORE — Tree Trim':'✅ AFTER — Tree Trim';
+    const label=phase==='before'?`${info.icon} BEFORE — ${info.title}`:`✅ AFTER — ${info.title}`;
     drawTimemarkWatermark(ctx,canvas.width,canvas.height,{
-      siteName:treeTrimTemp.poleName+' '+label,
+      siteName:photoFlowTemp.poleName+' '+label,
       userName:currentUser.displayName||currentUser.email||'Crew',
       gps:gps,
-      prefix:'🌳'
+      prefix:info.icon
     });
     
     const dataUrl=canvas.toDataURL('image/jpeg',0.75);
-    treeTrimTemp[phase+'Photo']=dataUrl;
-    treeTrimTemp[phase+'Gps']=gps;
+    photoFlowTemp[phase+'Photo']=dataUrl;
+    photoFlowTemp[phase+'Gps']=gps;
     
     // Show preview
-    const preview=document.getElementById('tt-'+phase+'-preview');
+    const preview=document.getElementById('pf-'+phase+'-preview');
     preview.innerHTML=`<img src="${dataUrl}" style="width:100%;border-radius:12px">`;
     
     // Enable next step
     if(phase==='before'){
-      const step2=document.getElementById('tt-step2');
+      const step2=document.getElementById('pf-step2');
       step2.style.opacity='1';
       step2.style.pointerEvents='auto';
     }
-    if(phase==='after'||treeTrimTemp.beforePhoto&&treeTrimTemp.afterPhoto){
-      checkTreeTrimReady();
+    if(photoFlowTemp.beforePhoto&&photoFlowTemp.afterPhoto){
+      const btn=document.getElementById('pf-submit-btn');
+      btn.style.opacity='1';
+      btn.style.pointerEvents='auto';
     }
   };
   img.src=URL.createObjectURL(file);
 };
 
-function checkTreeTrimReady(){
-  const btn=document.getElementById('tt-submit-btn');
-  if(treeTrimTemp.beforePhoto&&treeTrimTemp.afterPhoto){
-    btn.style.opacity='1';
-    btn.style.pointerEvents='auto';
-  }
-}
-
-window.submitTreeTrim=async function(){
-  if(!treeTrimTemp.beforePhoto||!treeTrimTemp.afterPhoto){
+window.submitPhotoFlow=async function(){
+  if(!photoFlowTemp.beforePhoto||!photoFlowTemp.afterPhoto){
     alert('Both before and after photos are required');return;
   }
-  const btn=document.getElementById('tt-submit-btn');
-  const status=document.getElementById('tt-status');
+  const btn=document.getElementById('pf-submit-btn');
+  const status=document.getElementById('pf-status');
+  const info=photoFlowTemp.info;
   btn.disabled=true;
   btn.textContent='⏳ Submitting...';
-  status.textContent='Saving tree trim entry...';
+  status.textContent=`Saving ${info.title} entry...`;
   
   try{
     // Save billing entry
     const billingRef=await addDoc(collection(db,'charterBilling'),{
       nodeId:currentNodeId,
-      poleId:treeTrimTemp.poleId,
-      code:'MC04',
-      qty:treeTrimTemp.qty,
+      poleId:photoFlowTemp.poleId,
+      code:photoFlowTemp.code,
+      qty:photoFlowTemp.qty,
       uid:currentUser.uid,
       userName:currentUser.displayName||currentUser.email.split('@')[0],
       createdAt:serverTimestamp()
     });
     
+    const photoTypePrefix=photoFlowTemp.code.toLowerCase();
+    
     // Save before photo
     await addDoc(collection(db,'charterPhotos'),{
       nodeId:currentNodeId,
-      poleId:treeTrimTemp.poleId,
-      type:'tree-trim-before',
-      name:treeTrimTemp.poleName+' — Tree Trim BEFORE',
-      url:treeTrimTemp.beforePhoto,
-      gps:treeTrimTemp.beforeGps,
+      poleId:photoFlowTemp.poleId,
+      type:photoTypePrefix+'-before',
+      name:photoFlowTemp.poleName+` — ${info.title} BEFORE`,
+      url:photoFlowTemp.beforePhoto,
+      gps:photoFlowTemp.beforeGps,
       billingId:billingRef.id,
       uid:currentUser.uid,
       userName:currentUser.displayName||currentUser.email,
@@ -2693,11 +2705,11 @@ window.submitTreeTrim=async function(){
     // Save after photo
     await addDoc(collection(db,'charterPhotos'),{
       nodeId:currentNodeId,
-      poleId:treeTrimTemp.poleId,
-      type:'tree-trim-after',
-      name:treeTrimTemp.poleName+' — Tree Trim AFTER',
-      url:treeTrimTemp.afterPhoto,
-      gps:treeTrimTemp.afterGps,
+      poleId:photoFlowTemp.poleId,
+      type:photoTypePrefix+'-after',
+      name:photoFlowTemp.poleName+` — ${info.title} AFTER`,
+      url:photoFlowTemp.afterPhoto,
+      gps:photoFlowTemp.afterGps,
       billingId:billingRef.id,
       uid:currentUser.uid,
       userName:currentUser.displayName||currentUser.email,
@@ -2705,17 +2717,17 @@ window.submitTreeTrim=async function(){
     });
     
     vibrate();playSound('complete');
-    status.textContent='✅ Tree trim logged with photos!';
+    status.textContent=`✅ ${info.title} logged with photos!`;
     btn.textContent='✅ Submitted';
     setTimeout(()=>{
-      closeTreeTrim();
-      openPole(treeTrimTemp.poleId);
+      closePhotoFlow();
+      openPole(photoFlowTemp.poleId);
     },1000);
   }catch(e){
-    console.error('Tree trim error:',e);
+    console.error('Photo flow error:',e);
     status.textContent='❌ Error: '+e.message;
     btn.disabled=false;
-    btn.textContent='✅ Submit Tree Trim';
+    btn.textContent=`✅ Submit ${info.title}`;
   }
 };
 
@@ -3136,7 +3148,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v40';
+  badge.textContent='v41';
   document.body.appendChild(badge);
 })();
 
@@ -3238,6 +3250,36 @@ window.downloadCSV=function(){
   a.download='charter-production-'+new Date().toISOString().slice(0,10)+'.csv';
   a.click();
 };
+
+// ============ OFFLINE INDICATOR ============
+const offlineBanner=document.createElement('div');
+offlineBanner.id='offline-banner';
+offlineBanner.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;text-align:center;padding:6px 12px;font-size:13px;font-weight:600;display:none;transition:transform 0.3s ease';
+offlineBanner.innerHTML='📡 You are offline — changes will sync when reconnected';
+document.body.appendChild(offlineBanner);
+
+function updateOnlineStatus(){
+  if(!navigator.onLine){
+    offlineBanner.style.display='block';
+    document.body.style.paddingTop='36px';
+  } else {
+    offlineBanner.style.display='none';
+    document.body.style.paddingTop='0';
+  }
+}
+window.addEventListener('online',()=>{
+  updateOnlineStatus();
+  showSuccessBanner('✅ Back online — syncing changes...');
+});
+window.addEventListener('offline',updateOnlineStatus);
+updateOnlineStatus();
+
+// ============ SERVICE WORKER REGISTRATION ============
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./charter-sw.js').then(reg=>{
+    console.log('Charter SW registered, scope:',reg.scope);
+  }).catch(err=>console.warn('SW registration failed:',err));
+}
 </script>
 </body>
 </html>
