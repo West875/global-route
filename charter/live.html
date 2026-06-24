@@ -2153,25 +2153,37 @@ function renderSpanLines(){
     const spanKey = s.f + '_' + s.t;
     const stage = spanStages[spanKey] || 'none';
     const isStrandOnly = window._spanStrandOnly?.[spanKey];
-    const color = isStrandOnly ? '#f97316' : (SPAN_COLORS[stage] || SPAN_COLORS.none);
-    const weight = stage === 'none' ? 3 : 5;
-    const opacity = stage === 'none' ? 0.4 : 0.85;
+    const coords = [[p1.lat, p1.lon], [p2.lat, p2.lon]];
     
-    const line = L.polyline([[p1.lat, p1.lon], [p2.lat, p2.lon]], {
-      color: color,
-      weight: weight,
-      opacity: opacity,
-      interactive: true,
-      bubblingMouseEvents: false
-    }).addTo(window._spanLayerGroup);
-    
-    // Tappable — show stage modal
-    line.on('click', function(e){
-      L.DomEvent.stopPropagation(e);
-      showSpanModal(s, spanKey, p1, p2);
-    });
-    
-    spanLines[spanKey] = line;
+    if(stage === 'lashed' && !isStrandOnly){
+      // Lashed = green + yellow dual line (strand underneath, fiber on top)
+      const yellowLine = L.polyline(coords, {
+        color: '#eab308', weight: 8, opacity: 0.85,
+        interactive: false, bubblingMouseEvents: false
+      }).addTo(window._spanLayerGroup);
+      const greenLine = L.polyline(coords, {
+        color: '#22c55e', weight: 4, opacity: 0.9,
+        interactive: true, bubblingMouseEvents: false
+      }).addTo(window._spanLayerGroup);
+      greenLine.on('click', function(e){
+        L.DomEvent.stopPropagation(e);
+        showSpanModal(s, spanKey, p1, p2);
+      });
+      spanLines[spanKey] = { yellow: yellowLine, green: greenLine };
+    } else {
+      const color = isStrandOnly ? '#f97316' : (SPAN_COLORS[stage] || SPAN_COLORS.none);
+      const weight = stage === 'none' ? 3 : 5;
+      const opacity = stage === 'none' ? 0.4 : 0.85;
+      const line = L.polyline(coords, {
+        color: color, weight: weight, opacity: opacity,
+        interactive: true, bubblingMouseEvents: false
+      }).addTo(window._spanLayerGroup);
+      line.on('click', function(e){
+        L.DomEvent.stopPropagation(e);
+        showSpanModal(s, spanKey, p1, p2);
+      });
+      spanLines[spanKey] = line;
+    }
   });
 }
 
@@ -3148,7 +3160,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v41';
+  badge.textContent='v42';
   document.body.appendChild(badge);
 })();
 
