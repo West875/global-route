@@ -1410,15 +1410,15 @@ function initMap(){
   const lons=GT30E_POLES.map(p=>p.lon);
   const bounds=[[Math.min(...lats)-0.002,Math.min(...lons)-0.003],[Math.max(...lats)+0.002,Math.max(...lons)+0.003]];
   
-  mapInstance=L.map('map',{zoomControl:false,attributionControl:false,fadeAnimation:false,zoomAnimation:false,markerZoomAnimation:false}).fitBounds(bounds);
-  // Map tile layers
+  mapInstance=L.map('map',{zoomControl:false,attributionControl:false,fadeAnimation:false,zoomAnimation:false,markerZoomAnimation:false,maxZoom:22}).fitBounds(bounds);
+  // Map tile layers — maxNativeZoom prevents "Map data not yet available" by upscaling tiles
   const baseLayers = {
-    'Satellite': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:20}),
-    'Terrain': L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:17,attribution:'OpenTopoMap'}),
-    'Street': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'OSM'}),
-    'Hybrid': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:20})
+    'Satellite': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:22,maxNativeZoom:19}),
+    'Terrain': L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',{maxZoom:22,maxNativeZoom:17,attribution:'OpenTopoMap'}),
+    'Street': L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:22,maxNativeZoom:19,attribution:'OSM'}),
+    'Hybrid': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:22,maxNativeZoom:19})
   };
-  const labelsLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:20,pane:'overlayPane'});
+  const labelsLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',{maxZoom:22,maxNativeZoom:20,pane:'overlayPane'});
   baseLayers['Satellite'].addTo(mapInstance);
 
   // Leaflet built-in layer control (top-right crosshatch — same as OLT-57)
@@ -3173,7 +3173,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v44';
+  badge.textContent='v45';
   document.body.appendChild(badge);
 })();
 
