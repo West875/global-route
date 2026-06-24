@@ -2235,7 +2235,30 @@ function showSpanModal(span, spanKey, p1, p2){
       <button onclick="setSpanStage('${spanKey}','strandOnly')" style="width:100%;padding:14px;border-radius:12px;background:${window._spanStrandOnly?.[spanKey]?'#d97706':'rgba(217,119,6,0.15)'};border:2px solid ${window._spanStrandOnly?.[spanKey]?'white':'rgba(217,119,6,0.4)'};color:${window._spanStrandOnly?.[spanKey]?'#000':'#fbbf24'};font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;transition:all 0.2s">
         🔧 Strand Only — No Fiber (AS02 $0.13/ft)
       </button>
-      <div style="color:#64748b;font-size:11px;text-align:center">Tap a stage to update • Changes sync in real-time</div>
+      <!-- Tic Mark In/Out -->
+      <div style="margin-top:12px;padding:12px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1)">
+        <div style="color:#fbbf24;font-size:13px;font-weight:600;margin-bottom:8px">📏 Tic Marks (Cable Storage)</div>
+        <div style="display:flex;gap:8px;margin-bottom:6px">
+          <div style="flex:1">
+            <label style="color:#94a3b8;font-size:11px;font-weight:600;display:block;margin-bottom:4px">IN (ft)</label>
+            <input id="span-tic-in" type="number" inputmode="numeric" min="0" step="1" placeholder="Start reading" value="${window._spanTicData?.[spanKey]?.ticIn||''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorage('${spanKey}')">
+          </div>
+          <div style="flex:1">
+            <label style="color:#94a3b8;font-size:11px;font-weight:600;display:block;margin-bottom:4px">OUT (ft)</label>
+            <input id="span-tic-out" type="number" inputmode="numeric" min="0" step="1" placeholder="End reading" value="${window._spanTicData?.[spanKey]?.ticOut||''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorage('${spanKey}')">
+          </div>
+        </div>
+        <div id="span-tic-storage" style="display:flex;justify-content:space-between;align-items:center;min-height:28px">
+          <span id="span-tic-result" style="color:#22c55e;font-size:13px;font-weight:600">${(()=>{
+            const d=window._spanTicData?.[spanKey];
+            if(d&&d.ticIn!=null&&d.ticOut!=null){const diff=d.ticOut-d.ticIn;return '📦 Storage: '+diff.toLocaleString()+' ft'+(d.savedBy?' • by '+d.savedBy:'');}
+            return '';
+          })()}</span>
+          <span id="span-tic-status" style="color:#94a3b8;font-size:11px"></span>
+        </div>
+        <button onclick="window._saveSpanTic('${spanKey}')" style="width:100%;padding:10px;border-radius:10px;background:linear-gradient(135deg,#fbbf24,#f59e0b);border:none;color:#000;font-size:14px;font-weight:700;cursor:pointer;margin-top:6px;transition:all 0.2s">💾 Save Tic Marks</button>
+      </div>
+      <div style="color:#64748b;font-size:11px;text-align:center;margin-top:8px">Tap a stage to update • Changes sync in real-time</div>
     </div>
   `;
   
@@ -2247,6 +2270,52 @@ function showSpanModal(span, spanKey, p1, p2){
 }
 
 if(!window._spanStrandOnly) window._spanStrandOnly = {};
+if(!window._spanTicData) window._spanTicData = {};
+
+window._calcSpanStorage = function(spanKey){
+  const inEl = document.getElementById('span-tic-in');
+  const outEl = document.getElementById('span-tic-out');
+  const resultEl = document.getElementById('span-tic-result');
+  if(!inEl||!outEl||!resultEl) return;
+  const ticIn = parseInt(inEl.value);
+  const ticOut = parseInt(outEl.value);
+  if(!isNaN(ticIn)&&!isNaN(ticOut)){
+    const diff = ticOut - ticIn;
+    resultEl.textContent = '📦 Storage: ' + diff.toLocaleString() + ' ft';
+    resultEl.style.color = diff >= 0 ? '#22c55e' : '#ef4444';
+  } else {
+    resultEl.textContent = '';
+  }
+};
+
+window._saveSpanTic = async function(spanKey){
+  if(!currentUser||!currentNodeId) return;
+  const inEl = document.getElementById('span-tic-in');
+  const outEl = document.getElementById('span-tic-out');
+  if(!inEl||!outEl) return;
+  const ticIn = parseInt(inEl.value);
+  const ticOut = parseInt(outEl.value);
+  if(isNaN(ticIn)||isNaN(ticOut)){ alert('Enter both In and Out readings'); return; }
+  vibrate(); playSound('complete');
+  const userName = currentUser.displayName || currentUser.email.split('@')[0];
+  const docId = currentNodeId + '_span_' + spanKey;
+  const data = {
+    nodeId: currentNodeId, spanKey,
+    ticIn, ticOut, storage: ticOut - ticIn,
+    userId: currentUser.uid, savedBy: userName,
+    updatedAt: serverTimestamp()
+  };
+  await setDoc(doc(db, 'charterTicMarks', docId), data, { merge: true });
+  window._spanTicData[spanKey] = data;
+  const statusEl = document.getElementById('span-tic-status');
+  if(statusEl){ statusEl.textContent='✅ Saved!'; setTimeout(()=>{if(statusEl)statusEl.textContent='';},2000); }
+  const resultEl = document.getElementById('span-tic-result');
+  if(resultEl){
+    const diff = ticOut - ticIn;
+    resultEl.textContent = '📦 Storage: ' + diff.toLocaleString() + ' ft • by ' + userName;
+    resultEl.style.color = diff >= 0 ? '#22c55e' : '#ef4444';
+  }
+};
 
 window.setSpanStage = async function(spanKey, stage){
   if(!currentUser || !currentNodeId) return;
@@ -2985,12 +3054,20 @@ function subscribeToData(){
     err=>console.error('photos sub error:',err)
   ));
 
-  // Tic Marks
+  // Tic Marks (pole-level + span-level)
   unsubscribers.push(onSnapshot(
     query(collection(db,'charterTicMarks'),where('nodeId','==',currentNodeId)),
     snap=>{
       ticMarks={};
-      snap.forEach(d=>{const data=d.data();ticMarks[data.poleId]=data;});
+      if(!window._spanTicData) window._spanTicData={};
+      snap.forEach(d=>{
+        const data=d.data();
+        if(data.spanKey){
+          window._spanTicData[data.spanKey]=data;
+        } else if(data.poleId){
+          ticMarks[data.poleId]=data;
+        }
+      });
       renderPoleListDebounced();
     },
     err=>console.error('ticMarks sub error:',err)
@@ -3173,7 +3250,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v45';
+  badge.textContent='v46';
   document.body.appendChild(badge);
 })();
 
