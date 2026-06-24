@@ -708,6 +708,8 @@ let markers = {};
 // ============ UTILS ============
 function $(id){ return document.getElementById(id); }
 function vibrate(ms=50){ if(navigator.vibrate) navigator.vibrate(ms); }
+// Convert gt30e-XXX id → pole number for display
+function poleName(id){ const p=GT30E_POLES.find(p=>p.id===id); return p?p.name:id.replace(/^gt30e-/,''); }
 
 function playSound(type){
   try{
@@ -2296,7 +2298,7 @@ window.setSpanStage = async function(spanKey, stage){
     // Bill AS02
     const billingDocId = currentNodeId + '_span_' + spanKey;
     await setDoc(doc(db, 'charterBilling', billingDocId), {
-      nodeId: currentNodeId, spanKey, fromPole: spanInfo?.f||'', toPole: spanInfo?.t||'',
+      nodeId: currentNodeId, spanKey, fromPole: poleName(spanInfo?.f||''), toPole: poleName(spanInfo?.t||''),
       code: 'AS02', name: 'Strand Only (No Fiber)',
       qty: footage, unit: 'ft',
       crewRate: crewRateAS02, clientRate: clientRateAS02,
@@ -2334,8 +2336,8 @@ window.setSpanStage = async function(spanKey, stage){
     await setDoc(doc(db, 'charterBilling', billingDocId), {
       nodeId: currentNodeId,
       spanKey: spanKey,
-      fromPole: spanInfo?.f || '',
-      toPole: spanInfo?.t || '',
+      fromPole: poleName(spanInfo?.f || ''),
+      toPole: poleName(spanInfo?.t || ''),
       code: 'AC02-1',
       name: 'Strand Portion',
       qty: footage,
@@ -2404,7 +2406,7 @@ window.setSpanStage = async function(spanKey, stage){
     if(sameBillingWeek){
       // Same billing week → convert to AC02 Composite ($1.20/ft client, $0.40/ft crew)
       await setDoc(doc(db, 'charterBilling', billingDocId), {
-        nodeId: currentNodeId, spanKey, fromPole: spanInfo?.f||'', toPole: spanInfo?.t||'',
+        nodeId: currentNodeId, spanKey, fromPole: poleName(spanInfo?.f||''), toPole: poleName(spanInfo?.t||''),
         code: 'AC02', name: 'Fiber Composite (Strand+Lash)',
         qty: footage, unit: 'ft',
         crewRate: crewRateComposite, clientRate: clientRateComposite,
@@ -2558,9 +2560,9 @@ const PHOTO_CODE_INFO={
 
 window.openPhotoRequiredFlow=function(poleId,qty,code){
   const pole=GT30E_POLES.find(p=>p.id===poleId);
-  const poleName=pole?pole.name:poleId;
+  const poleLabel=pole?pole.name:poleId.replace(/^gt30e-/,'');
   const info=PHOTO_CODE_INFO[code]||{icon:'📷',title:code,color1:'#2563eb',color2:'#1d4ed8'};
-  photoFlowTemp={poleId,qty,poleName,code,info,beforePhoto:null,afterPhoto:null};
+  photoFlowTemp={poleId,qty,poleName:poleLabel,code,info,beforePhoto:null,afterPhoto:null};
   
   const modal=document.createElement('div');
   modal.id='photo-flow-modal';
@@ -3171,7 +3173,7 @@ const APP_VERSION='v26';
 (function(){
   var badge=document.createElement('div');
   badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v43';
+  badge.textContent='v44';
   document.body.appendChild(badge);
 })();
 
