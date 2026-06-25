@@ -1,11 +1,13 @@
 {
   "name": "Global Route — Charter Alabama",
   "short_name": "Charter AL",
-  "start_url": "./index.html?v=48",
+  "start_url": "/global-route/charter/index.html?v=48",
+  "scope": "/global-route/charter/",
   "display": "standalone",
   "background_color": "#0f0a1a",
   "theme_color": "#0f0a1a",
   "description": "Field crew tracking for Charter Alabama fiber builds",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "icon-192.png",

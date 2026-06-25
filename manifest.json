@@ -1,9 +1,9 @@
 {
-  "name": "Global Route - Myrtle Beach",
+  "name": "Global Route",
   "short_name": "Global Route",
-  "description": "Navigate Myrtle Beach sites in nearest-first order",
-  "start_url": "./",
-  "scope": "./",
+  "description": "ROUTE • TRACK • MANAGE",
+  "start_url": "/global-route/",
+  "scope": "/global-route/",
   "display": "standalone",
   "background_color": "#1d232a",
   "theme_color": "#570df8",
