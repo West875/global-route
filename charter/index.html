@@ -2188,6 +2188,23 @@ function renderSpanLines(){
       }).addTo(window._spanLayerGroup);
       spanLines[spanKey] = { line: line, hit: hitLine };
     }
+
+    // ∞ Storage marker — show on any span with tic data
+    const ticData = window._spanTicData?.[spanKey];
+    if(ticData && ticData.ticIn != null && ticData.ticOut != null){
+      const storageFt = Math.abs(ticData.storage ?? (ticData.ticOut - ticData.ticIn));
+      const midLat = (p1.lat + p2.lat) / 2;
+      const midLon = (p1.lon + p2.lon) / 2;
+      const storageIcon = L.divIcon({
+        className: '',
+        html: `<div style="background:rgba(249,115,22,0.92);color:#fff;font-weight:900;font-size:14px;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.5);line-height:1">∞</div>`,
+        iconSize: [26, 26],
+        iconAnchor: [13, 13]
+      });
+      L.marker([midLat, midLon], { icon: storageIcon, interactive: false, zIndexOffset: 800 })
+        .bindTooltip(`📦 ${storageFt.toLocaleString()} ft storage`, { direction: 'top', offset: [0, -14] })
+        .addTo(window._spanLayerGroup);
+    }
   });
 }
 
@@ -3070,6 +3087,7 @@ function subscribeToData(){
           ticMarks[data.poleId]=data;
         }
       });
+      renderSpanLines();
       renderPoleListDebounced();
     },
     err=>console.error('ticMarks sub error:',err)
