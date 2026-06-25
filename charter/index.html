@@ -1610,13 +1610,7 @@ function initMap(){
     }).bindTooltip('⚡ FT-' + tapNum + ' — 100 ft tap', {direction:'top', offset:[0,-10], className:'tap-tooltip'})
       .addTo(window._tapLayerGroup);
   });
-  GT30E_SPLICES.forEach(se => {
-    const seNum = se.id.replace('GT30E_SE_','');
-    L.marker([se.lat, se.lng], {
-      icon: L.divIcon({className:'', html:'<div class="splice-glow"></div>', iconSize:[16,16], iconAnchor:[8,8]})
-    }).bindTooltip('🔗 SE-' + seNum + ' — Splice Enclosure', {direction:'top', offset:[0,-10], className:'splice-tooltip'})
-      .addTo(window._tapLayerGroup);
-  });
+  // Splice enclosures — no markers per user request
 
   // ===== SPAN STAGE LINES (⬜→🟡→🟢) =====
   window._spanLayerGroup = L.layerGroup().addTo(mapInstance);
