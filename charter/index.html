@@ -1782,7 +1782,7 @@ window.openPole=function(poleId){
       <button onclick="${done?`undoComplete('${poleId}')`:`markComplete('${poleId}')`}" class="btn-primary p-4 rounded-xl text-sm font-semibold ${done?'btn-amber':'btn-green'}" style="min-height:52px">${done?'↩️ Undo':'✅ Done'}</button>
     </div>
     <button onclick="toggleBilling('${poleId}')" class="btn-primary w-full p-4 rounded-xl text-base font-semibold mb-3 flex items-center justify-center gap-2" style="background:linear-gradient(135deg,#3b82f6,#7c3aed);min-height:52px">💰 Log Work / Billing</button>
-    <button onclick="openTreeTrimFlow('${poleId}',1)" class="btn-primary w-full p-4 rounded-xl text-base font-semibold mb-4 flex items-center justify-center gap-2" style="background:linear-gradient(135deg,#16a34a,#15803d);min-height:52px">🌳 Tree Trim (Before & After)</button>
+    <!-- Tree Trim moved to span modal (bills per span) -->
     
     <!-- Directive Info -->
     ${(()=>{
@@ -2627,7 +2627,7 @@ window.setSpanStage = async function(spanKey, stage){
       const earn = (footage * crewRateLash).toFixed(2);
       showBanner(`🟢 AC02-2 — ${footage.toLocaleString()} ft → $${earn}`,'#16a34a');
     }
-  } else if(newStage === 'overlashed'){
+  } else if(stage === 'overlashed'){
     // Overlash = running new cable on spans that already have strand + fiber
     const crewRateOverlash = 0.20;
     const clientRateOverlash = 0.60;
@@ -2685,7 +2685,7 @@ window.addAdditionalCable=async function(spanKey){
     const b=document.getElementById('gps-banner');if(b)b.remove();
   }
   vibrate(100);playSound('done');
-  const spanInfo = window._routeData?.spans?.find(s=>s.id===spanKey);
+  const spanInfo = SPAN_DATA.find(s=>s.f+'_'+s.t===spanKey);
   const footage = spanInfo?.ft || 0;
   const today = new Date().toLocaleDateString('en-CA');
   const userName = currentUser.displayName||currentUser.email.split('@')[0];
@@ -2740,7 +2740,7 @@ window.startTreeTrim=async function(spanKey){
   const sm = document.getElementById('span-modal');
   if(sm) sm.remove();
 
-  const spanInfo = window._routeData?.spans?.find(s=>s.id===spanKey);
+  const spanInfo = SPAN_DATA.find(s=>s.f+'_'+s.t===spanKey);
   const fromPole = poleName(spanInfo?.f||'');
   const toPole = poleName(spanInfo?.t||'');
 
@@ -2832,7 +2832,7 @@ window._submitTreeTrim=async function(spanKey){
   btn.innerHTML = '⏳ Uploading photos...';
   btn.style.background = 'rgba(34,197,94,0.3)';
   
-  const spanInfo = window._routeData?.spans?.find(s=>s.id===spanKey);
+  const spanInfo = SPAN_DATA.find(s=>s.f+'_'+s.t===spanKey);
   const today = new Date().toLocaleDateString('en-CA');
   const userName = currentUser.displayName||currentUser.email.split('@')[0];
   const crewRateMC04 = 16.50;
