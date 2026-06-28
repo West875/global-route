@@ -2316,12 +2316,12 @@ function showSpanModal(span, spanKey, p1, p2){
       <button onclick="setSpanStage('${spanKey}','strandOnly')" style="width:100%;padding:14px;border-radius:12px;background:${window._spanStrandOnly?.[spanKey]?'#d97706':'rgba(217,119,6,0.15)'};border:2px solid ${window._spanStrandOnly?.[spanKey]?'white':'rgba(217,119,6,0.4)'};color:${window._spanStrandOnly?.[spanKey]?'#000':'#fbbf24'};font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;transition:all 0.2s">
         🔧 Strand Only — No Fiber (AS02 $0.13/ft)
       </button>
-      ${stage==='lashed'||stage==='overlashed'?`<button onclick="setSpanStage('${spanKey}','overlashed')" style="width:100%;padding:14px;border-radius:12px;background:${stage==='overlashed'?'#3b82f6':'rgba(59,130,246,0.15)'};border:2px solid ${stage==='overlashed'?'white':'rgba(59,130,246,0.4)'};color:${stage==='overlashed'?'#fff':'#60a5fa'};font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;transition:all 0.2s">
+      <button onclick="setSpanStage('${spanKey}','overlashed')" style="width:100%;padding:14px;border-radius:12px;background:${stage==='overlashed'?'#3b82f6':'rgba(59,130,246,0.15)'};border:2px solid ${stage==='overlashed'?'white':'rgba(59,130,246,0.4)'};color:${stage==='overlashed'?'#fff':'#60a5fa'};font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;transition:all 0.2s">
         🔵 Overlash — AS07 ($0.20/ft)
-      </button>`:''} 
-      ${stage==='overlashed'?`<button onclick="addAdditionalCable('${spanKey}')" style="width:100%;padding:14px;border-radius:12px;background:rgba(147,51,234,0.15);border:2px solid rgba(147,51,234,0.4);color:#c084fc;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;transition:all 0.2s">
+      </button>
+      <button onclick="addAdditionalCable('${spanKey}')" style="width:100%;padding:14px;border-radius:12px;background:rgba(147,51,234,0.15);border:2px solid rgba(147,51,234,0.4);color:#c084fc;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;transition:all 0.2s">
         🟣 Additional Cable — AS08 ($0.05/ft)
-      </button>`:''}
+      </button>
       <!-- Tic Mark In/Out -->
       <div style="margin-top:12px;padding:12px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1)">
         <div style="color:#fbbf24;font-size:13px;font-weight:600;margin-bottom:8px">📏 Tic Marks (Cable Storage)${(()=>{
