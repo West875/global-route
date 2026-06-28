@@ -2322,6 +2322,9 @@ function showSpanModal(span, spanKey, p1, p2){
       <button onclick="addAdditionalCable('${spanKey}')" style="width:100%;padding:14px;border-radius:12px;background:rgba(147,51,234,0.15);border:2px solid rgba(147,51,234,0.4);color:#c084fc;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;transition:all 0.2s">
         🟣 Additional Cable — AS08 ($0.05/ft)
       </button>
+      <button onclick="startTreeTrim('${spanKey}')" style="width:100%;padding:14px;border-radius:12px;background:rgba(34,197,94,0.12);border:2px solid rgba(34,197,94,0.4);color:#4ade80;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;transition:all 0.2s">
+        🌳 Tree Trimming — MC04 ($16.50/ea)
+      </button>
       <!-- Tic Mark In/Out -->
       <div style="margin-top:12px;padding:12px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1)">
         <div style="color:#fbbf24;font-size:13px;font-weight:600;margin-bottom:8px">📏 Tic Marks (Cable Storage)${(()=>{
@@ -2723,6 +2726,174 @@ window.addAdditionalCable=async function(spanKey){
   // Refresh modal
   const m = document.getElementById('span-modal');
   if(m) m.remove();
+};
+
+// ============ TREE TRIMMING (MC04) ============
+window.startTreeTrim=async function(spanKey){
+  if(!gpsGranted){
+    const ok=await checkGPS();
+    if(!ok){alert('📍 Location required. Please enable GPS.');return;}
+    const b=document.getElementById('gps-banner');if(b)b.remove();
+  }
+  vibrate(100);
+  // Close span modal
+  const sm = document.getElementById('span-modal');
+  if(sm) sm.remove();
+
+  const spanInfo = window._routeData?.spans?.find(s=>s.id===spanKey);
+  const fromPole = poleName(spanInfo?.f||'');
+  const toPole = poleName(spanInfo?.t||'');
+
+  // Show tree trim photo modal
+  const modal = document.createElement('div');
+  modal.id = 'tree-trim-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);';
+  modal.innerHTML = `
+    <div style="background:rgba(15,23,42,0.97);border-radius:20px;padding:24px;max-width:400px;width:92%;border:1px solid rgba(34,197,94,0.3);box-shadow:0 25px 50px rgba(0,0,0,0.5)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h3 style="color:#4ade80;margin:0;font-size:18px">🌳 Tree Trimming — MC04</h3>
+        <button onclick="document.getElementById('tree-trim-modal').remove()" style="background:none;border:none;color:#94a3b8;font-size:22px;cursor:pointer;padding:4px">✕</button>
+      </div>
+      <div style="color:#e2e8f0;font-size:14px;margin-bottom:16px">
+        <span style="color:#60a5fa;font-weight:600">${fromPole}</span>
+        <span style="color:#94a3b8"> → </span>
+        <span style="color:#60a5fa;font-weight:600">${toPole}</span>
+      </div>
+      
+      <div style="margin-bottom:16px">
+        <label style="color:#4ade80;font-size:14px;font-weight:700;display:block;margin-bottom:8px">📸 BEFORE Photo (required)</label>
+        <input type="file" id="tt-before-photo" accept="image/*" capture="environment" style="display:none" onchange="window._ttPreview('before')">
+        <button onclick="document.getElementById('tt-before-photo').click()" id="tt-before-btn" style="width:100%;padding:14px;border-radius:12px;background:rgba(255,255,255,0.08);border:2px dashed rgba(34,197,94,0.4);color:#94a3b8;font-size:14px;font-weight:600;cursor:pointer">
+          📷 Take Before Photo
+        </button>
+        <div id="tt-before-preview" style="margin-top:8px;display:none">
+          <img id="tt-before-img" style="width:100%;border-radius:8px;max-height:150px;object-fit:cover">
+          <div style="color:#4ade80;font-size:12px;margin-top:4px">✅ Before photo captured</div>
+        </div>
+      </div>
+      
+      <div style="margin-bottom:16px">
+        <label style="color:#f59e0b;font-size:14px;font-weight:700;display:block;margin-bottom:8px">📸 AFTER Photo (required)</label>
+        <input type="file" id="tt-after-photo" accept="image/*" capture="environment" style="display:none" onchange="window._ttPreview('after')">
+        <button onclick="document.getElementById('tt-after-photo').click()" id="tt-after-btn" style="width:100%;padding:14px;border-radius:12px;background:rgba(255,255,255,0.08);border:2px dashed rgba(245,158,11,0.4);color:#94a3b8;font-size:14px;font-weight:600;cursor:pointer">
+          📷 Take After Photo
+        </button>
+        <div id="tt-after-preview" style="margin-top:8px;display:none">
+          <img id="tt-after-img" style="width:100%;border-radius:8px;max-height:150px;object-fit:cover">
+          <div style="color:#f59e0b;font-size:12px;margin-top:4px">✅ After photo captured</div>
+        </div>
+      </div>
+      
+      <button id="tt-submit-btn" onclick="window._submitTreeTrim('${spanKey}')" disabled style="width:100%;padding:16px;border-radius:12px;background:rgba(34,197,94,0.3);border:2px solid rgba(34,197,94,0.3);color:#6b7280;font-size:16px;font-weight:700;cursor:not-allowed;transition:all 0.2s">
+        🌳 Submit Tree Trim ($16.50)
+      </button>
+      <div id="tt-status" style="color:#94a3b8;font-size:12px;text-align:center;margin-top:8px">Both before and after photos are required</div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+};
+
+window._ttPreview=function(type){
+  const input = document.getElementById('tt-'+type+'-photo');
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    document.getElementById('tt-'+type+'-img').src = e.target.result;
+    document.getElementById('tt-'+type+'-preview').style.display = 'block';
+    document.getElementById('tt-'+type+'-btn').innerHTML = '📷 Retake '+type.charAt(0).toUpperCase()+type.slice(1)+' Photo';
+    document.getElementById('tt-'+type+'-btn').style.borderColor = type==='before'?'#4ade80':'#f59e0b';
+    // Check if both photos are ready
+    const before = document.getElementById('tt-before-photo').files.length > 0;
+    const after = document.getElementById('tt-after-photo').files.length > 0;
+    const btn = document.getElementById('tt-submit-btn');
+    if(before && after){
+      btn.disabled = false;
+      btn.style.background = '#16a34a';
+      btn.style.borderColor = '#22c55e';
+      btn.style.color = '#fff';
+      btn.style.cursor = 'pointer';
+      document.getElementById('tt-status').textContent = '✅ Ready to submit';
+      document.getElementById('tt-status').style.color = '#4ade80';
+    }
+  };
+  reader.readAsDataURL(file);
+};
+
+window._submitTreeTrim=async function(spanKey){
+  const beforeFile = document.getElementById('tt-before-photo').files[0];
+  const afterFile = document.getElementById('tt-after-photo').files[0];
+  if(!beforeFile || !afterFile){
+    alert('Both before and after photos are required');
+    return;
+  }
+  const btn = document.getElementById('tt-submit-btn');
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Uploading photos...';
+  btn.style.background = 'rgba(34,197,94,0.3)';
+  
+  const spanInfo = window._routeData?.spans?.find(s=>s.id===spanKey);
+  const today = new Date().toLocaleDateString('en-CA');
+  const userName = currentUser.displayName||currentUser.email.split('@')[0];
+  const crewRateMC04 = 16.50;
+  const clientRateMC04 = 50.00;
+  
+  try {
+    // Upload before photo
+    const ts = Date.now();
+    const beforeRef = storageRef(storage, `charter/${currentNodeId}/tree-trim/${spanKey}_before_${ts}.jpg`);
+    await uploadBytes(beforeRef, beforeFile);
+    const beforeUrl = await getDownloadURL(beforeRef);
+    
+    // Upload after photo
+    const afterRef = storageRef(storage, `charter/${currentNodeId}/tree-trim/${spanKey}_after_${ts}.jpg`);
+    await uploadBytes(afterRef, afterFile);
+    const afterUrl = await getDownloadURL(afterRef);
+    
+    // Count existing MC04 records for this span
+    let trimNum = 1;
+    try {
+      const q = await getDocs(query(collection(db,'charterBilling'), where('spanKey','==',spanKey), where('code','==','MC04')));
+      trimNum = q.size + 1;
+    } catch(e){}
+    
+    // Billing record
+    function getTTBillingWeekStart(dateStr){
+      const d = new Date(dateStr + 'T12:00:00');
+      const day = d.getDay();
+      const offset = (day - 5 + 7) % 7;
+      const fri = new Date(d);
+      fri.setDate(fri.getDate() - offset);
+      return fri.toISOString().slice(0,10);
+    }
+    const ttDocId = currentNodeId + '_span_' + spanKey + '_mc04_' + trimNum;
+    await setDoc(doc(db, 'charterBilling', ttDocId), {
+      nodeId: currentNodeId, spanKey,
+      fromPole: poleName(spanInfo?.f||''), toPole: poleName(spanInfo?.t||''),
+      code: 'MC04', name: 'Tree Trimming #' + trimNum,
+      qty: 1, unit: 'ea',
+      crewRate: crewRateMC04, clientRate: clientRateMC04,
+      crewTotal: crewRateMC04, clientTotal: clientRateMC04,
+      billedBy: currentUser.uid, billedByName: userName,
+      billedAt: serverTimestamp(), date: today,
+      billingWeek: getTTBillingWeekStart(today),
+      beforePhotoUrl: beforeUrl, afterPhotoUrl: afterUrl,
+      type: 'tree-trim'
+    });
+    
+    // Close modal and show success
+    document.getElementById('tree-trim-modal').remove();
+    showBanner(`🌳 MC04 Tree Trim — $${crewRateMC04.toFixed(2)}`,'#16a34a');
+    playSound('done');
+  } catch(e){
+    btn.innerHTML = '❌ Error — Tap to retry';
+    btn.disabled = false;
+    btn.style.background = '#dc2626';
+    btn.style.cursor = 'pointer';
+    document.getElementById('tt-status').textContent = 'Upload failed: ' + e.message;
+    document.getElementById('tt-status').style.color = '#f87171';
+    console.error('Tree trim error:', e);
+  }
 };
 
 window.toggleNotes=function(id){
