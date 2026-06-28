@@ -2182,7 +2182,7 @@ window.viewPhotos=function(poleId,name){
 
 
 // ===== SPAN STAGE RENDERING =====
-const SPAN_COLORS = { none:'#94a3b8', strand:'#eab308', lashed:'#22c55e' };
+const SPAN_COLORS = { none:'#94a3b8', strand:'#eab308', lashed:'#22c55e', overlashed:'#3b82f6' };
 const SPAN_LABELS = { none:'No Work', strand:'🟡 Strand Placed', lashed:'🟢 Fiber Lashed' };
 
 function renderSpanLines(){
@@ -2213,7 +2213,22 @@ function renderSpanLines(){
       showSpanModal(s, spanKey, p1, p2);
     });
 
-    if(stage === 'lashed' && !isStrandOnly){
+    if(stage === 'overlashed'){
+      // Overlashed = yellow + green + blue triple line
+      const yellowLine = L.polyline(coords, {
+        color: '#eab308', weight: 10, opacity: 0.85,
+        interactive: false, bubblingMouseEvents: false
+      }).addTo(window._spanLayerGroup);
+      const greenLine = L.polyline(coords, {
+        color: '#22c55e', weight: 6, opacity: 0.9,
+        interactive: false, bubblingMouseEvents: false
+      }).addTo(window._spanLayerGroup);
+      const blueLine = L.polyline(coords, {
+        color: '#3b82f6', weight: 3, opacity: 0.95,
+        interactive: false, bubblingMouseEvents: false
+      }).addTo(window._spanLayerGroup);
+      spanLines[spanKey] = { yellow: yellowLine, green: greenLine, blue: blueLine, hit: hitLine };
+    } else if(stage === 'lashed' && !isStrandOnly){
       // Lashed = green + yellow dual line (strand underneath, fiber on top)
       const yellowLine = L.polyline(coords, {
         color: '#eab308', weight: 8, opacity: 0.85,
@@ -2288,6 +2303,7 @@ function showSpanModal(span, spanKey, p1, p2){
       <div style="color:#fbbf24;font-size:13px;font-weight:600;margin-bottom:8px">📏 ${span.ft.toLocaleString()} ft</div>
       <div style="color:#94a3b8;font-size:12px;margin-bottom:16px">
         ${window._spanStrandOnly?.[spanKey]?'🔧 $'+(span.ft*0.13).toFixed(2)+' (AS02 Strand Only)':
+          stage==='overlashed'?'🔵 $'+(span.ft*0.40).toFixed(2)+' (AC02 Overlash)':
           stage==='strand'?'🟡 $'+(span.ft*0.16).toFixed(2)+' (AC02-1)':
           stage==='lashed'?'🟢 $'+(span.ft*0.40).toFixed(2)+' (AC02)':
           'Select a stage below'}
@@ -2300,6 +2316,9 @@ function showSpanModal(span, spanKey, p1, p2){
       <button onclick="setSpanStage('${spanKey}','strandOnly')" style="width:100%;padding:14px;border-radius:12px;background:${window._spanStrandOnly?.[spanKey]?'#d97706':'rgba(217,119,6,0.15)'};border:2px solid ${window._spanStrandOnly?.[spanKey]?'white':'rgba(217,119,6,0.4)'};color:${window._spanStrandOnly?.[spanKey]?'#000':'#fbbf24'};font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;transition:all 0.2s">
         🔧 Strand Only — No Fiber (AS02 $0.13/ft)
       </button>
+      ${stage==='lashed'||stage==='overlashed'?`<button onclick="setSpanStage('${spanKey}','overlashed')" style="width:100%;padding:14px;border-radius:12px;background:${stage==='overlashed'?'#3b82f6':'rgba(59,130,246,0.15)'};border:2px solid ${stage==='overlashed'?'white':'rgba(59,130,246,0.4)'};color:${stage==='overlashed'?'#fff':'#60a5fa'};font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;transition:all 0.2s">
+        🔵 Overlash — Add Cable ($0.40/ft)
+      </button>`:''}
       <!-- Tic Mark In/Out -->
       <div style="margin-top:12px;padding:12px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1)">
         <div style="color:#fbbf24;font-size:13px;font-weight:600;margin-bottom:8px">📏 Tic Marks (Cable Storage)${(()=>{
@@ -2602,6 +2621,50 @@ window.setSpanStage = async function(spanKey, stage){
       const earn = (footage * crewRateLash).toFixed(2);
       showBanner(`🟢 AC02-2 — ${footage.toLocaleString()} ft → $${earn}`,'#16a34a');
     }
+  } else if(newStage === 'overlashed'){
+    // Overlash = running new cable on spans that already have strand + fiber
+    const crewRateOverlash = 0.20;
+    const clientRateOverlash = 0.60;
+    await setDoc(docRef, {
+      nodeId: currentNodeId,
+      spanKey: spanKey,
+      stage: 'overlashed',
+      footage: footage,
+      overlashedAt: serverTimestamp(),
+      overlashDate: today,
+      overlashedBy: currentUser.uid,
+      overlashedByName: userName,
+      updatedBy: currentUser.uid,
+      userName: userName,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+    // AS07 billing record
+    const olDocId = currentNodeId + '_span_' + spanKey + '_overlash';
+    function getOverlashBillingWeekStart(dateStr){
+      const d = new Date(dateStr + 'T12:00:00');
+      const day = d.getDay();
+      const offset = (day - 5 + 7) % 7;
+      const fri = new Date(d);
+      fri.setDate(fri.getDate() - offset);
+      return fri.toISOString().slice(0,10);
+    }
+    const olWeek = getOverlashBillingWeekStart(today);
+    await setDoc(doc(db, 'charterBilling', olDocId), {
+      nodeId: currentNodeId, spanKey,
+      fromPole: poleName(spanInfo?.f||''), toPole: poleName(spanInfo?.t||''),
+      code: 'AS07', name: 'Overlash Fiber Cable',
+      qty: footage, unit: 'ft',
+      crewRate: crewRateOverlash, clientRate: clientRateOverlash,
+      crewTotal: Math.round(footage * crewRateOverlash * 100) / 100,
+      clientTotal: Math.round(footage * clientRateOverlash * 100) / 100,
+      stage: 'overlashed', billingMode: 'overlash',
+      billedBy: currentUser.uid, billedByName: userName,
+      billedAt: serverTimestamp(), date: today,
+      billingWeek: olWeek,
+      type: 'auto-span'
+    });
+    const earn = (footage * crewRateOverlash).toFixed(2);
+    showBanner(`🔵 AS07 Overlash — ${footage.toLocaleString()} ft → $${earn}`,'#3b82f6');
   }
   
   // Close modal
