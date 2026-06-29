@@ -2230,16 +2230,33 @@ function renderSpanLines(){
       }).addTo(window._spanLayerGroup);
       spanLines[spanKey] = { yellow: yellowLine, green: greenLine, blue: blueLine, hit: hitLine };
     } else if(stage === 'lashed' && !isStrandOnly){
-      // Lashed = green + yellow dual line (strand underneath, fiber on top)
-      const yellowLine = L.polyline(coords, {
-        color: '#eab308', weight: 8, opacity: 0.85,
-        interactive: false, bubblingMouseEvents: false
+      // Lashed = 2 cables: red (96 CT) + green (48 CT) offset parallel lines
+      const dlat = p2.lat - p1.lat, dlon = p2.lon - p1.lon;
+      const len = Math.sqrt(dlat*dlat + dlon*dlon) || 1e-9;
+      const off = 0.00004; // ~4m perpendicular offset
+      const px = (-dlon/len)*off, py = (dlat/len)*off;
+      const redCoords = [[p1.lat+px, p1.lon+py], [p2.lat+px, p2.lon+py]];
+      const greenCoords = [[p1.lat-px, p1.lon-py], [p2.lat-px, p2.lon-py]];
+
+      const redLine = L.polyline(redCoords, {
+        color: '#ef4444', weight: 5, opacity: 0.9,
+        interactive: true, bubblingMouseEvents: false
       }).addTo(window._spanLayerGroup);
-      const greenLine = L.polyline(coords, {
-        color: '#22c55e', weight: 4, opacity: 0.9,
-        interactive: false, bubblingMouseEvents: false
+      redLine.on('click', function(e){
+        L.DomEvent.stopPropagation(e);
+        showSpanModal(s, spanKey, p1, p2, '96CT');
+      });
+
+      const greenLine = L.polyline(greenCoords, {
+        color: '#22c55e', weight: 5, opacity: 0.9,
+        interactive: true, bubblingMouseEvents: false
       }).addTo(window._spanLayerGroup);
-      spanLines[spanKey] = { yellow: yellowLine, green: greenLine, hit: hitLine };
+      greenLine.on('click', function(e){
+        L.DomEvent.stopPropagation(e);
+        showSpanModal(s, spanKey, p1, p2, '48CT');
+      });
+
+      spanLines[spanKey] = { red: redLine, green: greenLine, hit: hitLine };
     } else {
       const color = isStrandOnly ? '#f97316' : (SPAN_COLORS[stage] || SPAN_COLORS.none);
       const weight = stage === 'none' ? 3 : 5;
@@ -2251,10 +2268,22 @@ function renderSpanLines(){
       spanLines[spanKey] = { line: line, hit: hitLine };
     }
 
-    // ∞ Storage marker — show on any span with tic data
-    const ticData = window._spanTicData?.[spanKey];
-    if(ticData && ticData.ticIn != null && ticData.ticOut != null){
-      const storageFt = Math.abs(ticData.storage ?? (ticData.ticOut - ticData.ticIn));
+    // ∞ Storage marker — show on any span with tic data (dual-cable for lashed)
+    const isLashedSpan = (stage === 'lashed' && !isStrandOnly);
+    let storageFt = null;
+    if(isLashedSpan){
+      const tic96 = window._spanTicData?.[spanKey + '_96CT'];
+      const tic48 = window._spanTicData?.[spanKey + '_48CT'];
+      const s96 = (tic96 && tic96.ticIn != null && tic96.ticOut != null) ? Math.abs(tic96.storage ?? (tic96.ticOut - tic96.ticIn)) : 0;
+      const s48 = (tic48 && tic48.ticIn != null && tic48.ticOut != null) ? Math.abs(tic48.storage ?? (tic48.ticOut - tic48.ticIn)) : 0;
+      if(tic96 || tic48) storageFt = s96 + s48;
+    } else {
+      const ticData = window._spanTicData?.[spanKey];
+      if(ticData && ticData.ticIn != null && ticData.ticOut != null){
+        storageFt = Math.abs(ticData.storage ?? (ticData.ticOut - ticData.ticIn));
+      }
+    }
+    if(storageFt != null){
       const midLat = (p1.lat + p2.lat) / 2;
       const midLon = (p1.lon + p2.lon) / 2;
       const storageIcon = L.divIcon({
@@ -2270,7 +2299,7 @@ function renderSpanLines(){
   });
 }
 
-function showSpanModal(span, spanKey, p1, p2){
+function showSpanModal(span, spanKey, p1, p2, focusCable){
   // Remove existing modal
   const old = document.getElementById('span-modal');
   if(old) old.remove();
@@ -2326,25 +2355,74 @@ function showSpanModal(span, spanKey, p1, p2){
       <button onclick="startTreeTrim('${spanKey}')" style="width:100%;padding:14px;border-radius:12px;background:rgba(34,197,94,0.12);border:2px solid rgba(34,197,94,0.4);color:#4ade80;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:12px;transition:all 0.2s">
         🌳 Tree Trimming — MC04 ($16.50/ea)
       </button>
-      <!-- Tic Mark In/Out -->
-      <div style="margin-top:12px;padding:12px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1)">
-        <div style="color:#fbbf24;font-size:13px;font-weight:600;margin-bottom:8px">📏 Tic Marks (Cable Storage)${(()=>{
-          const tc = SPAN_TAP_COUNTS[spanKey] || 0;
+      <!-- Tic Mark In/Out — dual cable for lashed, single for others -->
+      ${(stage === 'lashed' && !window._spanStrandOnly?.[spanKey]) ? `
+      <div style="margin-top:12px;padding:12px;border-radius:12px;background:rgba(255,255,255,0.05);border:2px solid rgba(239,68,68,0.4)">
+        <div style="color:#ef4444;font-size:14px;font-weight:700;margin-bottom:8px">🔴 96 CT Fiber${(()=>{
+          const tc = SPAN_TAP_COUNTS['${spanKey}'] || 0;
           return tc > 0 ? ' <span style="color:#f59e0b;font-size:11px;font-weight:400">• ' + tc + ' tap' + (tc>1?'s':'') + ' ('+tc*100+' ft auto)</span>' : '';
         })()}</div>
         <div style="display:flex;gap:8px;margin-bottom:6px">
           <div style="flex:1">
             <label style="color:#94a3b8;font-size:11px;font-weight:600;display:block;margin-bottom:4px">IN (ft)</label>
-            <input id="span-tic-in" type="number" inputmode="numeric" min="0" step="1" placeholder="Start reading" value="${window._spanTicData?.[spanKey]?.ticIn||''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorage('${spanKey}')">
+            <input id="span-tic-in-96CT" type="number" inputmode="numeric" min="0" step="1" placeholder="Start" value="${window._spanTicData?.['${spanKey}_96CT']?.ticIn??''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(239,68,68,0.3);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorageCable('${spanKey}','96CT')">
           </div>
           <div style="flex:1">
             <label style="color:#94a3b8;font-size:11px;font-weight:600;display:block;margin-bottom:4px">OUT (ft)</label>
-            <input id="span-tic-out" type="number" inputmode="numeric" min="0" step="1" placeholder="End reading" value="${window._spanTicData?.[spanKey]?.ticOut||''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorage('${spanKey}')">
+            <input id="span-tic-out-96CT" type="number" inputmode="numeric" min="0" step="1" placeholder="End" value="${window._spanTicData?.['${spanKey}_96CT']?.ticOut??''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(239,68,68,0.3);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorageCable('${spanKey}','96CT')">
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;min-height:24px">
+          <span id="span-tic-result-96CT" style="color:#ef4444;font-size:12px;font-weight:600">${(()=>{
+            const d=window._spanTicData?.['${spanKey}_96CT'];
+            if(d&&d.ticIn!=null&&d.ticOut!=null){return '📦 '+(d.ticOut-d.ticIn).toLocaleString()+' ft'+(d.savedBy?' • '+d.savedBy:'');}
+            return '';
+          })()}</span>
+          <span id="span-tic-status-96CT" style="color:#94a3b8;font-size:11px"></span>
+        </div>
+        <button onclick="window._saveSpanTicCable('${spanKey}','96CT')" style="width:100%;padding:10px;border-radius:10px;background:linear-gradient(135deg,#ef4444,#dc2626);border:none;color:#fff;font-size:14px;font-weight:700;cursor:pointer;margin-top:6px">💾 Save 96 CT</button>
+      </div>
+      <div style="margin-top:8px;padding:12px;border-radius:12px;background:rgba(255,255,255,0.05);border:2px solid rgba(34,197,94,0.4)">
+        <div style="color:#22c55e;font-size:14px;font-weight:700;margin-bottom:8px">🟢 48 CT Fiber</div>
+        <div style="display:flex;gap:8px;margin-bottom:6px">
+          <div style="flex:1">
+            <label style="color:#94a3b8;font-size:11px;font-weight:600;display:block;margin-bottom:4px">IN (ft)</label>
+            <input id="span-tic-in-48CT" type="number" inputmode="numeric" min="0" step="1" placeholder="Start" value="${window._spanTicData?.['${spanKey}_48CT']?.ticIn??''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(34,197,94,0.3);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorageCable('${spanKey}','48CT')">
+          </div>
+          <div style="flex:1">
+            <label style="color:#94a3b8;font-size:11px;font-weight:600;display:block;margin-bottom:4px">OUT (ft)</label>
+            <input id="span-tic-out-48CT" type="number" inputmode="numeric" min="0" step="1" placeholder="End" value="${window._spanTicData?.['${spanKey}_48CT']?.ticOut??''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(34,197,94,0.3);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorageCable('${spanKey}','48CT')">
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;min-height:24px">
+          <span id="span-tic-result-48CT" style="color:#22c55e;font-size:12px;font-weight:600">${(()=>{
+            const d=window._spanTicData?.['${spanKey}_48CT'];
+            if(d&&d.ticIn!=null&&d.ticOut!=null){return '📦 '+(d.ticOut-d.ticIn).toLocaleString()+' ft'+(d.savedBy?' • '+d.savedBy:'');}
+            return '';
+          })()}</span>
+          <span id="span-tic-status-48CT" style="color:#94a3b8;font-size:11px"></span>
+        </div>
+        <button onclick="window._saveSpanTicCable('${spanKey}','48CT')" style="width:100%;padding:10px;border-radius:10px;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;color:#fff;font-size:14px;font-weight:700;cursor:pointer;margin-top:6px">💾 Save 48 CT</button>
+      </div>
+      ` : `
+      <div style="margin-top:12px;padding:12px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1)">
+        <div style="color:#fbbf24;font-size:13px;font-weight:600;margin-bottom:8px">📏 Tic Marks (Cable Storage)${(()=>{
+          const tc = SPAN_TAP_COUNTS['${spanKey}'] || 0;
+          return tc > 0 ? ' <span style="color:#f59e0b;font-size:11px;font-weight:400">• ' + tc + ' tap' + (tc>1?'s':'') + ' ('+tc*100+' ft auto)</span>' : '';
+        })()}</div>
+        <div style="display:flex;gap:8px;margin-bottom:6px">
+          <div style="flex:1">
+            <label style="color:#94a3b8;font-size:11px;font-weight:600;display:block;margin-bottom:4px">IN (ft)</label>
+            <input id="span-tic-in" type="number" inputmode="numeric" min="0" step="1" placeholder="Start reading" value="${window._spanTicData?.['${spanKey}']?.ticIn||''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorage('${spanKey}')">
+          </div>
+          <div style="flex:1">
+            <label style="color:#94a3b8;font-size:11px;font-weight:600;display:block;margin-bottom:4px">OUT (ft)</label>
+            <input id="span-tic-out" type="number" inputmode="numeric" min="0" step="1" placeholder="End reading" value="${window._spanTicData?.['${spanKey}']?.ticOut||''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorage('${spanKey}')">
           </div>
         </div>
         <div id="span-tic-storage" style="display:flex;justify-content:space-between;align-items:center;min-height:28px">
           <span id="span-tic-result" style="color:#22c55e;font-size:13px;font-weight:600">${(()=>{
-            const d=window._spanTicData?.[spanKey];
+            const d=window._spanTicData?.['${spanKey}'];
             if(d&&d.ticIn!=null&&d.ticOut!=null){const diff=d.ticOut-d.ticIn;return '📦 Storage: '+diff.toLocaleString()+' ft'+(d.savedBy?' • by '+d.savedBy:'');}
             return '';
           })()}</span>
@@ -2352,6 +2430,7 @@ function showSpanModal(span, spanKey, p1, p2){
         </div>
         <button onclick="window._saveSpanTic('${spanKey}')" style="width:100%;padding:10px;border-radius:10px;background:linear-gradient(135deg,#fbbf24,#f59e0b);border:none;color:#000;font-size:14px;font-weight:700;cursor:pointer;margin-top:6px;transition:all 0.2s">💾 Save Tic Marks</button>
       </div>
+      `}
       <div style="color:#64748b;font-size:11px;text-align:center;margin-top:8px">Tap a stage to update • Changes sync in real-time</div>
     </div>
   `;
@@ -2361,6 +2440,12 @@ function showSpanModal(span, spanKey, p1, p2){
   });
   
   document.body.appendChild(modal);
+  
+  // Auto-focus the tapped cable's input
+  if(focusCable){
+    const focusInput = document.getElementById('span-tic-in-' + focusCable);
+    if(focusInput) setTimeout(()=>focusInput.focus(), 200);
+  }
 }
 
 if(!window._spanStrandOnly) window._spanStrandOnly = {};
@@ -2392,6 +2477,68 @@ window._calcSpanStorage = function(spanKey){
     } else {
       resultEl.textContent = '';
     }
+  }
+};
+
+// Dual-cable calc for lashed spans (96CT / 48CT)
+window._calcSpanStorageCable = function(spanKey, cable){
+  const inEl = document.getElementById('span-tic-in-' + cable);
+  const outEl = document.getElementById('span-tic-out-' + cable);
+  const resultEl = document.getElementById('span-tic-result-' + cable);
+  if(!inEl||!outEl||!resultEl) return;
+  const ticIn = parseInt(inEl.value);
+  const ticOut = parseInt(outEl.value);
+  if(!isNaN(ticIn)&&!isNaN(ticOut)){
+    const ticStorage = ticOut - ticIn;
+    const tapCount = cable === '96CT' ? (SPAN_TAP_COUNTS[spanKey] || 0) : 0;
+    const tapStorage = tapCount * 100;
+    const totalStorage = ticStorage + tapStorage;
+    let label = '📦 ' + ticStorage.toLocaleString() + ' ft';
+    if(tapCount > 0){
+      label += ' + ' + tapCount + ' tap' + (tapCount>1?'s':'') + ' (' + tapStorage + ' ft) = ' + totalStorage.toLocaleString() + ' ft';
+    }
+    resultEl.textContent = label;
+    resultEl.style.color = cable === '96CT' ? '#ef4444' : '#22c55e';
+  } else {
+    resultEl.textContent = '';
+  }
+};
+
+// Dual-cable save for lashed spans
+window._saveSpanTicCable = async function(spanKey, cable){
+  if(!currentUser||!currentNodeId) return;
+  const inEl = document.getElementById('span-tic-in-' + cable);
+  const outEl = document.getElementById('span-tic-out-' + cable);
+  if(!inEl||!outEl) return;
+  const ticIn = parseInt(inEl.value);
+  const ticOut = parseInt(outEl.value);
+  if(isNaN(ticIn)||isNaN(ticOut)){ alert('Enter both In and Out readings for ' + cable); return; }
+  vibrate(); playSound('complete');
+  const userName = currentUser.displayName || currentUser.email.split('@')[0];
+  const docId = currentNodeId + '_span_' + spanKey + '_' + cable;
+  const ticStorage = ticOut - ticIn;
+  const tapCount = cable === '96CT' ? (SPAN_TAP_COUNTS[spanKey] || 0) : 0;
+  const tapStorage = tapCount * 100;
+  const totalStorage = ticStorage + tapStorage;
+  const data = {
+    nodeId: currentNodeId, spanKey, cable,
+    ticIn, ticOut, storage: ticStorage,
+    tapCount, tapStorage, totalStorage,
+    userId: currentUser.uid, savedBy: userName,
+    updatedAt: serverTimestamp()
+  };
+  await setDoc(doc(db, 'charterTicMarks', docId), data, { merge: true });
+  window._spanTicData[spanKey + '_' + cable] = data;
+  const statusEl = document.getElementById('span-tic-status-' + cable);
+  if(statusEl){ statusEl.textContent='✅ Saved!'; setTimeout(()=>{if(statusEl)statusEl.textContent='';},2000); }
+  const resultEl = document.getElementById('span-tic-result-' + cable);
+  if(resultEl){
+    let label = '📦 ' + ticStorage.toLocaleString() + ' ft • ' + userName;
+    if(tapCount > 0){
+      label = '📦 ' + ticStorage.toLocaleString() + ' ft + ' + tapCount + ' tap' + (tapCount>1?'s':'') + ' = ' + totalStorage.toLocaleString() + ' ft • ' + userName;
+    }
+    resultEl.textContent = label;
+    resultEl.style.color = cable === '96CT' ? '#ef4444' : '#22c55e';
   }
 };
 
@@ -3441,7 +3588,12 @@ function subscribeToData(){
       snap.forEach(d=>{
         const data=d.data();
         if(data.spanKey){
-          window._spanTicData[data.spanKey]=data;
+          // Dual-cable tic marks: key = "spanKey_96CT" or "spanKey_48CT"
+          if(data.cable){
+            window._spanTicData[data.spanKey + '_' + data.cable]=data;
+          } else {
+            window._spanTicData[data.spanKey]=data;
+          }
         } else if(data.poleId){
           ticMarks[data.poleId]=data;
         }
