@@ -1811,18 +1811,51 @@ window.openPole=function(poleId){
       </div>`;
     })()}
     
-    <!-- Tic Mark -->
-    <div class="glass rounded-xl p-3 mb-4">
-      <div class="flex items-center justify-between mb-2">
-        <h3 class="font-semibold text-sm text-gray-400">📏 TIC MARK (footage)</h3>
-        <span class="text-xs text-gray-500" id="tic-saved-${poleId}"></span>
-      </div>
-      <div class="flex gap-2">
-        <input id="tic-input-${poleId}" class="input-field text-sm flex-1" type="number" placeholder="Enter tic mark footage..." value="${ticMarks[poleId]?.footage||''}" min="0" step="1">
-        <button onclick="saveTicMark('${poleId}')" class="btn-gold p-2 rounded-xl text-sm px-4">💾 Save</button>
-      </div>
-      ${ticMarks[poleId]?'<div class=\"text-xs text-gray-500 mt-1\">Last: '+ticMarks[poleId].footage+' ft by '+(ticMarks[poleId].userName||'')+'</div>':''}
-    </div>
+    <!-- Tic Mark — dual cable for poles on lashed spans -->
+    ${(()=>{
+      const hasLashed = SPAN_DATA.some(s => {
+        const sk = s.f+'_'+s.t;
+        return (s.f===poleId||s.t===poleId) && spanStages[sk]==='lashed' && !window._spanStrandOnly?.[sk];
+      });
+      if(hasLashed){
+        const t96 = ticMarks[poleId+'_96CT'];
+        const t48 = ticMarks[poleId+'_48CT'];
+        return `<div class="glass rounded-xl p-3 mb-4">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="font-semibold text-sm text-gray-400">📏 TIC MARKS</h3>
+            <span class="text-xs text-gray-500" id="tic-saved-${poleId}"></span>
+          </div>
+          <div style="margin-bottom:10px;padding:10px;border-radius:10px;border:2px solid rgba(239,68,68,0.4);background:rgba(239,68,68,0.08)">
+            <div style="font-size:13px;font-weight:700;color:#ef4444;margin-bottom:6px">🔴 96 CT Fiber</div>
+            <div class="flex gap-2">
+              <input id="tic-input-${poleId}-96CT" class="input-field text-sm flex-1" type="number" inputmode="numeric" placeholder="Footage..." value="${t96?.footage||''}" min="0" step="1">
+              <button onclick="saveTicMark('${poleId}','96CT')" style="padding:8px 16px;border-radius:10px;background:linear-gradient(135deg,#ef4444,#dc2626);border:none;color:#fff;font-size:13px;font-weight:700;cursor:pointer">💾 Save</button>
+            </div>
+            ${t96?'<div style="font-size:11px;color:#9ca3af;margin-top:4px">Last: '+t96.footage+' ft by '+(t96.userName||'')+'</div>':''}
+          </div>
+          <div style="padding:10px;border-radius:10px;border:2px solid rgba(34,197,94,0.4);background:rgba(34,197,94,0.08)">
+            <div style="font-size:13px;font-weight:700;color:#22c55e;margin-bottom:6px">🟢 48 CT Fiber</div>
+            <div class="flex gap-2">
+              <input id="tic-input-${poleId}-48CT" class="input-field text-sm flex-1" type="number" inputmode="numeric" placeholder="Footage..." value="${t48?.footage||''}" min="0" step="1">
+              <button onclick="saveTicMark('${poleId}','48CT')" style="padding:8px 16px;border-radius:10px;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;color:#fff;font-size:13px;font-weight:700;cursor:pointer">💾 Save</button>
+            </div>
+            ${t48?'<div style="font-size:11px;color:#9ca3af;margin-top:4px">Last: '+t48.footage+' ft by '+(t48.userName||'')+'</div>':''}
+          </div>
+        </div>`;
+      } else {
+        return `<div class="glass rounded-xl p-3 mb-4">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="font-semibold text-sm text-gray-400">📏 TIC MARK (footage)</h3>
+            <span class="text-xs text-gray-500" id="tic-saved-${poleId}"></span>
+          </div>
+          <div class="flex gap-2">
+            <input id="tic-input-${poleId}" class="input-field text-sm flex-1" type="number" placeholder="Enter tic mark footage..." value="${ticMarks[poleId]?.footage||''}" min="0" step="1">
+            <button onclick="saveTicMark('${poleId}')" class="btn-gold p-2 rounded-xl text-sm px-4">💾 Save</button>
+          </div>
+          ${ticMarks[poleId]?'<div class="text-xs text-gray-500 mt-1">Last: '+ticMarks[poleId].footage+' ft by '+(ticMarks[poleId].userName||'')+'</div>':''}
+        </div>`;
+      }
+    })()}
     
     <!-- Billing Entries -->
     <div id="billing-section-${poleId}" class="hidden mb-4" style="transition:all 0.3s ease">
@@ -1881,21 +1914,23 @@ window.openPole=function(poleId){
 
 window.closePoleModal=function(){ $('pole-modal').classList.add('hidden'); }
 
-window.saveTicMark=async function(poleId){
+window.saveTicMark=async function(poleId, cable){
   if(!currentUser) return;
-  const input=$('tic-input-'+poleId);
+  const inputId = cable ? 'tic-input-'+poleId+'-'+cable : 'tic-input-'+poleId;
+  const input=$(inputId);
   const footage=parseInt(input?.value);
   if(isNaN(footage)||footage<0){ alert('Enter a valid footage number'); return; }
   vibrate();playSound('complete');
-  await setDoc(doc(db,'charterTicMarks',poleId),{
-    poleId,nodeId:currentNodeId,footage,
+  const docId = cable ? poleId+'_'+cable : poleId;
+  await setDoc(doc(db,'charterTicMarks',docId),{
+    poleId, cable: cable||null, nodeId:currentNodeId, footage,
     userId:currentUser.uid,
     userName:currentUser.displayName||currentUser.email.split('@')[0],
     updatedAt:serverTimestamp()
   },{merge:true});
   const saved=$('tic-saved-'+poleId);
-  if(saved){ saved.textContent='✅ Saved!'; setTimeout(()=>saved.textContent='',2000); }
-};;
+  if(saved){ saved.textContent='✅ '+(cable||'')+' Saved!'; setTimeout(()=>saved.textContent='',2000); }
+};
 // ============ TIMEMARK WATERMARK ============
 function drawTimemarkWatermark(ctx,w,h,opts){
   var now=new Date();
@@ -2240,21 +2275,13 @@ function renderSpanLines(){
 
       const redLine = L.polyline(redCoords, {
         color: '#ef4444', weight: 5, opacity: 0.9,
-        interactive: true, bubblingMouseEvents: false
+        interactive: false, bubblingMouseEvents: false
       }).addTo(window._spanLayerGroup);
-      redLine.on('click', function(e){
-        L.DomEvent.stopPropagation(e);
-        showSpanModal(s, spanKey, p1, p2, '96CT');
-      });
 
       const greenLine = L.polyline(greenCoords, {
         color: '#22c55e', weight: 5, opacity: 0.9,
-        interactive: true, bubblingMouseEvents: false
+        interactive: false, bubblingMouseEvents: false
       }).addTo(window._spanLayerGroup);
-      greenLine.on('click', function(e){
-        L.DomEvent.stopPropagation(e);
-        showSpanModal(s, spanKey, p1, p2, '48CT');
-      });
 
       spanLines[spanKey] = { red: redLine, green: greenLine, hit: hitLine };
     } else {
@@ -2299,7 +2326,7 @@ function renderSpanLines(){
   });
 }
 
-function showSpanModal(span, spanKey, p1, p2, focusCable){
+function showSpanModal(span, spanKey, p1, p2){
   // Remove existing modal
   const old = document.getElementById('span-modal');
   if(old) old.remove();
@@ -2441,11 +2468,7 @@ function showSpanModal(span, spanKey, p1, p2, focusCable){
   
   document.body.appendChild(modal);
   
-  // Auto-focus the tapped cable's input
-  if(focusCable){
-    const focusInput = document.getElementById('span-tic-in-' + focusCable);
-    if(focusInput) setTimeout(()=>focusInput.focus(), 200);
-  }
+
 }
 
 if(!window._spanStrandOnly) window._spanStrandOnly = {};
@@ -3595,7 +3618,11 @@ function subscribeToData(){
             window._spanTicData[data.spanKey]=data;
           }
         } else if(data.poleId){
-          ticMarks[data.poleId]=data;
+          if(data.cable){
+            ticMarks[data.poleId+'_'+data.cable]=data;
+          } else {
+            ticMarks[data.poleId]=data;
+          }
         }
       });
       renderSpanLines();
