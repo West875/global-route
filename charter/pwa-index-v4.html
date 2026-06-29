@@ -2265,31 +2265,24 @@ function renderSpanLines(){
       }).addTo(window._spanLayerGroup);
       spanLines[spanKey] = { yellow: yellowLine, green: greenLine, blue: blueLine, hit: hitLine };
     } else if(stage === 'lashed' && !isStrandOnly){
-      // Lashed = yellow strand base + 2 cables: red (96 CT) + green (48 CT) offset
-      // Yellow strand line (base layer — strand is always placed first)
+      // Lashed = 3 stacked layers: thin red outside, thick yellow, green insert
+      // Layer 1 (bottom): thin red outer border
+      const redLine = L.polyline(coords, {
+        color: '#ef4444', weight: 12, opacity: 0.9,
+        interactive: false, bubblingMouseEvents: false
+      }).addTo(window._spanLayerGroup);
+      // Layer 2 (middle): thick yellow strand
       const yellowLine = L.polyline(coords, {
-        color: '#eab308', weight: 10, opacity: 0.85,
+        color: '#eab308', weight: 8, opacity: 0.9,
+        interactive: false, bubblingMouseEvents: false
+      }).addTo(window._spanLayerGroup);
+      // Layer 3 (top): green fiber insert
+      const greenLine = L.polyline(coords, {
+        color: '#22c55e', weight: 4, opacity: 0.9,
         interactive: false, bubblingMouseEvents: false
       }).addTo(window._spanLayerGroup);
 
-      const dlat = p2.lat - p1.lat, dlon = p2.lon - p1.lon;
-      const len = Math.sqrt(dlat*dlat + dlon*dlon) || 1e-9;
-      const off = 0.00004; // ~4m perpendicular offset
-      const px = (-dlon/len)*off, py = (dlat/len)*off;
-      const redCoords = [[p1.lat+px, p1.lon+py], [p2.lat+px, p2.lon+py]];
-      const greenCoords = [[p1.lat-px, p1.lon-py], [p2.lat-px, p2.lon-py]];
-
-      const redLine = L.polyline(redCoords, {
-        color: '#ef4444', weight: 5, opacity: 0.9,
-        interactive: false, bubblingMouseEvents: false
-      }).addTo(window._spanLayerGroup);
-
-      const greenLine = L.polyline(greenCoords, {
-        color: '#22c55e', weight: 5, opacity: 0.9,
-        interactive: false, bubblingMouseEvents: false
-      }).addTo(window._spanLayerGroup);
-
-      spanLines[spanKey] = { yellow: yellowLine, red: redLine, green: greenLine, hit: hitLine };
+      spanLines[spanKey] = { red: redLine, yellow: yellowLine, green: greenLine, hit: hitLine };
     } else {
       const color = isStrandOnly ? '#f97316' : (SPAN_COLORS[stage] || SPAN_COLORS.none);
       const weight = stage === 'none' ? 3 : 5;
