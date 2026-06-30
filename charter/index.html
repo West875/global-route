@@ -1815,7 +1815,8 @@ window.openPole=function(poleId){
     ${(()=>{
       const hasLashed = SPAN_DATA.some(s => {
         const sk = s.f+'_'+s.t;
-        return (s.f===poleId||s.t===poleId) && spanStages[sk]==='lashed' && !window._spanStrandOnly?.[sk];
+        const skR = s.t+'_'+s.f;
+        return (s.f===poleId||s.t===poleId) && (spanStages[sk]==='lashed'||spanStages[skR]==='lashed');
       });
       if(hasLashed){
         const t96 = ticMarks[poleId+'_96CT'];
@@ -3650,7 +3651,8 @@ function subscribeToData(){
       snap.forEach(d=>{
         const data=d.data();
         if(data.spanKey && data.stage) spanStages[data.spanKey]=data.stage;
-        if(data.spanKey && data.strandOnly) window._spanStrandOnly[data.spanKey]=true;
+        if(data.spanKey && data.stage==='lashed') window._spanStrandOnly[data.spanKey]=false;
+        else if(data.spanKey && data.strandOnly) window._spanStrandOnly[data.spanKey]=true;
         else if(data.spanKey) window._spanStrandOnly[data.spanKey]=false;
       });
       renderSpanLines();
