@@ -106,9 +106,12 @@ window.onerror=function(msg,src,line,col,err){
   document.body.appendChild(d);
 };
 window.addEventListener('unhandledrejection',function(e){
+  var msg=(e.reason?.message||e.reason||'unknown');
+  // Suppress SW update errors — not critical
+  if(typeof msg==='string' && msg.indexOf('ServiceWorker')!==-1){console.warn('SW:',msg);return;}
   var d=document.createElement('div');
   d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:999999;background:#dc2626;color:white;padding:12px;font-size:12px;font-family:monospace;word-break:break-all;max-height:40vh;overflow:auto;';
-  d.textContent='PROMISE ERROR: '+(e.reason?.message||e.reason||'unknown');
+  d.textContent='PROMISE ERROR: '+msg;
   document.body.appendChild(d);
 });
 </script>
