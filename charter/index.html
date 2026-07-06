@@ -4062,10 +4062,27 @@ window.addEventListener('online',()=>{
 window.addEventListener('offline',updateOnlineStatus);
 updateOnlineStatus();
 
+// ============ NUCLEAR CACHE BUST v53 ============
+(async function nuclearCacheBust(){
+  const CURRENT='charter-v53';
+  const keys = await caches.keys();
+  const stale = keys.filter(k => k !== CURRENT && k !== CURRENT+'-tiles');
+  if(stale.length){
+    console.log('[NUCLEAR] Clearing stale caches:', stale);
+    await Promise.all(stale.map(k => caches.delete(k)));
+    if('serviceWorker' in navigator){
+      const regs = await navigator.serviceWorker.getRegistrations();
+      for(const r of regs) await r.unregister();
+    }
+    window.location.reload(true);
+    return;
+  }
+})();
 // ============ SERVICE WORKER REGISTRATION ============
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('./charter-sw.js').then(reg=>{
-    console.log('Charter SW registered, scope:',reg.scope);
+  navigator.serviceWorker.register('./charter-sw.js?v=53').then(reg=>{
+    console.log('Charter SW v53 registered, scope:',reg.scope);
+    reg.update();
   }).catch(err=>console.warn('SW registration failed:',err));
 }
 
