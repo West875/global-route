@@ -2268,24 +2268,58 @@ function renderSpanLines(){
       }).addTo(window._spanLayerGroup);
       spanLines[spanKey] = { yellow: yellowLine, green: greenLine, blue: blueLine, hit: hitLine };
     } else if(stage === 'lashed' && !isStrandOnly){
-      // Lashed = 3 stacked layers: thin red outside, thick yellow, green insert
-      // Layer 1 (bottom): thin red outer border
-      const redLine = L.polyline(coords, {
-        color: '#ef4444', weight: 12, opacity: 0.9,
-        interactive: false, bubblingMouseEvents: false
-      }).addTo(window._spanLayerGroup);
-      // Layer 2 (middle): thick yellow strand
-      const yellowLine = L.polyline(coords, {
-        color: '#eab308', weight: 8, opacity: 0.9,
-        interactive: false, bubblingMouseEvents: false
-      }).addTo(window._spanLayerGroup);
-      // Layer 3 (top): green fiber insert
-      const greenLine = L.polyline(coords, {
-        color: '#22c55e', weight: 4, opacity: 0.9,
-        interactive: false, bubblingMouseEvents: false
-      }).addTo(window._spanLayerGroup);
-
-      spanLines[spanKey] = { red: redLine, yellow: yellowLine, green: greenLine, hit: hitLine };
+      // Check tic marks to determine which fibers are actually lashed
+      const has96 = !!(window._spanTicData?.[spanKey + '_96CT'] || ticMarks[s.f+'_96CT'] || ticMarks[s.t+'_96CT']);
+      const has48 = !!(window._spanTicData?.[spanKey + '_48CT'] || ticMarks[s.f+'_48CT'] || ticMarks[s.t+'_48CT']);
+      const lineRefs = {};
+      
+      if(has96 && has48){
+        // Both fibers — 3 stacked layers: thin red outer (96CT) + thick yellow (strand) + green insert (48CT)
+        lineRefs.red = L.polyline(coords, {
+          color: '#ef4444', weight: 12, opacity: 0.9,
+          interactive: false, bubblingMouseEvents: false
+        }).addTo(window._spanLayerGroup);
+        lineRefs.yellow = L.polyline(coords, {
+          color: '#eab308', weight: 8, opacity: 0.9,
+          interactive: false, bubblingMouseEvents: false
+        }).addTo(window._spanLayerGroup);
+        lineRefs.green = L.polyline(coords, {
+          color: '#22c55e', weight: 4, opacity: 0.9,
+          interactive: false, bubblingMouseEvents: false
+        }).addTo(window._spanLayerGroup);
+      } else if(has48){
+        // Only 48CT fiber — green + yellow (no red)
+        lineRefs.yellow = L.polyline(coords, {
+          color: '#eab308', weight: 8, opacity: 0.9,
+          interactive: false, bubblingMouseEvents: false
+        }).addTo(window._spanLayerGroup);
+        lineRefs.green = L.polyline(coords, {
+          color: '#22c55e', weight: 4, opacity: 0.9,
+          interactive: false, bubblingMouseEvents: false
+        }).addTo(window._spanLayerGroup);
+      } else if(has96){
+        // Only 96CT fiber — red + yellow (no green)
+        lineRefs.red = L.polyline(coords, {
+          color: '#ef4444', weight: 8, opacity: 0.9,
+          interactive: false, bubblingMouseEvents: false
+        }).addTo(window._spanLayerGroup);
+        lineRefs.yellow = L.polyline(coords, {
+          color: '#eab308', weight: 4, opacity: 0.9,
+          interactive: false, bubblingMouseEvents: false
+        }).addTo(window._spanLayerGroup);
+      } else {
+        // Lashed but no tic marks yet — default to green/yellow (48CT most common)
+        lineRefs.yellow = L.polyline(coords, {
+          color: '#eab308', weight: 8, opacity: 0.9,
+          interactive: false, bubblingMouseEvents: false
+        }).addTo(window._spanLayerGroup);
+        lineRefs.green = L.polyline(coords, {
+          color: '#22c55e', weight: 4, opacity: 0.9,
+          interactive: false, bubblingMouseEvents: false
+        }).addTo(window._spanLayerGroup);
+      }
+      lineRefs.hit = hitLine;
+      spanLines[spanKey] = lineRefs;
     } else {
       const color = isStrandOnly ? '#f97316' : (SPAN_COLORS[stage] || SPAN_COLORS.none);
       const weight = stage === 'none' ? 3 : 5;
