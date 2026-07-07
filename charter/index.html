@@ -2975,7 +2975,31 @@ window.setSpanStage = async function(spanKey, stage){
     showBanner(`🔵 AS07 Overlash — ${footage.toLocaleString()} ft → $${earn}`,'#3b82f6');
   }
   
-  // Close modal
+  // Update local state immediately
+  if(stage === 'strandOnly'){
+    spanStages[spanKey] = 'strand';
+    window._spanStrandOnly[spanKey] = true;
+  } else if(stage === 'none'){
+    delete spanStages[spanKey];
+    window._spanStrandOnly[spanKey] = false;
+  } else {
+    spanStages[spanKey] = stage;
+    window._spanStrandOnly[spanKey] = false;
+  }
+  renderSpanLines();
+  
+  // Re-render modal in place (so dual tic inputs appear after lashing)
+  const spanInfo2 = SPAN_DATA.find(s => s.f+'_'+s.t === spanKey);
+  if(spanInfo2){
+    const p1 = POLE_DATA.find(p=>p.id===spanInfo2.f);
+    const p2 = POLE_DATA.find(p=>p.id===spanInfo2.t);
+    if(p1 && p2){
+      const m = document.getElementById('span-modal');
+      if(m) m.remove();
+      showSpanModal(spanInfo2, spanKey, p1, p2);
+      return;
+    }
+  }
   const m = document.getElementById('span-modal');
   if(m) m.remove();
 };
