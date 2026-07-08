@@ -1,25 +1,36 @@
 <!DOCTYPE html>
 <html><head><title>Updating...</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <style>body{background:#1a1a2e;color:#f0c040;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center}
 .box{padding:40px}h1{font-size:24px}p{color:#aaa;font-size:16px;margin-top:12px}</style>
-</head><body><div class="box"><h1>🔄 Updating to v63...</h1><p id="status">Clearing old cache...</p></div>
+</head><body><div class="box"><h1>🔄 Force Updating...</h1><p id="status">Step 1: Killing service workers...</p></div>
 <script>
 (async()=>{
   const s=document.getElementById('status');
   try{
     if('serviceWorker' in navigator){
       const regs=await navigator.serviceWorker.getRegistrations();
-      for(const r of regs){await r.unregister();}
-      s.textContent='Killed '+regs.length+' old service worker(s)...';
+      for(const r of regs){ await r.unregister(); }
+      s.textContent='Killed '+regs.length+' service worker(s)...';
+      await new Promise(r=>setTimeout(r,500));
     }
     const keys=await caches.keys();
     await Promise.all(keys.map(k=>caches.delete(k)));
-    s.textContent='Cleared '+keys.length+' cache(s). Redirecting...';
-    await new Promise(r=>setTimeout(r,1500));
-    window.location.replace('./index.html?'+Date.now());
+    s.textContent='Cleared '+keys.length+' cache(s)...';
+    await new Promise(r=>setTimeout(r,500));
+    s.textContent='Fetching fresh version from server...';
+    const resp=await fetch('./index.html?bust='+Date.now(),{cache:'no-store'});
+    const html=await resp.text();
+    const vMatch=html.match(/badge\.textContent='(v\d+)'/);
+    const ver=vMatch?vMatch[1]:'unknown';
+    s.textContent='Got '+ver+' from server. Loading...';
+    await new Promise(r=>setTimeout(r,1000));
+    window.location.href='./index.html?updated='+Date.now();
   }catch(e){
-    s.textContent='Error: '+e.message+'. Try again.';
+    s.textContent='Error: '+e.message;
   }
 })();
 </script></body></html>
