@@ -3983,13 +3983,36 @@ function removeGPSGate(){
   if(gate)gate.remove();
 }
 
-// ============ VERSION BADGE ============
-const APP_VERSION='v26';
+// ============ VERSION BADGE + UPDATE BUTTON ============
+const APP_VERSION='v60';
 (function(){
-  var badge=document.createElement('div');
-  badge.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v55';
-  document.body.appendChild(badge);
+  const wrap=document.createElement('div');
+  wrap.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;display:flex;align-items:center;gap:6px;';
+  const badge=document.createElement('div');
+  badge.style.cssText='background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
+  badge.textContent='v60';
+  const btn=document.createElement('button');
+  btn.textContent='🔄 Update';
+  btn.style.cssText='background:#f0c040;color:#000;font-size:10px;font-weight:700;padding:3px 8px;border:none;border-radius:4px;font-family:monospace;cursor:pointer;';
+  btn.onclick=async function(){
+    btn.textContent='Updating...';
+    btn.disabled=true;
+    try{
+      if('serviceWorker' in navigator){
+        const regs=await navigator.serviceWorker.getRegistrations();
+        for(const r of regs) await r.unregister();
+        const keys=await caches.keys();
+        await Promise.all(keys.map(k=>caches.delete(k)));
+      }
+      window.location.reload(true);
+    }catch(e){
+      btn.textContent='🔄 Retry';
+      btn.disabled=false;
+    }
+  };
+  wrap.appendChild(badge);
+  wrap.appendChild(btn);
+  document.body.appendChild(wrap);
 })();
 
 // Global error handler - show errors on screen
