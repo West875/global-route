@@ -2991,8 +2991,8 @@ window.setSpanStage = async function(spanKey, stage){
   // Re-render modal in place (so dual tic inputs appear after lashing)
   const spanInfo2 = SPAN_DATA.find(s => s.f+'_'+s.t === spanKey);
   if(spanInfo2){
-    const p1 = POLE_DATA.find(p=>p.id===spanInfo2.f);
-    const p2 = POLE_DATA.find(p=>p.id===spanInfo2.t);
+    const p1 = GT30E_POLES.find(p=>p.id===spanInfo2.f);
+    const p2 = GT30E_POLES.find(p=>p.id===spanInfo2.t);
     if(p1 && p2){
       const m = document.getElementById('span-modal');
       if(m) m.remove();
