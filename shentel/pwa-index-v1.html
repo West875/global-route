@@ -755,6 +755,17 @@ function renderMore() {
     </div>`;
 }
 
+// ─── Expose to global scope for onclick handlers ───
+window.submitInvite = submitInvite;
+window.openSpanModal = openSpanModal;
+window.completeMR = completeMR;
+window.undoMR = undoMR;
+window.filterSpans = filterSpans;
+window.setSpanStage = setSpanStage;
+window.logBilling = logBilling;
+window.logPoleBilling = logPoleBilling;
+window.openPoleModal = typeof openPoleModal !== 'undefined' ? openPoleModal : null;
+
 // ─── Init ───
 initGPS();
 </script>

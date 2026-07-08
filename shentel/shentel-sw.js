@@ -1,5 +1,5 @@
 // Shentel Maryland Service Worker — Offline Support
-const CACHE_NAME = 'shentel-v1';
+const CACHE_NAME = 'shentel-v2';
 const APP_SHELL = [
   './',
   './index.html'
