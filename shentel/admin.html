@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Global Route — Shentel Admin</title>
+<link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{font-family:'Inter',system-ui,sans-serif;background:#0a0814;color:#f1f0f5;min-height:100vh}
+.gold-text{color:#f0d060;font-family:'Playfair Display',serif}
+.glass-card{background:rgba(22,18,42,0.75);backdrop-filter:blur(20px);border:1px solid rgba(139,92,246,0.12);border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.25)}
+.btn-primary{background:linear-gradient(135deg,#7c3aed,#3b82f6);border:none;color:#fff;padding:12px 24px;border-radius:12px;font-weight:600;cursor:pointer}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:10px 12px;font-size:12px;font-weight:700;color:#a8a3b8;border-bottom:1px solid rgba(255,255,255,0.08);text-transform:uppercase;letter-spacing:0.5px}
+td{padding:10px 12px;font-size:13px;border-bottom:1px solid rgba(255,255,255,0.04)}
+tr:hover td{background:rgba(255,255,255,0.02)}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-green{background:rgba(16,185,129,0.15);color:#34d399;border:1px solid rgba(16,185,129,0.3)}
+.badge-amber{background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.3)}
+.badge-gray{background:rgba(107,107,107,0.15);color:#999;border:1px solid rgba(107,107,107,0.3)}
+</style>
+</head>
+<body>
+<div style="max-width:1200px;margin:0 auto;padding:24px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:32px">
+    <div>
+      <h1 class="gold-text" style="font-size:28px">Shentel Maryland — Admin</h1>
+      <p style="font-size:12px;color:#6b6580;letter-spacing:2px">FRDRMD.DSA.812 • Frederick County, MD</p>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:11px;color:#a8a3b8">Invite Code</div>
+      <div style="font-size:24px;font-weight:800;letter-spacing:4px;color:#f0d060">SHEN24</div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:32px" id="statsGrid">
+  </div>
+
+  <!-- Billing Summary -->
+  <div class="glass-card" style="padding:24px;margin-bottom:24px" id="billingSummary">
+    <h2 style="font-size:18px;font-weight:700;margin-bottom:16px">Billing Summary</h2>
+    <div id="billingTable">Loading...</div>
+  </div>
+
+  <!-- Span Progress -->
+  <div class="glass-card" style="padding:24px;margin-bottom:24px">
+    <h2 style="font-size:18px;font-weight:700;margin-bottom:16px">Span Progress</h2>
+    <div style="max-height:500px;overflow-y:auto" id="spanTable">Loading...</div>
+  </div>
+
+  <!-- Make Ready -->
+  <div class="glass-card" style="padding:24px">
+    <h2 style="font-size:18px;font-weight:700;margin-bottom:16px">Make Ready Progress</h2>
+    <div style="max-height:500px;overflow-y:auto" id="mrTable">Loading...</div>
+  </div>
+</div>
+
+<script type="module">
+import{initializeApp}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import{getFirestore,collection,getDocs}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import{getAuth,signInAnonymously}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+const app=initializeApp({apiKey:"AIzaSyDKFACOLCnB7MJqR0e0jfVt8R2cNFRmEvo",authDomain:"global-route-79e25.firebaseapp.com",projectId:"global-route-79e25",storageBucket:"global-route-79e25.firebasestorage.app",messagingSenderId:"1098381004941",appId:"1:1098381004941:web:42a98d5e45d95e6b0d2a5e"});
+const db=getFirestore(app);
+const auth=getAuth(app);
+
+const BILLING_CODES = [
+  {code:"SN01",desc:"Composite Strand & Fiber",unit:"FT",clientRate:1.35,crewRate:0.99},
+  {code:"SN02",desc:"Additional Cable",unit:"FT",clientRate:0.19,crewRate:0.13},
+  {code:"SN03",desc:"Anchor (All Types)",unit:"EA",clientRate:59.50,crewRate:40.00},
+  {code:"SN04",desc:"Rock Adder for Anchor",unit:"EA",clientRate:28.14,crewRate:19.00},
+  {code:"SN05",desc:"Make Ready / Transfer",unit:"EA",clientRate:45.50,crewRate:30.00},
+  {code:"SN06",desc:"Overlash Existing",unit:"FT",clientRate:0.56,crewRate:0.39},
+  {code:"SN07",desc:"Delash or Relash",unit:"FT",clientRate:0.49,crewRate:0.34},
+  {code:"SN08",desc:"Aerial Line Clearing",unit:"FT",clientRate:1.15,crewRate:0.80},
+  {code:"SN09",desc:"Pull UG Cable",unit:"FT",clientRate:0.45,crewRate:0.32},
+  {code:"SN10",desc:"Pull Additional UG Cable",unit:"FT",clientRate:0.18,crewRate:0.13}
+];
+
+const TOTAL_SPANS = 423;
+const TOTAL_MR = 172;
+const TOTAL_FT = 83256;
+
+signInAnonymously(auth).then(async () => {
+  const [stagesSnap, mrSnap, billSnap] = await Promise.all([
+    getDocs(collection(db, 'shentelSpanStages')),
+    getDocs(collection(db, 'shentelMakeReady')),
+    getDocs(collection(db, 'shentelBilling'))
+  ]);
+
+  const stages = {};
+  stagesSnap.forEach(d => stages[d.id] = d.data());
+  const mrDocs = {};
+  mrSnap.forEach(d => mrDocs[d.id] = d.data());
+  const billing = {};
+  billSnap.forEach(d => billing[d.id] = d.data());
+
+  const strandDone = Object.values(stages).filter(s => s.stage === 'strand' || s.stage === 'complete').length;
+  const completeDone = Object.values(stages).filter(s => s.stage === 'complete').length;
+  const mrDone = Object.keys(mrDocs).length;
+
+  // Billing totals
+  let clientTotal = 0, crewTotal = 0;
+  Object.values(billing).forEach(e => {
+    const bc = BILLING_CODES.find(b => b.code === e.code);
+    if (bc) {
+      clientTotal += e.qty * bc.clientRate;
+      crewTotal += e.crewTotal || 0;
+    }
+  });
+
+  // Stats
+  document.getElementById('statsGrid').innerHTML = `
+    <div class="glass-card" style="padding:20px;text-align:center">
+      <div style="font-size:28px;font-weight:800;color:#f59e0b">${strandDone}</div>
+      <div style="font-size:11px;color:#a8a3b8">Spans Stranded</div>
+      <div style="font-size:10px;color:#6b6580">${TOTAL_SPANS} total</div>
+    </div>
+    <div class="glass-card" style="padding:20px;text-align:center">
+      <div style="font-size:28px;font-weight:800;color:#10b981">${completeDone}</div>
+      <div style="font-size:11px;color:#a8a3b8">Complete</div>
+    </div>
+    <div class="glass-card" style="padding:20px;text-align:center">
+      <div style="font-size:28px;font-weight:800;color:#60a5fa">${mrDone}/${TOTAL_MR}</div>
+      <div style="font-size:11px;color:#a8a3b8">Make Ready Done</div>
+    </div>
+    <div class="glass-card" style="padding:20px;text-align:center">
+      <div style="font-size:28px;font-weight:800;color:#f0d060">$${clientTotal.toFixed(2)}</div>
+      <div style="font-size:11px;color:#a8a3b8">Client Billing</div>
+      <div style="font-size:10px;color:#10b981">Crew: $${crewTotal.toFixed(2)}</div>
+    </div>`;
+
+  // Billing table
+  const byCode = {};
+  Object.values(billing).forEach(e => {
+    if (!byCode[e.code]) byCode[e.code] = { qty: 0, crewTotal: 0, clientTotal: 0 };
+    byCode[e.code].qty += e.qty || 0;
+    byCode[e.code].crewTotal += e.crewTotal || 0;
+    const bc = BILLING_CODES.find(b => b.code === e.code);
+    if (bc) byCode[e.code].clientTotal += (e.qty || 0) * bc.clientRate;
+  });
+
+  let billHtml = '<table><tr><th>Code</th><th>Description</th><th>Qty</th><th>Client Rate</th><th>Client Total</th><th>Crew Rate</th><th>Crew Total</th></tr>';
+  BILLING_CODES.forEach(bc => {
+    const d = byCode[bc.code] || { qty: 0, crewTotal: 0, clientTotal: 0 };
+    if (d.qty > 0) {
+      billHtml += `<tr>
+        <td style="font-weight:600">${bc.code}</td>
+        <td>${bc.desc}</td>
+        <td>${d.qty.toLocaleString()} ${bc.unit.toLowerCase()}</td>
+        <td>$${bc.clientRate}/${bc.unit.toLowerCase()}</td>
+        <td style="color:#f0d060;font-weight:600">$${d.clientTotal.toFixed(2)}</td>
+        <td>$${bc.crewRate}/${bc.unit.toLowerCase()}</td>
+        <td style="color:#10b981;font-weight:600">$${d.crewTotal.toFixed(2)}</td>
+      </tr>`;
+    }
+  });
+  billHtml += `<tr style="border-top:2px solid rgba(255,255,255,0.1)">
+    <td colspan="4" style="font-weight:700">TOTAL</td>
+    <td style="color:#f0d060;font-weight:800;font-size:16px">$${clientTotal.toFixed(2)}</td>
+    <td></td>
+    <td style="color:#10b981;font-weight:800;font-size:16px">$${crewTotal.toFixed(2)}</td>
+  </tr></table>`;
+  document.getElementById('billingTable').innerHTML = Object.keys(byCode).length > 0 ? billHtml : '<p style="color:#6b6580">No billing entries yet.</p>';
+
+  // Span table
+  let spanHtml = '<table><tr><th>Span</th><th>Stage</th><th>Date</th></tr>';
+  Object.entries(stages).sort((a,b) => a[0].localeCompare(b[0])).forEach(([id, s]) => {
+    const badge = s.stage === 'complete' ? 'badge-green' : s.stage === 'strand' ? 'badge-amber' : 'badge-gray';
+    spanHtml += `<tr><td style="font-weight:600">${id}</td><td><span class="badge ${badge}">${s.stage}</span></td><td>${s.date||''}</td></tr>`;
+  });
+  spanHtml += '</table>';
+  document.getElementById('spanTable').innerHTML = Object.keys(stages).length > 0 ? spanHtml : '<p style="color:#6b6580">No span stages logged yet.</p>';
+
+  // MR table
+  let mrHtml = '<table><tr><th>Pole</th><th>Status</th><th>Date</th></tr>';
+  Object.entries(mrDocs).sort((a,b) => a[0].localeCompare(b[0])).forEach(([id, m]) => {
+    mrHtml += `<tr><td style="font-weight:600">${m.poleNum || id}</td><td><span class="badge badge-green">Complete</span></td><td>${m.date||''}</td></tr>`;
+  });
+  mrHtml += '</table>';
+  document.getElementById('mrTable').innerHTML = Object.keys(mrDocs).length > 0 ? mrHtml : '<p style="color:#6b6580">No make ready completed yet.</p>';
+});
+</script>
+</body>
+</html>

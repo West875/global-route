@@ -1,0 +1,17 @@
+{
+  "name": "Global Route — Shentel Maryland",
+  "short_name": "Shentel MD",
+  "description": "FRDRMD.DSA.812 — Route, Track, Manage",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0814",
+  "theme_color": "#0f0a1a",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧭</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
