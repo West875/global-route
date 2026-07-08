@@ -2432,8 +2432,10 @@ function renderSpanLines(){
     if(isLashedSpan){
       const tic96 = window._spanTicData?.[spanKey + '_96CT'];
       const tic48 = window._spanTicData?.[spanKey + '_48CT'];
+      const ticPlain = window._spanTicData?.[spanKey]; // older entries without cable suffix
       const s96 = (tic96 && tic96.ticIn != null && tic96.ticOut != null) ? Math.abs(tic96.storage ?? (tic96.ticOut - tic96.ticIn)) : 0;
       const s48 = (tic48 && tic48.ticIn != null && tic48.ticOut != null) ? Math.abs(tic48.storage ?? (tic48.ticOut - tic48.ticIn)) : 0;
+      const sPlain = (ticPlain && ticPlain.ticIn != null && ticPlain.ticOut != null) ? Math.abs(ticPlain.storage ?? (ticPlain.ticOut - ticPlain.ticIn)) : 0;
       // Place ∞ on 96CT red line (at 45% of span)
       if(s96 > 0){
         const lat96 = p1.lat + (p2.lat - p1.lat) * 0.45;
@@ -2451,6 +2453,18 @@ function renderSpanLines(){
         L.marker([lat48, lon48], { icon: L.divIcon({
           className: '',
           html: `<div style="color:#22c55e;font-weight:900;font-size:16px;text-shadow:0 0 3px #000,0 0 3px #000;pointer-events:none">∞</div>`,
+          iconSize: [20, 20], iconAnchor: [10, 10]
+        }), interactive: false, zIndexOffset: 800 }).addTo(window._spanLayerGroup);
+      }
+      // Older tic entries without cable suffix — determine color from SPAN_FIBER or default green
+      if(sPlain > 0 && s96 === 0 && s48 === 0){
+        const fibers = SPAN_FIBER[spanKey] || [];
+        const color = fibers.includes('96CT') && !fibers.includes('48CT') ? '#ef4444' : '#22c55e';
+        const midLat = p1.lat + (p2.lat - p1.lat) * 0.5;
+        const midLon = p1.lon + (p2.lon - p1.lon) * 0.5;
+        L.marker([midLat, midLon], { icon: L.divIcon({
+          className: '',
+          html: `<div style="color:${color};font-weight:900;font-size:16px;text-shadow:0 0 3px #000,0 0 3px #000;pointer-events:none">∞</div>`,
           iconSize: [20, 20], iconAnchor: [10, 10]
         }), interactive: false, zIndexOffset: 800 }).addTo(window._spanLayerGroup);
       }
@@ -3973,7 +3987,7 @@ const APP_VERSION='v60';
   wrap.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;display:flex;align-items:center;gap:6px;';
   const badge=document.createElement('div');
   badge.style.cssText='background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v63';
+  badge.textContent='v64';
   const btn=document.createElement('button');
   btn.textContent='🔄 Update';
   btn.style.cssText='background:#f0c040;color:#000;font-size:10px;font-weight:700;padding:3px 8px;border:none;border-radius:4px;font-family:monospace;cursor:pointer;';
