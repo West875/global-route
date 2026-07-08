@@ -2454,20 +2454,6 @@ function renderSpanLines(){
           iconSize: [20, 20], iconAnchor: [10, 10]
         }), interactive: false, zIndexOffset: 800 }).addTo(window._spanLayerGroup);
       }
-    } else {
-      const ticData = window._spanTicData?.[spanKey];
-      if(ticData && ticData.ticIn != null && ticData.ticOut != null){
-        const stFt = Math.abs(ticData.storage ?? (ticData.ticOut - ticData.ticIn));
-        if(stFt > 0){
-          const midLat = (p1.lat + p2.lat) / 2;
-          const midLon = (p1.lon + p2.lon) / 2;
-          L.marker([midLat, midLon], { icon: L.divIcon({
-            className: '',
-            html: `<div style="color:#eab308;font-weight:900;font-size:16px;text-shadow:0 0 3px #000,0 0 3px #000;pointer-events:none">∞</div>`,
-            iconSize: [20, 20], iconAnchor: [10, 10]
-          }), interactive: false, zIndexOffset: 800 }).addTo(window._spanLayerGroup);
-        }
-      }
     }
   });
 }
