@@ -4134,9 +4134,19 @@ updateOnlineStatus();
     }
     // Register new SW after nuclear check passes
     if('serviceWorker' in navigator){
-      const reg = await navigator.serviceWorker.register('./sw-v53.js');
-      console.log('Charter SW v53 registered, scope:',reg.scope);
+      const reg = await navigator.serviceWorker.register('./charter-sw.js', { updateViaCache: 'none' });
+      console.log('Charter SW registered, scope:',reg.scope);
       reg.update();
+      // Auto-reload when new SW activates
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing;
+        if(nw) nw.addEventListener('statechange', () => {
+          if(nw.state === 'activated' && navigator.serviceWorker.controller){
+            console.log('New SW active — reloading');
+            window.location.reload();
+          }
+        });
+      });
     }
   }catch(e){console.warn('SW boot:',e);}
 })();
