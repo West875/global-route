@@ -1,91 +1,38 @@
-// Shentel Maryland Service Worker — Offline Support
-const CACHE_NAME = 'shentel-v2';
-const APP_SHELL = [
+const CACHE='shentel-v3';
+const ASSETS=[
   './',
-  './index.html'
-];
-
-const CDN_URLS = [
-  'https://cdn.tailwindcss.com',
-  'https://cdn.jsdelivr.net/npm/daisyui@4.12.14/dist/full.min.css',
-  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+  './index.html',
+  'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@700&display=swap',
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css',
-  'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@400;500;600;700;800&display=swap',
-  'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js',
-  'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js',
-  'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js'
+  'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
 ];
 
-// Install — cache app shell + CDN resources
-self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll([...APP_SHELL, ...CDN_URLS]);
-    }).then(() => self.skipWaiting())
+self.addEventListener('install',e=>{
+  e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting()));
+});
+
+self.addEventListener('activate',e=>{
+  e.waitUntil(
+    caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k))))
+    .then(()=>self.clients.claim())
   );
 });
 
-// Activate — clean old caches
-self.addEventListener('activate', event => {
-  event.waitUntil(
-    caches.keys().then(keys => {
-      return Promise.all(
-        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
-      );
-    }).then(() => self.clients.claim())
-  );
-});
+self.addEventListener('fetch',e=>{
+  // Skip non-GET and firebase requests
+  if(e.request.method!=='GET')return;
+  if(e.request.url.includes('firestore')||e.request.url.includes('googleapis.com/identitytoolkit'))return;
 
-// Fetch — network-first for HTML, cache-first for CDN/static
-self.addEventListener('fetch', event => {
-  const url = new URL(event.request.url);
-
-  // Skip non-GET and Firestore/Auth API calls
-  if (event.request.method !== 'GET') return;
-  if (url.hostname.includes('firestore.googleapis.com')) return;
-  if (url.hostname.includes('identitytoolkit.googleapis.com')) return;
-  if (url.hostname.includes('securetoken.googleapis.com')) return;
-
-  // Map tiles — cache with limit (stale-while-revalidate)
-  if (url.hostname.includes('arcgisonline.com') || url.hostname.includes('tile.openstreetmap.org')) {
-    event.respondWith(
-      caches.open(CACHE_NAME).then(cache =>
-        cache.match(event.request).then(cached => {
-          const fetchPromise = fetch(event.request).then(response => {
-            if (response.ok) cache.put(event.request, response.clone());
-            return response;
-          }).catch(() => cached);
-          return cached || fetchPromise;
-        })
-      )
-    );
-    return;
-  }
-
-  // CDN — cache-first
-  if (!url.hostname.includes('github.io') && url.origin !== self.location.origin) {
-    event.respondWith(
-      caches.match(event.request).then(cached =>
-        cached || fetch(event.request).then(response => {
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-          }
-          return response;
-        }).catch(() => cached || new Response('Offline', { status: 503 }))
-      )
-    );
-    return;
-  }
-
-  // App shell — network-first
-  event.respondWith(
-    fetch(event.request).then(response => {
-      if (response.ok) {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-      }
-      return response;
-    }).catch(() => caches.match(event.request))
+  e.respondWith(
+    caches.match(e.request).then(r=>{
+      if(r)return r;
+      return fetch(e.request).then(res=>{
+        if(res.status===200&&(e.request.url.startsWith(self.location.origin)||e.request.url.includes('unpkg.com')||e.request.url.includes('gstatic.com'))){
+          const clone=res.clone();
+          caches.open(CACHE).then(c=>c.put(e.request,clone));
+        }
+        return res;
+      });
+    }).catch(()=>caches.match('./index.html'))
   );
 });
