@@ -2413,15 +2413,18 @@ function renderSpanLines(){
           interactive: false, bubblingMouseEvents: false
         }).addTo(window._spanLayerGroup);
       } else {
-        // Lashed but no tic marks yet — default to green/yellow (48CT most common)
-        lineRefs.yellow = L.polyline(coords, {
-          color: '#eab308', weight: 8, opacity: 0.9,
-          interactive: false, bubblingMouseEvents: false
-        }).addTo(window._spanLayerGroup);
-        lineRefs.green = L.polyline(coords, {
-          color: '#22c55e', weight: 4, opacity: 0.9,
-          interactive: false, bubblingMouseEvents: false
-        }).addTo(window._spanLayerGroup);
+        // Lashed but no tic marks yet — fall back to SPAN_FIBER design truth
+        if(allows96 && allows48){
+          lineRefs.red = L.polyline(coords, {color:'#ef4444', weight:12, opacity:0.9, interactive:false, bubblingMouseEvents:false}).addTo(window._spanLayerGroup);
+          lineRefs.yellow = L.polyline(coords, {color:'#eab308', weight:8, opacity:0.9, interactive:false, bubblingMouseEvents:false}).addTo(window._spanLayerGroup);
+          lineRefs.green = L.polyline(coords, {color:'#22c55e', weight:4, opacity:0.9, interactive:false, bubblingMouseEvents:false}).addTo(window._spanLayerGroup);
+        } else if(allows96){
+          lineRefs.red = L.polyline(coords, {color:'#ef4444', weight:8, opacity:0.9, interactive:false, bubblingMouseEvents:false}).addTo(window._spanLayerGroup);
+          lineRefs.yellow = L.polyline(coords, {color:'#eab308', weight:4, opacity:0.9, interactive:false, bubblingMouseEvents:false}).addTo(window._spanLayerGroup);
+        } else {
+          lineRefs.yellow = L.polyline(coords, {color:'#eab308', weight:8, opacity:0.9, interactive:false, bubblingMouseEvents:false}).addTo(window._spanLayerGroup);
+          lineRefs.green = L.polyline(coords, {color:'#22c55e', weight:4, opacity:0.9, interactive:false, bubblingMouseEvents:false}).addTo(window._spanLayerGroup);
+        }
       }
       lineRefs.hit = hitLine;
       spanLines[spanKey] = lineRefs;
