@@ -2370,8 +2370,12 @@ function renderSpanLines(){
       spanLines[spanKey] = { yellow: yellowLine, green: greenLine, blue: blueLine, hit: hitLine };
     } else if(stage === 'lashed' && !isStrandOnly){
       // Check tic marks to determine which fibers are actually lashed
-      const has96 = !!(window._spanTicData?.[spanKey + '_96CT'] || ticMarks[s.f+'_96CT'] || ticMarks[s.t+'_96CT']);
-      const has48 = !!(window._spanTicData?.[spanKey + '_48CT'] || ticMarks[s.f+'_48CT'] || ticMarks[s.t+'_48CT']);
+      // SPAN_FIBER is design truth — only allow fiber types this span actually carries
+      const spanFiber = SPAN_FIBER[spanKey] || SPAN_FIBER[s.t+'_'+s.f] || [];
+      const allows96 = spanFiber.includes('96CT');
+      const allows48 = spanFiber.includes('48CT');
+      const has96 = allows96 && !!(window._spanTicData?.[spanKey + '_96CT'] || ticMarks[s.f+'_96CT'] || ticMarks[s.t+'_96CT']);
+      const has48 = allows48 && !!(window._spanTicData?.[spanKey + '_48CT'] || ticMarks[s.f+'_48CT'] || ticMarks[s.t+'_48CT']);
       const lineRefs = {};
       
       if(has96 && has48){
@@ -4100,7 +4104,7 @@ const APP_VERSION='v60';
   wrap.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;display:flex;align-items:center;gap:6px;';
   const badge=document.createElement('div');
   badge.style.cssText='background:rgba(0,0,0,0.8);color:#f0c040;font-size:10px;padding:2px 6px;border-radius:4px;font-family:monospace;pointer-events:none;';
-  badge.textContent='v65';
+  badge.textContent='v66';
   const btn=document.createElement('button');
   btn.textContent='🔄 Update';
   btn.style.cssText='background:#f0c040;color:#000;font-size:10px;font-weight:700;padding:3px 8px;border:none;border-radius:4px;font-family:monospace;cursor:pointer;';
