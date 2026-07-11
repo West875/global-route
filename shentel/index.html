@@ -72,7 +72,7 @@ body{display:flex;flex-direction:column;padding-top:var(--safe-top)}
 /* ── Main Content ── */
 .main-content{flex:1;overflow:hidden;position:relative}
 #map{width:100%;height:100%}
-.tab-panel{display:none;height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.tab-panel{display:none;height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;position:relative}
 .tab-panel.active{display:block}
 
 /* ── List View ── */
@@ -141,7 +141,7 @@ body{display:flex;flex-direction:column;padding-top:var(--safe-top)}
 .update-btn:active{opacity:0.7}
 
 /* ── Map Buttons ── */
-.map-btn-group{position:absolute;top:12px;right:12px;z-index:800;display:flex;flex-direction:column;gap:8px}
+.map-btn-group{position:absolute;top:12px;right:12px;z-index:1000;display:flex;flex-direction:column;gap:8px}
 .map-fab{width:44px;height:44px;border-radius:12px;border:none;background:rgba(20,15,35,0.9);backdrop-filter:blur(8px);color:var(--gold);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.5);border:1px solid var(--gold-dim)}
 .map-fab:active{transform:scale(0.9)}
 .map-fab.locating{animation:pulse-loc 1s infinite}
