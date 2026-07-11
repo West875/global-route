@@ -2850,10 +2850,20 @@ window.setSpanStage = async function(spanKey, stage){
   vibrate(50);
   
   const docRef = doc(db, 'charterSpanStages', currentNodeId + '_' + spanKey);
-  const today = new Date().toISOString().slice(0,10);
+  const today = new Date().toLocaleDateString('en-CA'); // Local date YYYY-MM-DD, not UTC
   const spanInfo = SPAN_DATA.find(s => s.f+'_'+s.t === spanKey);
   const footage = spanInfo?.ft || 0;
   const userName = currentUser.displayName || currentUser.email.split('@')[0];
+  // Retry helper for Firestore writes
+  async function safeWrite(writeFn, label, retries=3){
+    for(let i=0;i<retries;i++){
+      try{ await writeFn(); return true; }catch(e){
+        console.error(`Write failed (${label}) attempt ${i+1}:`,e);
+        if(i===retries-1){ showBanner(`❌ Save failed: ${label} — check connection`,'#ef4444'); return false; }
+        await new Promise(r=>setTimeout(r,500*(i+1)));
+      }
+    }
+  }
   // GT30E billing rates
   const crewRateStrand = 0.16;   // AC02-1 crew $0.16/ft
   const clientRateStrand = 0.48; // AC02-1 client $0.48/ft
@@ -2877,7 +2887,7 @@ window.setSpanStage = async function(spanKey, stage){
     showBanner('Span reset — billing removed','#6b7280');
   } else if(stage === 'strandOnly'){
     // AS02 — Strand only, no fiber will be placed
-    await setDoc(docRef, {
+    const stageOk = await safeWrite(()=>setDoc(docRef, {
       nodeId: currentNodeId,
       spanKey: spanKey,
       stage: 'strand',
@@ -2891,10 +2901,11 @@ window.setSpanStage = async function(spanKey, stage){
       updatedBy: currentUser.uid,
       userName: userName,
       updatedAt: serverTimestamp()
-    });
+    }), `AS02 ${spanKey}`);
+    if(!stageOk) return;
     // Bill AS02
     const billingDocId = currentNodeId + '_span_' + spanKey;
-    await setDoc(doc(db, 'charterBilling', billingDocId), {
+    const billOk = await safeWrite(()=>setDoc(doc(db, 'charterBilling', billingDocId), {
       nodeId: currentNodeId, spanKey, fromPole: poleName(spanInfo?.f||''), toPole: poleName(spanInfo?.t||''),
       code: 'AS02', name: 'Strand Only (No Fiber)',
       qty: footage, unit: 'ft',
@@ -2906,7 +2917,8 @@ window.setSpanStage = async function(spanKey, stage){
       billedAt: serverTimestamp(), date: today,
       strandDate: today,
       type: 'auto-span'
-    });
+    }), `billing AS02 ${spanKey}`);
+    if(!billOk) return;
     // Remove any lash billing doc
     try { await deleteDoc(doc(db, 'charterBilling', billingDocId + '_lash')); } catch(e){}
     window._spanStrandOnly[spanKey] = true;
@@ -2914,7 +2926,7 @@ window.setSpanStage = async function(spanKey, stage){
     showBanner(`🔧 AS02 Strand Only — ${footage.toLocaleString()} ft → $${earn}`,'#d97706');
   } else if(stage === 'strand'){
     window._spanStrandOnly[spanKey] = false;
-    await setDoc(docRef, {
+    const stageOk = await safeWrite(()=>setDoc(docRef, {
       nodeId: currentNodeId,
       spanKey: spanKey,
       stage: 'strand',
@@ -2927,10 +2939,11 @@ window.setSpanStage = async function(spanKey, stage){
       updatedBy: currentUser.uid,
       userName: userName,
       updatedAt: serverTimestamp()
-    });
+    }), `strand ${spanKey}`);
+    if(!stageOk) return;
     // Auto-bill AC02-1 for strand placed
     const billingDocId = currentNodeId + '_span_' + spanKey;
-    await setDoc(doc(db, 'charterBilling', billingDocId), {
+    const billOk = await safeWrite(()=>setDoc(doc(db, 'charterBilling', billingDocId), {
       nodeId: currentNodeId,
       spanKey: spanKey,
       fromPole: poleName(spanInfo?.f || ''),
@@ -2950,9 +2963,10 @@ window.setSpanStage = async function(spanKey, stage){
       date: today,
       strandDate: today,
       type: 'auto-span'
-    });
+    }), `billing ${spanKey}`);
+    if(!billOk) return;
     const earn = (footage * crewRateStrand).toFixed(2);
-    showBanner(`🟡 Strand — ${footage.toLocaleString()} ft → AC02-1 → $${earn}`,'#d97706');
+    showBanner(`✅ Strand — ${footage.toLocaleString()} ft → AC02-1 → $${earn}`,'#d97706');
   } else if(stage === 'lashed'){
     let existingStrandDate = today;
     let existingStrandBy = currentUser.uid;
@@ -2966,7 +2980,7 @@ window.setSpanStage = async function(spanKey, stage){
       }
     } catch(e){}
     
-    await setDoc(docRef, {
+    const lashStageOk = await safeWrite(()=>setDoc(docRef, {
       nodeId: currentNodeId,
       spanKey: spanKey,
       stage: 'lashed',
@@ -2983,7 +2997,8 @@ window.setSpanStage = async function(spanKey, stage){
       updatedBy: currentUser.uid,
       userName: userName,
       updatedAt: serverTimestamp()
-    });
+    }), `lash ${spanKey}`);
+    if(!lashStageOk) return;
     // Billing week = Friday → Thursday (cutoff Thu 4 PM Central)
     // Same billing week → convert AC02-1 to AC02 (clean composite)
     // Different billing week → AC02-1 already submitted, just add AC02-2
@@ -2993,7 +3008,7 @@ window.setSpanStage = async function(spanKey, stage){
       const offset = (day - 5 + 7) % 7; // days since Friday
       const fri = new Date(d);
       fri.setDate(fri.getDate() - offset);
-      return fri.toISOString().slice(0,10);
+      return fri.toLocaleDateString('en-CA');
     }
     const strandWeek = getBillingWeekStart(existingStrandDate);
     const todayWeek = getBillingWeekStart(today);
@@ -3002,7 +3017,7 @@ window.setSpanStage = async function(spanKey, stage){
     
     if(sameBillingWeek){
       // Same billing week → convert to AC02 Composite ($1.20/ft client, $0.40/ft crew)
-      await setDoc(doc(db, 'charterBilling', billingDocId), {
+      const compOk = await safeWrite(()=>setDoc(doc(db, 'charterBilling', billingDocId), {
         nodeId: currentNodeId, spanKey, fromPole: poleName(spanInfo?.f||''), toPole: poleName(spanInfo?.t||''),
         code: 'AC02', name: 'Fiber Composite (Strand+Lash)',
         qty: footage, unit: 'ft',
@@ -3015,15 +3030,16 @@ window.setSpanStage = async function(spanKey, stage){
         strandDate: existingStrandDate, lashDate: today,
         billingWeek: strandWeek,
         type: 'auto-span'
-      });
+      }), `AC02 billing ${spanKey}`);
+      if(!compOk) return;
       // Remove any orphaned AC02-2 doc from same week
       try { await deleteDoc(doc(db, 'charterBilling', billingDocId + '_lash')); } catch(e){}
       const earn = (footage * crewRateComposite).toFixed(2);
-      showBanner(`🟢 AC02 — ${footage.toLocaleString()} ft → $${earn}`,'#16a34a');
+      showBanner(`✅ AC02 — ${footage.toLocaleString()} ft → $${earn}`,'#16a34a');
     } else {
       // Different billing week → AC02-1 already billed, just add AC02-2 for fiber
       const lashDocId = currentNodeId + '_span_' + spanKey + '_lash';
-      await setDoc(doc(db, 'charterBilling', lashDocId), {
+      const lashBillOk = await safeWrite(()=>setDoc(doc(db, 'charterBilling', lashDocId), {
         nodeId: currentNodeId, spanKey, fromPole: spanInfo?.f||'', toPole: spanInfo?.t||'',
         code: 'AC02-2', name: 'Fiber Lash Portion',
         qty: footage, unit: 'ft',
@@ -3036,15 +3052,16 @@ window.setSpanStage = async function(spanKey, stage){
         strandDate: existingStrandDate, lashDate: today,
         billingWeek: todayWeek,
         type: 'auto-span'
-      });
+      }), `AC02-2 billing ${spanKey}`);
+      if(!lashBillOk) return;
       const earn = (footage * crewRateLash).toFixed(2);
-      showBanner(`🟢 AC02-2 — ${footage.toLocaleString()} ft → $${earn}`,'#16a34a');
+      showBanner(`✅ AC02-2 — ${footage.toLocaleString()} ft → $${earn}`,'#16a34a');
     }
   } else if(stage === 'overlashed'){
     // Overlash = running new cable on spans that already have strand + fiber
     const crewRateOverlash = 0.20;
     const clientRateOverlash = 0.60;
-    await setDoc(docRef, {
+    const olStageOk = await safeWrite(()=>setDoc(docRef, {
       nodeId: currentNodeId,
       spanKey: spanKey,
       stage: 'overlashed',
@@ -3056,7 +3073,8 @@ window.setSpanStage = async function(spanKey, stage){
       updatedBy: currentUser.uid,
       userName: userName,
       updatedAt: serverTimestamp()
-    }, { merge: true });
+    }, { merge: true }), `overlash ${spanKey}`);
+    if(!olStageOk) return;
     // AS07 billing record
     const olDocId = currentNodeId + '_span_' + spanKey + '_overlash';
     function getOverlashBillingWeekStart(dateStr){
@@ -3065,10 +3083,10 @@ window.setSpanStage = async function(spanKey, stage){
       const offset = (day - 5 + 7) % 7;
       const fri = new Date(d);
       fri.setDate(fri.getDate() - offset);
-      return fri.toISOString().slice(0,10);
+      return fri.toLocaleDateString('en-CA');
     }
     const olWeek = getOverlashBillingWeekStart(today);
-    await setDoc(doc(db, 'charterBilling', olDocId), {
+    const olBillOk = await safeWrite(()=>setDoc(doc(db, 'charterBilling', olDocId), {
       nodeId: currentNodeId, spanKey,
       fromPole: poleName(spanInfo?.f||''), toPole: poleName(spanInfo?.t||''),
       code: 'AS07', name: 'Overlash Fiber Cable',
@@ -3081,9 +3099,10 @@ window.setSpanStage = async function(spanKey, stage){
       billedAt: serverTimestamp(), date: today,
       billingWeek: olWeek,
       type: 'auto-span'
-    });
+    }), `AS07 billing ${spanKey}`);
+    if(!olBillOk) return;
     const earn = (footage * crewRateOverlash).toFixed(2);
-    showBanner(`🔵 AS07 Overlash — ${footage.toLocaleString()} ft → $${earn}`,'#3b82f6');
+    showBanner(`✅ AS07 — ${footage.toLocaleString()} ft → $${earn}`,'#3b82f6');
   }
   
   // Update local state immediately
@@ -3141,7 +3160,7 @@ window.addAdditionalCable=async function(spanKey){
     const offset = (day - 5 + 7) % 7;
     const fri = new Date(d);
     fri.setDate(fri.getDate() - offset);
-    return fri.toISOString().slice(0,10);
+    return fri.toLocaleDateString('en-CA');
   }
   await setDoc(doc(db, 'charterBilling', as08DocId), {
     nodeId: currentNodeId, spanKey,
@@ -4257,7 +4276,7 @@ updateOnlineStatus();
 // ============ NUCLEAR CACHE BUST + SW REGISTRATION v53 ============
 (async function nuclearBoot(){
   try{
-    const CURRENT='charter-v53';
+    const CURRENT='charter-v69';
     if('caches' in window){
       const keys = await caches.keys();
       const stale = keys.filter(k => k !== CURRENT && k !== CURRENT+'-tiles');
