@@ -302,6 +302,9 @@ body[data-mapzoom="lo"] .fiber-lbl,body[data-mapzoom="mid"] .fiber-lbl{display:n
   <div class="crew-presence" id="crewPresence"></div>
 </div>
 
+<!-- Crew Strip (who's logged in) -->
+<div id="crewStrip" style="position:absolute;top:56px;left:0;right:0;z-index:640;background:rgba(13,27,42,.92);backdrop-filter:blur(6px);padding:5px 12px;display:none;align-items:center;gap:10px;overflow-x:auto;white-space:nowrap;border-bottom:1px solid rgba(255,255,255,.08)"></div>
+
 <!-- Search Bar -->
 <div class="search-bar" id="searchBar" style="display:none">
   <input class="search-input" id="searchInput" type="text" placeholder="Search pole #..." inputmode="numeric">
@@ -363,7 +366,7 @@ body[data-mapzoom="lo"] .fiber-lbl,body[data-mapzoom="mid"] .fiber-lbl{display:n
 
 <!-- Version Badge -->
 <div class="version-badge" id="versionBadge" style="display:none">
-  <span class="version-tag">v30</span>
+  <span class="version-tag">v31</span>
   <button class="update-btn" id="updateBtn">🔄 Update</button>
 </div>
 
@@ -890,6 +893,8 @@ function loadFirestoreData(){
     onSnapshot(collection(db,'shentelPresence'),snap=>{
       const cont=document.getElementById('crewPresence');
       cont.innerHTML='';
+      const strip=document.getElementById('crewStrip');
+      const stripItems=[];
       const colors=['#a78bfa','#4a9eff','#34d399','#ff8c42','#ef4444','#f472b6'];
       let idx=0;
       if(map&&!crewLayer)crewLayer=L.layerGroup().addTo(map);
@@ -911,6 +916,7 @@ function loadFirestoreData(){
           };
         }
         cont.appendChild(dot);
+        stripItems.push({id:d.id,name:data.name||'Crew',avatar:data.avatar||'',lat:data.lat,lon:data.lon,color:color,ts:data.ts?data.ts.toMillis?.():0});
         // On-map live marker (everyone except me — I have the blue dot)
         if(crewLayer&&data.lat&&data.lon&&d.id!==myUid){
           seen[d.id]=true;
@@ -930,6 +936,33 @@ function loadFirestoreData(){
         }
         idx++;
       });
+      // Render crew strip
+      if(strip){
+        if(stripItems.length===0){strip.style.display='none';}
+        else{
+          strip.style.display='flex';
+          stripItems.sort((a,b)=>(a.id===myUid?-1:b.id===myUid?1:b.ts-a.ts));
+          const onlineN=stripItems.filter(m=>Date.now()-m.ts<600000).length;
+          let h='<div style="display:flex;flex-direction:column;margin-right:2px;flex:none"><span style="font-size:10px;font-weight:800;color:#d4a843;letter-spacing:.5px">CREW</span><span style="font-size:9px;color:#22c55e;font-weight:700">'+onlineN+' online</span></div>';
+          stripItems.forEach(m=>{
+            const isMe=m.id===myUid;
+            const on=Date.now()-m.ts<600000;
+            const first=(m.name||'Crew').split(' ')[0];
+            h+='<div class="crew-strip-item" data-uid="'+m.id+'" style="display:flex;flex-direction:column;align-items:center;gap:1px;flex:none;cursor:pointer">'
+              +'<div style="position:relative"><div style="width:30px;height:30px;border-radius:50%;border:2px solid '+(isMe?'#f0c040':m.color)+';overflow:hidden;background:'+m.color+';display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:13px">'
+              +(m.avatar?'<img src="'+m.avatar+'" style="width:100%;height:100%;object-fit:cover">':first[0].toUpperCase())+'</div>'
+              +'<div style="position:absolute;bottom:-1px;right:-1px;width:9px;height:9px;border-radius:50%;background:'+(on?'#22c55e':'#94a3b8')+';border:2px solid #0d1b2a"></div></div>'
+              +'<span style="font-size:9px;color:#e2e8f0;font-weight:600;max-width:48px;overflow:hidden;text-overflow:ellipsis">'+first+(isMe?' (me)':'')+'</span></div>';
+          });
+          strip.innerHTML=h;
+          strip.querySelectorAll('.crew-strip-item').forEach(el=>{
+            el.onclick=()=>{
+              const m=stripItems.find(x=>x.id===el.dataset.uid);
+              if(m&&m.lat&&m.lon)map.setView([m.lat,m.lon],18);
+            };
+          });
+        }
+      }
       // Remove markers for crew no longer active
       Object.keys(crewMarkers).forEach(uid=>{
         if(!seen[uid]){crewLayer.removeLayer(crewMarkers[uid]);delete crewMarkers[uid]}
