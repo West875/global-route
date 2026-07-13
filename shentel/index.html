@@ -358,7 +358,7 @@ body[data-mapzoom="lo"] .fiber-lbl,body[data-mapzoom="mid"] .fiber-lbl{display:n
 
 <!-- Version Badge -->
 <div class="version-badge" id="versionBadge" style="display:none">
-  <span class="version-tag">v24</span>
+  <span class="version-tag">v25</span>
   <button class="update-btn" id="updateBtn">🔄 Update</button>
 </div>
 
@@ -1209,15 +1209,24 @@ function openSpanModal(sp,idx){
     <div class="detail-row"><span class="detail-label">Type</span><span class="detail-value">${primaryDesc}</span></div>
     <div class="detail-row"><span class="detail-label">Footage</span><span class="detail-value">${sp.ft.toFixed(1)}′</span></div>
 
-    <div class="section-title">Tic Marks</div>
+    <div class="section-title">Tic Marks</div>`;
+
+  // One tic row per fiber cable on this span
+  const cables=sp.ct==='both'?[{key:'48F',label:'48F',color:'#ff9100'},{key:'12F',label:'12F',color:'#69f0ae'}]:[{key:'12F',label:'12F',color:'#69f0ae'}];
+  cables.forEach(c=>{
+    const t=ticMarks['span-'+idx+'_'+c.key]||(c.key==='12F'&&sp.ct!=='both'?tic:null);
+    html+=`
+    <div style="font-size:12px;font-weight:700;color:${c.color};margin:8px 0 4px">${c.label} Fiber</div>
     <div class="tic-row">
       <span class="tic-label">IN</span>
-      <input class="tic-input" id="ticIn" type="text" value="${tic?.ticIn||''}" placeholder="—">
+      <input class="tic-input" id="ticIn_${c.key}" type="text" value="${t?.ticIn||''}" placeholder="—">
       <span class="tic-label">OUT</span>
-      <input class="tic-input" id="ticOut" type="text" value="${tic?.ticOut||''}" placeholder="—">
-    </div>
+      <input class="tic-input" id="ticOut_${c.key}" type="text" value="${t?.ticOut||''}" placeholder="—">
+    </div>`;
+  });
+  html+=`
     <div style="margin-top:8px;text-align:right">
-      <button class="btn-pill" style="flex:none;width:auto;padding:8px 20px" onclick="window._saveTic(${idx})">Save Tics</button>
+      <button class="btn-pill" style="flex:none;width:auto;padding:8px 20px" onclick="window._saveTic(${idx},'${sp.ct}')">Save Tics</button>
     </div>
 
     <div class="section-title">Storage Loop</div>
@@ -1256,13 +1265,18 @@ window._setStage=async(idx,stage)=>{
   }catch(e){console.error(e)}
 };
 
-window._saveTic=async(idx)=>{
-  const ticIn=document.getElementById('ticIn')?.value||'';
-  const ticOut=document.getElementById('ticOut')?.value||'';
+window._saveTic=async(idx,ct)=>{
+  const cables=ct==='both'?['48F','12F']:['12F'];
   try{
-    await setDoc(doc(db,'shentelTicMarks','span-'+idx),{
-      spanIdx:idx,ticIn,ticOut,crew:crewName,ts:new Date(),updatedAt:new Date()
-    });
+    for(const c of cables){
+      const ticIn=document.getElementById('ticIn_'+c)?.value||'';
+      const ticOut=document.getElementById('ticOut_'+c)?.value||'';
+      if(!ticIn&&!ticOut)continue;
+      const key='span-'+idx+'_'+c;
+      const data={spanIdx:idx,cable:c,ticIn,ticOut,crew:crewName,ts:new Date(),updatedAt:new Date()};
+      await setDoc(doc(db,'shentelTicMarks',key),data);
+      ticMarks[key]=data;
+    }
   }catch(e){console.error(e)}
 };
 
