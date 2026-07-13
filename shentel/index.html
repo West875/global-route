@@ -358,7 +358,7 @@ body[data-mapzoom="lo"] .fiber-lbl,body[data-mapzoom="mid"] .fiber-lbl{display:n
 
 <!-- Version Badge -->
 <div class="version-badge" id="versionBadge" style="display:none">
-  <span class="version-tag">v26</span>
+  <span class="version-tag">v27</span>
   <button class="update-btn" id="updateBtn">🔄 Update</button>
 </div>
 
@@ -737,11 +737,15 @@ function initMap(){
       line.on('click',e=>{L.DomEvent.stopPropagation(e);openSpanModal(sp,i)});
       lines.push({cable:c.cable,color:c.color,line});
     });
+    const hit=L.polyline([a,b],{color:'#000',weight:24,opacity:0.001,className:'span-hit'}).addTo(map);
+    hit.on('click',e=>{L.DomEvent.stopPropagation(e);openSpanModal(sp,i)});
     spanLines[sp.sk]={lines,sp};
   });
 
   // Add pole markers
+  const ANCHOR_RE=/\bDGA\b|DG\/A|DG&A|DOWN GUY|PL DG|PLC DGA|w\/DGA|\bHG\b/i;
   POLES.forEach(p=>{
+    p.anchor=ANCHOR_RE.test((p.mrNotes||'')+' '+(p.attHeight||''));
     const isVZ=p.owner==='VZ';
     const color=isVZ?'#4a9eff':'#ff8c42';
     const bgColor=isVZ?'rgba(74,158,255,0.25)':'rgba(255,140,66,0.25)';
@@ -752,7 +756,7 @@ function initMap(){
       className:'',
       iconSize:[size,size],
       iconAnchor:[size/2,size/2],
-      html:`<div class="pole-marker" style="width:${size}px;height:${size}px;background:${bgColor};border-color:${color};color:${color};${ring}">${p.num}</div>`
+      html:`<div style="position:relative"><div class="pole-marker" style="width:${size}px;height:${size}px;background:${bgColor};border-color:${color};color:${color};${ring}">${p.num}</div>${p.anchor?'<div style="position:absolute;top:-9px;right:-9px;font-size:12px;text-shadow:0 0 3px #000">⚓</div>':''}</div>`
     });
     const marker=L.marker([p.lat,p.lon],{icon:icon,zIndexOffset:1000}).addTo(map);
     marker.on('click',()=>openPoleModal(p));
@@ -986,6 +990,7 @@ function openPoleModal(p){
     <div class="detail-row"><span class="detail-label">Power Company</span><span class="detail-value">${p.powerComp||'—'}</span></div>
     <div class="detail-row"><span class="detail-label">Telco Company</span><span class="detail-value">${p.telcoComp||'—'}</span></div>
     <div class="detail-row"><span class="detail-label">Attachment Height</span><span class="detail-value">${p.attHeight||'—'}</span></div>
+    <div class="detail-row"><span class="detail-label">Down Guy & Anchor</span><span class="detail-value" style="color:${p.anchor?'#ffd54f':'var(--text-dim)'}">${p.anchor?'⚓ Yes — per prints':'—'}</span></div>
     <div class="detail-row"><span class="detail-label">Make Ready</span><span class="detail-value" style="color:${p.mr?'var(--gold)':'var(--text-dim)'}">${p.mr?'Yes ✦':'No'}</span></div>`;
 
   if(p.mr&&p.mrNotes){
@@ -1023,7 +1028,7 @@ function openPoleModal(p){
     </div>
     <div class="billing-btn ${isBilled('SN05')?'billed':''}" onclick="window._togglePoleBill('${p.id}','SN05')">
       <span class="code">SN05</span>
-      <span class="desc">Make Ready ${isBilled('SN05')?'· 📷 Before/After ✓':(mrPhotos[p.id]?.before?'· 📷 Before ✓ — tap for AFTER':'· 📷 photos required')}</span>
+      <span class="desc">Make Ready</span>
     </div>
 
     <div class="section-title">Splice Enclosure</div>
@@ -1092,37 +1097,6 @@ window._togglePoleBill=async(poleId,code)=>{
     if(code==='SN05'&&!confirm('Remove Make Ready billing for this pole?'))return;
     try{await deleteDoc(doc(db,'shentelBilling',existing.docId))}catch(e){console.error(e)}
   }else{
-    let photoMeta=null;
-    if(code==='SN05'){
-      // Make Ready requires time-stamped BEFORE and AFTER photos — no bypass
-      const mr=mrPhotos[poleId];
-      const num=p?p.num:poleId;
-      try{
-        if(!mr||!mr.before){
-          const shot=await capturePhoto('MAKE READY — BEFORE',num);
-          await setDoc(doc(db,'shentelMRPhotos',poleId),{
-            poleId:poleId,before:shot.dataUrl,beforeTs:shot.ts,
-            beforeLat:shot.lat,beforeLon:shot.lon,
-            beforeCrew:crewName,uid:myUid,updatedAt:new Date()
-          },{merge:true});
-          if(!mrPhotos[poleId])mrPhotos[poleId]={};
-          mrPhotos[poleId].before=shot.dataUrl;mrPhotos[poleId].beforeTs=shot.ts;
-          alert('✅ BEFORE photo saved ('+shot.ts.toLocaleTimeString()+').\n\nDo the make-ready work, then tap SN05 again to take the AFTER photo and complete billing.');
-          if(p)setTimeout(()=>openPoleModal(p),200);
-          return;
-        }
-        const shot=await capturePhoto('MAKE READY — AFTER',num);
-        await setDoc(doc(db,'shentelMRPhotos',poleId),{
-          after:shot.dataUrl,afterTs:shot.ts,
-          afterLat:shot.lat,afterLon:shot.lon,
-          afterCrew:crewName,updatedAt:new Date()
-        },{merge:true});
-        photoMeta={photoDoc:poleId,beforeTs:mr.beforeTs||null,afterTs:shot.ts};
-      }catch(e){
-        alert('📷 Photo required — Make Ready cannot be billed without time-stamped before & after photos.');
-        return;
-      }
-    }
     const id=poleId+'-'+code+'-'+Date.now();
     const rate=RATE_MAP[code];
     try{
@@ -1131,7 +1105,6 @@ window._togglePoleBill=async(poleId,code)=>{
         unit:rate.unit,qty:1,
         crew:crewName,ts:new Date(),createdAt:new Date()
       };
-      if(photoMeta)Object.assign(entry,photoMeta);
       await setDoc(doc(db,'shentelBilling',id),entry);
     }catch(e){console.error(e)}
   }
