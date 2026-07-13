@@ -360,7 +360,7 @@ body[data-mapzoom="lo"] .fiber-lbl,body[data-mapzoom="mid"] .fiber-lbl{display:n
 
 <!-- Version Badge -->
 <div class="version-badge" id="versionBadge" style="display:none">
-  <span class="version-tag">v28</span>
+  <span class="version-tag">v29</span>
   <button class="update-btn" id="updateBtn">🔄 Update</button>
 </div>
 
@@ -702,7 +702,7 @@ function initMap(){
     maxZoom:20,minZoom:10
   });
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
-    maxZoom:20,attribution:''
+    maxZoom:20,maxNativeZoom:18,attribution:''
   }).addTo(map);
   renderMPAndSplices();
 
