@@ -263,6 +263,18 @@ body[data-mapzoom="mid"] .mp-marker,body[data-mapzoom="mid"] .splice-marker{disp
   <div class="login-err" id="loginErr"></div>
 </div>
 
+<!-- Selfie Screen -->
+<div class="login-screen hidden" id="selfieScreen" style="display:none">
+  <div style="font-size:48px;margin-bottom:8px">🤳</div>
+  <div class="login-logo">Crew Photo</div>
+  <div class="login-sub">Required to Continue</div>
+  <div class="gps-msg" style="max-width:300px;text-align:center">Take a selfie — this becomes your crew avatar so the team knows who's on the route.</div>
+  <img id="selfiePreview" style="display:none;width:120px;height:120px;border-radius:50%;object-fit:cover;border:3px solid var(--gold)">
+  <input type="file" id="selfieInput" accept="image/*" capture="user" style="display:none">
+  <button class="login-btn" id="selfieTakeBtn">📸 Take Selfie</button>
+  <button class="login-btn" id="selfieConfirmBtn" style="display:none;background:linear-gradient(135deg,#34d399,#0f9d6e);color:#fff">✓ Continue</button>
+</div>
+
 <!-- GPS Block Overlay -->
 <div class="gps-block hidden" id="gpsBlock">
   <div class="gps-icon">📍</div>
@@ -342,7 +354,7 @@ body[data-mapzoom="mid"] .mp-marker,body[data-mapzoom="mid"] .splice-marker{disp
 
 <!-- Version Badge -->
 <div class="version-badge" id="versionBadge" style="display:none">
-  <span class="version-tag">v12</span>
+  <span class="version-tag">v13</span>
   <button class="update-btn" id="updateBtn">🔄 Update</button>
 </div>
 
@@ -439,12 +451,16 @@ let currentFilter='all',searchQuery='';
 
 /* ── Login ── */
 const INVITE='SHEN24';
+function hideLoginScreen(){
+  document.getElementById('loginScreen').classList.add('hidden');
+  setTimeout(()=>document.getElementById('loginScreen').style.display='none',500);
+}
 function checkLogin(){
   if(localStorage.getItem('shentel-auth')){
     crewName=localStorage.getItem('shentel-crew')||'Crew';
-    document.getElementById('loginScreen').classList.add('hidden');
-    setTimeout(()=>document.getElementById('loginScreen').style.display='none',500);
-    initGPS();
+    myAvatar=localStorage.getItem('shentel-avatar')||'';
+    hideLoginScreen();
+    if(!myAvatar){requireSelfie();}else{initGPS();}
   }
 }
 document.getElementById('loginBtn').onclick=()=>{
@@ -454,12 +470,46 @@ document.getElementById('loginBtn').onclick=()=>{
     crewName=name;
     localStorage.setItem('shentel-auth','1');
     localStorage.setItem('shentel-crew',name);
-    document.getElementById('loginScreen').classList.add('hidden');
-    setTimeout(()=>document.getElementById('loginScreen').style.display='none',500);
-    initGPS();
+    hideLoginScreen();
+    requireSelfie();
   }else{
     document.getElementById('loginErr').textContent='Invalid invite code';
   }
+};
+
+/* ── Mandatory Selfie Avatar ── */
+let myAvatar='';
+function requireSelfie(){
+  const scr=document.getElementById('selfieScreen');
+  scr.style.display='flex';
+  requestAnimationFrame(()=>scr.classList.remove('hidden'));
+}
+document.getElementById('selfieTakeBtn').onclick=()=>document.getElementById('selfieInput').click();
+document.getElementById('selfieInput').onchange=e=>{
+  const f=e.target.files&&e.target.files[0];
+  if(!f)return;
+  const img=new Image();
+  img.onload=()=>{
+    const c=document.createElement('canvas');c.width=96;c.height=96;
+    const ctx=c.getContext('2d');
+    const s=Math.min(img.width,img.height);
+    ctx.drawImage(img,(img.width-s)/2,(img.height-s)/2,s,s,0,0,96,96);
+    myAvatar=c.toDataURL('image/jpeg',0.75);
+    URL.revokeObjectURL(img.src);
+    const pv=document.getElementById('selfiePreview');
+    pv.src=myAvatar;pv.style.display='block';
+    document.getElementById('selfieTakeBtn').textContent='🔄 Retake';
+    document.getElementById('selfieConfirmBtn').style.display='block';
+  };
+  img.src=URL.createObjectURL(f);
+};
+document.getElementById('selfieConfirmBtn').onclick=()=>{
+  if(!myAvatar)return;
+  localStorage.setItem('shentel-avatar',myAvatar);
+  const scr=document.getElementById('selfieScreen');
+  scr.classList.add('hidden');
+  setTimeout(()=>scr.style.display='none',500);
+  initGPS();
 };
 document.getElementById('loginCode').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginBtn').click()});
 
@@ -761,6 +811,7 @@ async function updatePresence(){
   try{
     await setDoc(doc(db,'shentelPresence',myUid),{
       name:crewName,uid:myUid,
+      avatar:myAvatar||'',
       lat:myPos[0],lon:myPos[1],
       ts:new Date(),
       updatedAt:new Date()
