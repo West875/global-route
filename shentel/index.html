@@ -354,7 +354,7 @@ body[data-mapzoom="mid"] .mp-marker,body[data-mapzoom="mid"] .splice-marker{disp
 
 <!-- Version Badge -->
 <div class="version-badge" id="versionBadge" style="display:none">
-  <span class="version-tag">v14</span>
+  <span class="version-tag">v16</span>
   <button class="update-btn" id="updateBtn">🔄 Update</button>
 </div>
 
@@ -516,6 +516,36 @@ document.getElementById('selfieConfirmBtn').onclick=()=>{
 };
 document.getElementById('loginCode').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('loginBtn').click()});
 
+/* ── Install App prompt ── */
+let deferredInstall=null;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e});
+function isStandalone(){return window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true}
+function maybeAskInstall(){
+  if(isStandalone()||localStorage.getItem('shentel-install-dismissed'))return;
+  const banner=document.getElementById('installBanner');
+  const btn=document.getElementById('installBtn');
+  const isIOS=/iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if(isIOS){
+    document.getElementById('installHint').textContent='Tap Share, then "Add to Home Screen"';
+    btn.style.display='none';
+  }
+  banner.style.display='block';
+  btn.onclick=async()=>{
+    if(deferredInstall){
+      deferredInstall.prompt();
+      const r=await deferredInstall.userChoice;
+      if(r.outcome==='accepted'){banner.style.display='none'}
+      deferredInstall=null;
+    }else{
+      document.getElementById('installHint').textContent='Open browser menu (⋮) and tap "Install app" or "Add to Home screen"';
+    }
+  };
+  document.getElementById('installDismiss').onclick=()=>{
+    banner.style.display='none';
+    localStorage.setItem('shentel-install-dismissed','1');
+  };
+}
+
 /* ── GPS ── */
 function initGPS(){
   if(!navigator.geolocation){showGPSBlock();return}
@@ -545,6 +575,7 @@ function watchGPS(){
 
 /* ── Init App ── */
 async function initApp(){
+  setTimeout(maybeAskInstall,2500);
   ['appHeader','searchBar','mainContent','bottomNav','versionBadge'].forEach(id=>{
     document.getElementById(id).style.display='';
   });
