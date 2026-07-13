@@ -326,7 +326,7 @@ body[data-mapzoom="lo"] .fiber-lbl,body[data-mapzoom="mid"] .fiber-lbl{display:n
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><div style="width:20px;height:3px;background:#69f0ae;border-radius:2px"></div><span style="color:#ccc">12F Fiber</span></div>
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><div style="position:relative;width:20px;height:8px"><div style="position:absolute;top:0;left:0;width:20px;height:3px;background:#ff9100;border-radius:2px"></div><div style="position:absolute;top:5px;left:0;width:20px;height:3px;background:#69f0ae;border-radius:2px"></div></div><span style="color:#ccc">48F + 12F (parallel)</span></div>
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><div style="width:12px;height:12px;background:#2196F3;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:7px;color:#fff;font-weight:700">MP</div><span style="color:#ccc">Multi-Port Terminal</span></div>
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><div style="width:20px;height:0;border-top:2px dashed #2196F3"></div><span style="color:#ccc">MP Tail</span></div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><div style="width:20px;height:0;border-top:2px dashed #40c4ff"></div><span style="color:#ccc">MST Tail Route</span></div>
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px"><div style="width:12px;height:12px;background:#e53935;transform:rotate(45deg);display:flex;align-items:center;justify-content:center"></div><span style="color:#ccc">Splice Point</span></div>
       <div style="display:flex;align-items:center;gap:6px"><div style="width:20px;height:3px;background:#eab308;border-radius:2px"></div><span style="color:#ccc">Strand Placed</span></div>
     </div>
@@ -357,7 +357,7 @@ body[data-mapzoom="lo"] .fiber-lbl,body[data-mapzoom="mid"] .fiber-lbl{display:n
 
 <!-- Version Badge -->
 <div class="version-badge" id="versionBadge" style="display:none">
-  <span class="version-tag">v20</span>
+  <span class="version-tag">v21</span>
   <button class="update-btn" id="updateBtn">🔄 Update</button>
 </div>
 
@@ -400,31 +400,62 @@ const SPLICE_POINTS=[{lat:39.55591230694449,lon:-77.30379470418231,type:"F3 ACCE
 // Render MP terminals as blue circle markers (called after map init)
 function renderMPAndSplices(){
 const mpLayer=L.layerGroup();
-// Tail direction: offset each MP marker perpendicular from the route at its pole,
-// with a dashed tail leader from the pole — like the prints show MP tails
-function tailDir(lat,lon){
-  // find a span touching this pole location, return unit perpendicular (meters basis)
-  const latM=111320, lonM=111320*Math.cos(lat*Math.PI/180);
-  for(const sp of SPANS){
-    const fp=POLE_MAP[sp.f],tp=POLE_MAP[sp.t];
-    if(!fp||!tp)continue;
-    let a=null,b=null;
-    if(Math.abs(fp.lat-lat)<1e-6&&Math.abs(fp.lon-lon)<1e-6){a=fp;b=tp;}
-    else if(Math.abs(tp.lat-lat)<1e-6&&Math.abs(tp.lon-lon)<1e-6){a=tp;b=fp;}
-    if(!a)continue;
-    const dx=(b.lon-a.lon)*lonM, dy=(b.lat-a.lat)*latM, len=Math.hypot(dx,dy)||1;
-    return {pLat:(dx/len)/latM,pLon:(-dy/len)/lonM};
+// MST tail ROUTE: the tail runs from the terminal pole back ALONG the cable line
+// toward the splice point, for its actual tail footage — like the prints show.
+const keyOf=(lat,lon)=>lat.toFixed(6)+','+lon.toFixed(6);
+const adj={};
+SPANS.forEach(sp=>{
+  const fp=POLE_MAP[sp.f],tp=POLE_MAP[sp.t];
+  if(!fp||!tp)return;
+  const geoFt=Math.hypot((fp.lat-tp.lat)*364000,(fp.lon-tp.lon)*288200);
+  if(geoFt>600&&sp.ft&&geoFt>3*sp.ft)return;
+  const kf=keyOf(fp.lat,fp.lon),kt=keyOf(tp.lat,tp.lon);
+  (adj[kf]=adj[kf]||[]).push({lat:tp.lat,lon:tp.lon,ft:geoFt});
+  (adj[kt]=adj[kt]||[]).push({lat:fp.lat,lon:fp.lon,ft:geoFt});
+});
+const distFt=(a,b)=>Math.hypot((a.lat-b.lat)*364000,(a.lon-b.lon)*288200);
+function nearestSplice(pt){
+  let best=null,bd=1e12;
+  (typeof SPLICE_POINTS!=='undefined'?SPLICE_POINTS:[]).forEach(s=>{
+    const d=distFt(pt,s); if(d<bd){bd=d;best=s;}
+  });
+  return best;
+}
+function tailPath(mp){
+  // walk along spans from the MP pole toward the nearest splice, up to tail footage
+  const target=nearestSplice(mp);
+  const pts=[[mp.lat,mp.lon]];
+  let cur={lat:mp.lat,lon:mp.lon},remain=mp.t||100;
+  const visited=new Set([keyOf(cur.lat,cur.lon)]);
+  for(let hop=0;hop<40&&remain>0;hop++){
+    const nbrs=(adj[keyOf(cur.lat,cur.lon)]||[]).filter(n=>!visited.has(keyOf(n.lat,n.lon)));
+    if(!nbrs.length)break;
+    let next=nbrs[0];
+    if(target){let bd=1e12;nbrs.forEach(n=>{const d=distFt(n,target);if(d<bd){bd=d;next=n;}});}
+    const segFt=next.ft||distFt(cur,next);
+    if(segFt>=remain){
+      const f=remain/segFt;
+      pts.push([cur.lat+(next.lat-cur.lat)*f,cur.lon+(next.lon-cur.lon)*f]);
+      remain=0;
+    }else{
+      pts.push([next.lat,next.lon]);
+      remain-=segFt;
+      visited.add(keyOf(next.lat,next.lon));
+      cur=next;
+    }
   }
-  return {pLat:0.7/latM,pLon:0.7/lonM};
+  return pts;
 }
 const poleSeen={};
 MP_TERMINALS.forEach(mp=>{
-  const k=mp.lat.toFixed(6)+','+mp.lon.toFixed(6);
+  const k=keyOf(mp.lat,mp.lon);
   const n=(poleSeen[k]=(poleSeen[k]||0)+1);
-  const side=(n%2===1)?1:-1, dist=16+Math.floor((n-1)/2)*14;
-  const d=tailDir(mp.lat,mp.lon);
-  const mLat=mp.lat+d.pLat*dist*side, mLon=mp.lon+d.pLon*dist*side;
-  L.polyline([[mp.lat,mp.lon],[mLat,mLon]],{color:'#2196F3',weight:2,opacity:0.9,dashArray:'4,6',interactive:false}).addTo(mpLayer);
+  // dashed blue tail following the actual cable route for the tail's true footage
+  const path=tailPath(mp);
+  if(path.length>1)L.polyline(path,{color:'#40c4ff',weight:3,opacity:0.95,dashArray:'6,8',interactive:false}).addTo(mpLayer);
+  // MP marker at its pole, stacked slightly if multiple MSTs share a pole
+  const latM=111320;
+  const mLat=mp.lat+(6+(n-1)*10)/latM, mLon=mp.lon;
   const icon=L.divIcon({
     className:'mp-marker',
     html:`<div style="display:flex;align-items:center;gap:2px"><div style="width:18px;height:18px;background:#2196F3;border:2px solid #fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;color:#fff;font-weight:700;box-shadow:0 1px 4px rgba(0,0,0,0.5);flex-shrink:0">MP</div><div style="background:rgba(13,27,42,0.85);color:#7ec8ff;font-size:10px;font-weight:700;padding:1px 4px;border-radius:4px;white-space:nowrap">${mp.p}P-${mp.t}'</div></div>`,
@@ -851,14 +882,14 @@ function updateSpanVisuals(){
     const stage=spanStages[i];
     if(sl.type==='dual'){
       if(!stage||!stage.stage||stage.stage==='planned'){
-        sl.line48.setStyle({color:'#ff9100',dashArray:'8,6',opacity:0.55,weight:3.5});
-        sl.line12.setStyle({color:'#69f0ae',dashArray:'8,6',opacity:0.55,weight:3.5});
+        sl.line48.setStyle({color:'#ff9100',dashArray:'8,6',opacity:0.6,weight:10});
+        sl.line12.setStyle({color:'#69f0ae',dashArray:'8,6',opacity:0.8,weight:3.5});
       }else if(stage.stage==='strand'){
-        sl.line48.setStyle({color:'#eab308',dashArray:null,opacity:0.9,weight:3.5});
-        sl.line12.setStyle({color:'#eab308',dashArray:null,opacity:0.9,weight:3.5});
+        sl.line48.setStyle({color:'#eab308',dashArray:null,opacity:0.9,weight:10});
+        sl.line12.setStyle({color:'#0d1b2a',dashArray:null,opacity:0.9,weight:3.5});
       }else if(stage.stage==='lashed'){
-        sl.line48.setStyle({color:'#ff9100',dashArray:null,opacity:1,weight:4});
-        sl.line12.setStyle({color:'#69f0ae',dashArray:null,opacity:1,weight:4});
+        sl.line48.setStyle({color:'#ff9100',dashArray:null,opacity:1,weight:10});
+        sl.line12.setStyle({color:'#69f0ae',dashArray:null,opacity:1,weight:3.5});
       }
     }else{
       const line=sl.line;
