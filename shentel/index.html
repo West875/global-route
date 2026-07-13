@@ -354,7 +354,7 @@ body[data-mapzoom="mid"] .mp-marker,body[data-mapzoom="mid"] .splice-marker{disp
 
 <!-- Version Badge -->
 <div class="version-badge" id="versionBadge" style="display:none">
-  <span class="version-tag">v13</span>
+  <span class="version-tag">v14</span>
   <button class="update-btn" id="updateBtn">🔄 Update</button>
 </div>
 
@@ -758,6 +758,15 @@ function loadFirestoreData(){
         dot.style.background=color;
         dot.textContent=initial;
         dot.title=data.name||'Crew';
+        if(data.lat&&data.lon){
+          dot.onclick=()=>{
+            map.setView([data.lat,data.lon],18);
+            L.popup({closeButton:false,autoClose:true})
+              .setLatLng([data.lat,data.lon])
+              .setContent(`<div style="font-weight:600;font-size:13px">${data.name||'Crew'}</div><div style="font-size:11px;color:#888">Live location</div>`)
+              .openOn(map);
+          };
+        }
         cont.appendChild(dot);
         idx++;
       });
