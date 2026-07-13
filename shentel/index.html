@@ -162,6 +162,8 @@ body{display:flex;flex-direction:column;padding-top:var(--safe-top)}
 }
 .modal-overlay.open .modal-sheet{transform:translateY(0)}
 .modal-handle{width:40px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px}
+.sheet-close{position:absolute;top:10px;right:14px;width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#eee;font-size:18px;line-height:32px;text-align:center;cursor:pointer;z-index:5}
+.modal-sheet{position:relative}
 .modal-title{font-family:'Playfair Display',serif;font-size:20px;color:var(--gold);margin-bottom:4px}
 .modal-sub{font-size:13px;color:var(--text-dim);margin-bottom:16px}
 
@@ -358,7 +360,7 @@ body[data-mapzoom="lo"] .fiber-lbl,body[data-mapzoom="mid"] .fiber-lbl{display:n
 
 <!-- Version Badge -->
 <div class="version-badge" id="versionBadge" style="display:none">
-  <span class="version-tag">v27</span>
+  <span class="version-tag">v28</span>
   <button class="update-btn" id="updateBtn">🔄 Update</button>
 </div>
 
@@ -366,6 +368,7 @@ body[data-mapzoom="lo"] .fiber-lbl,body[data-mapzoom="mid"] .fiber-lbl{display:n
 <div class="modal-overlay" id="poleModal">
   <div class="modal-sheet" id="poleSheet">
     <div class="modal-handle"></div>
+    <div class="sheet-close" onclick="document.getElementById('poleModal').classList.remove('open')">✕</div>
     <div id="poleModalContent"></div>
   </div>
 </div>
@@ -374,6 +377,7 @@ body[data-mapzoom="lo"] .fiber-lbl,body[data-mapzoom="mid"] .fiber-lbl{display:n
 <div class="modal-overlay" id="spanModal">
   <div class="modal-sheet" id="spanSheet">
     <div class="modal-handle"></div>
+    <div class="sheet-close" onclick="document.getElementById('spanModal').classList.remove('open')">✕</div>
     <div id="spanModalContent"></div>
   </div>
 </div>
