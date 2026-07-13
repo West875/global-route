@@ -1,7 +1,7 @@
 {
-  "name": "Global Route — Shentel Maryland",
-  "short_name": "Shentel MD",
-  "description": "FRDRMD.DSA.812 — Route, Track, Manage",
+  "name": "Shentel",
+  "short_name": "Shentel",
+  "description": "DSA.812 — Route, Track, Manage",
   "start_url": "./index.html",
   "display": "standalone",
   "orientation": "portrait",
