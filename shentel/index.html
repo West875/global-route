@@ -357,7 +357,7 @@ body[data-mapzoom="lo"] .fiber-lbl,body[data-mapzoom="mid"] .fiber-lbl{display:n
 
 <!-- Version Badge -->
 <div class="version-badge" id="versionBadge" style="display:none">
-  <span class="version-tag">v19</span>
+  <span class="version-tag">v20</span>
   <button class="update-btn" id="updateBtn">🔄 Update</button>
 </div>
 
@@ -646,24 +646,31 @@ function initMap(){
   map.on('zoomend',applyZoomDeclutter);
   applyZoomDeclutter();
 
-  // Add all spans — matching print colors: RED=48F, ORANGE=12F
-  // Dual cable (both) = thick red (48F) underneath + thinner orange (12F) on top
+  // Add all spans — print-style: each fiber cable drawn as its OWN separate line
+  // 48F = orange, 12F = green, offset side-by-side like the DSA.812 prints
+  function offsetSeg(a,b,m){
+    const latM=111320,lonM=111320*Math.cos(a[0]*Math.PI/180);
+    const dx=(b[1]-a[1])*lonM,dy=(b[0]-a[0])*latM;
+    const len=Math.hypot(dx,dy)||1;
+    const ox=-dy/len*m/lonM,oy=dx/len*m/latM;
+    return [[a[0]+oy,a[1]+ox],[b[0]+oy,b[1]+ox]];
+  }
   SPANS.forEach((sp,i)=>{
     const fp=POLE_MAP[sp.f],tp=POLE_MAP[sp.t];
     if(!fp||!tp)return;
-    const coords=[[fp.lat,fp.lon],[tp.lat,tp.lon]];
+    const a=[fp.lat,fp.lon],b=[tp.lat,tp.lon];
     // Skip spans with bad pole coordinates (geo distance wildly exceeds recorded footage)
     const geoFt=Math.hypot((fp.lat-tp.lat)*364000,(fp.lon-tp.lon)*288200);
     if(geoFt>600&&sp.ft&&geoFt>3*sp.ft)return;
     const isBoth=sp.ct==='both';
     if(isBoth){
-      const line48=L.polyline(coords,{color:'#e53935',weight:6,opacity:0.85,className:'span-line'}).addTo(map);
-      const line12=L.polyline(coords,{color:'#e53935',weight:2.5,opacity:0.6,className:'span-line'}).addTo(map);
+      const line48=L.polyline(offsetSeg(a,b,1.4),{color:'#ff9100',weight:3.5,opacity:0.95,className:'span-line'}).addTo(map);
+      const line12=L.polyline(offsetSeg(a,b,-1.4),{color:'#69f0ae',weight:3.5,opacity:0.95,className:'span-line'}).addTo(map);
       line48.on('click',e=>{L.DomEvent.stopPropagation(e);openSpanModal(sp,i)});
       line12.on('click',e=>{L.DomEvent.stopPropagation(e);openSpanModal(sp,i)});
       spanLines[i]={type:'dual',line48,line12};
     }else{
-      const line=L.polyline(coords,{color:'#e53935',weight:4,opacity:0.85,className:'span-line'}).addTo(map);
+      const line=L.polyline([a,b],{color:'#69f0ae',weight:3.5,opacity:0.95,className:'span-line'}).addTo(map);
       line.on('click',e=>{L.DomEvent.stopPropagation(e);openSpanModal(sp,i)});
       spanLines[i]={type:'single',line};
     }
@@ -844,23 +851,23 @@ function updateSpanVisuals(){
     const stage=spanStages[i];
     if(sl.type==='dual'){
       if(!stage||!stage.stage||stage.stage==='planned'){
-        sl.line48.setStyle({color:'#e53935',dashArray:'8,6',opacity:0.6,weight:6});
-        sl.line12.setStyle({color:'#e53935',dashArray:'8,6',opacity:0.4,weight:2.5});
+        sl.line48.setStyle({color:'#ff9100',dashArray:'8,6',opacity:0.55,weight:3.5});
+        sl.line12.setStyle({color:'#69f0ae',dashArray:'8,6',opacity:0.55,weight:3.5});
       }else if(stage.stage==='strand'){
-        sl.line48.setStyle({color:'#eab308',dashArray:null,opacity:0.85,weight:6});
-        sl.line12.setStyle({color:'#eab308',dashArray:null,opacity:0.85,weight:2.5});
+        sl.line48.setStyle({color:'#eab308',dashArray:null,opacity:0.9,weight:3.5});
+        sl.line12.setStyle({color:'#eab308',dashArray:null,opacity:0.9,weight:3.5});
       }else if(stage.stage==='lashed'){
-        sl.line48.setStyle({color:'#e53935',dashArray:null,opacity:0.9,weight:6});
-        sl.line12.setStyle({color:'#e53935',dashArray:null,opacity:0.6,weight:2.5});
+        sl.line48.setStyle({color:'#ff9100',dashArray:null,opacity:1,weight:4});
+        sl.line12.setStyle({color:'#69f0ae',dashArray:null,opacity:1,weight:4});
       }
     }else{
       const line=sl.line;
       if(!stage||!stage.stage||stage.stage==='planned'){
-        line.setStyle({color:'#e53935',dashArray:'8,6',opacity:0.5,weight:4});
+        line.setStyle({color:'#69f0ae',dashArray:'8,6',opacity:0.5,weight:3.5});
       }else if(stage.stage==='strand'){
-        line.setStyle({color:'#eab308',dashArray:null,opacity:0.85,weight:4});
+        line.setStyle({color:'#eab308',dashArray:null,opacity:0.9,weight:3.5});
       }else if(stage.stage==='lashed'){
-        line.setStyle({color:'#e53935',dashArray:null,opacity:0.85,weight:4});
+        line.setStyle({color:'#69f0ae',dashArray:null,opacity:1,weight:4});
       }
     }
   });
@@ -1028,7 +1035,7 @@ function openSpanModal(sp,idx){
   let html=`
     <div class="modal-title">Span ${fp.num} → ${tp.num}</div>
     <div class="modal-sub">${sp.ft.toFixed(1)}' · ${fp.st} to ${tp.st}</div>
-    <div style="margin:6px 0;display:inline-flex;gap:6px;flex-wrap:wrap">${sp.ct==='both'?`<span style="padding:4px 10px;border-radius:6px;font-size:12px;font-weight:700;background:rgba(229,57,53,0.2);color:#e53935;border:1px solid #e53935">48F Trunk + 12F Branch</span>`:`<span style="padding:4px 10px;border-radius:6px;font-size:12px;font-weight:700;background:rgba(229,57,53,0.2);color:#e53935;border:1px solid #e53935">12F Fiber</span>`}</div>
+    <div style="margin:6px 0;display:inline-flex;gap:6px;flex-wrap:wrap">${sp.ct==='both'?`<span style="padding:4px 10px;border-radius:6px;font-size:12px;font-weight:700;background:rgba(255,145,0,0.15);color:#ff9100;border:1px solid #ff9100">1× 48F</span><span style="padding:4px 10px;border-radius:6px;font-size:12px;font-weight:700;background:rgba(105,240,174,0.15);color:#69f0ae;border:1px solid #69f0ae">1× 12F</span>`:`<span style="padding:4px 10px;border-radius:6px;font-size:12px;font-weight:700;background:rgba(105,240,174,0.15);color:#69f0ae;border:1px solid #69f0ae">1× 12F</span>`}</div>
 
     <div class="section-title">Stage</div>
     <div class="btn-group">
