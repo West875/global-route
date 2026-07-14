@@ -368,7 +368,7 @@ body[data-mapzoom="lo"] .fiber-lbl,body[data-mapzoom="mid"] .fiber-lbl{display:n
 
 <!-- Version Badge -->
 <div class="version-badge" id="versionBadge" style="display:none">
-  <span class="version-tag">v44</span>
+  <span class="version-tag">v45</span>
   <button class="update-btn" id="updateBtn">🔄 Update</button>
 </div>
 
@@ -755,9 +755,11 @@ function initMap(){
       line.on('click',e=>{L.DomEvent.stopPropagation(e);openSpanModal(sp,i)});
       lines.push({cable:c.cable,color:c.color,line});
     });
+    const strandBand=L.polyline([a,b],{color:'#ffd54f',weight:11,opacity:0,className:'span-strandband'}).addTo(map);
+    strandBand.bringToBack();
     const hit=L.polyline([a,b],{color:'#000',weight:24,opacity:0.001,className:'span-hit'}).addTo(map);
     hit.on('click',e=>{L.DomEvent.stopPropagation(e);openSpanModal(sp,i)});
-    spanLines[sp.sk]={lines,sp};
+    spanLines[sp.sk]={lines,sp,strandBand};
   });
 
   // Add pole markers
