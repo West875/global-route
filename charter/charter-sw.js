@@ -1,5 +1,5 @@
 // Charter Alabama Service Worker — Offline Support
-const CACHE_NAME = 'charter-v81';
+const CACHE_NAME = 'charter-v82';
 const APP_SHELL = [
   './',
   './index.html'
