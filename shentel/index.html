@@ -368,7 +368,7 @@ body[data-mapzoom="lo"] .fiber-lbl,body[data-mapzoom="mid"] .fiber-lbl{display:n
 
 <!-- Version Badge -->
 <div class="version-badge" id="versionBadge" style="display:none">
-  <span class="version-tag">v47</span>
+  <span class="version-tag">v48</span>
   <button class="update-btn" id="updateBtn">🔄 Update</button>
 </div>
 
@@ -541,7 +541,10 @@ RATES.forEach(r=>RATE_MAP[r.code]=r);
 /* ── State ── */
 let map,myPos=null,myUid=null,crewName='',followMode=false,myMarker=null,crewLayer=null,crewMarkers={};
 let spanStages={},ticMarks={},poleNotes={},spanNotes={};
-let storagePts={},splices={},billingData={};
+let storagePts={},splices={},billingData={},treeTrim={};
+// Stable per-device presence ID — survives sign-outs/app updates so one device = one crew dot
+let presenceId=localStorage.getItem('shentel-device-id');
+if(!presenceId){presenceId='dev_'+(crypto.randomUUID?crypto.randomUUID():Date.now()+'_'+Math.random().toString(36).slice(2));localStorage.setItem('shentel-device-id',presenceId);}
 let poleMarkers={},spanLines={};
 let currentFilter='all',searchQuery='';
 
@@ -935,7 +938,7 @@ function loadFirestoreData(){
         cont.appendChild(dot);
         stripItems.push({id:d.id,name:data.name||'Crew',avatar:data.avatar||'',lat:data.lat,lon:data.lon,color:color,ts:data.ts?data.ts.toMillis?.():0});
         // On-map live marker (everyone except me — I have the blue dot)
-        if(crewLayer&&data.lat&&data.lon&&d.id!==myUid){
+        if(crewLayer&&data.lat&&data.lon&&d.id!==presenceId){
           seen[d.id]=true;
           const mins=data.ts?Math.round((Date.now()-data.ts.toMillis?.())/60000):null;
           const html=`<div style="display:flex;flex-direction:column;align-items:center">
@@ -962,7 +965,7 @@ function loadFirestoreData(){
           const onlineN=stripItems.filter(m=>Date.now()-m.ts<600000).length;
           let h='<div style="display:flex;flex-direction:column;margin-right:2px;flex:none"><span style="font-size:10px;font-weight:800;color:#d4a843;letter-spacing:.5px">CREW</span><span style="font-size:9px;color:#22c55e;font-weight:700">'+onlineN+' online</span></div>';
           stripItems.forEach(m=>{
-            const isMe=m.id===myUid;
+            const isMe=m.id===presenceId;
             const on=Date.now()-m.ts<600000;
             const first=(m.name||'Crew').split(' ')[0];
             h+='<div class="crew-strip-item" data-uid="'+m.id+'" style="display:flex;flex-direction:column;align-items:center;gap:1px;flex:none;cursor:pointer">'
@@ -1022,7 +1025,7 @@ function updateProgress(){
 async function updatePresence(){
   if(!myUid||!myPos)return;
   try{
-    await setDoc(doc(db,'shentelPresence',myUid),{
+    await setDoc(doc(db,'shentelPresence',presenceId),{
       name:crewName,uid:myUid,
       avatar:myAvatar||'',
       lat:myPos[0],lon:myPos[1],
