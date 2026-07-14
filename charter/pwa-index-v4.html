@@ -4158,7 +4158,7 @@ function removeGPSGate(){
 }
 
 // ============ VERSION BADGE + UPDATE BUTTON ============
-const APP_VERSION='v79';
+const APP_VERSION='v80';
 (function(){
   const wrap=document.createElement('div');
   wrap.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;display:flex;align-items:center;gap:6px;';
@@ -4319,7 +4319,7 @@ updateOnlineStatus();
 // ============ NUCLEAR CACHE BUST + SW REGISTRATION v53 ============
 (async function nuclearBoot(){
   try{
-    const CURRENT='charter-v79';
+    const CURRENT='charter-v80';
     if('caches' in window){
       const keys = await caches.keys();
       const stale = keys.filter(k => k !== CURRENT && k !== CURRENT+'-tiles');
@@ -4376,18 +4376,19 @@ function showInstallBanner(){
         font-size:28px;flex-shrink:0">🧭</div>
       <div style="flex:1;min-width:0">
         <div style="color:#d4af37;font-weight:700;font-size:15px">Install Global Route</div>
-        <div style="color:#ccc;font-size:12px;margin-top:2px">Add to home screen for quick access</div>
+        <div style="color:#ccc;font-size:12px;margin-top:2px">${_isIOSDevice?'Tap <b>Share</b> (□↑) then <b>"Add to Home Screen"</b>':'Add to home screen for quick access'}</div>
       </div>
-      <button id="pwa-install-btn" style="background:linear-gradient(135deg,#d4af37,#b8962e);
+      ${_isIOSDevice?'':`<button id="pwa-install-btn" style="background:linear-gradient(135deg,#d4af37,#b8962e);
         color:#0f0a1a;border:none;padding:10px 20px;border-radius:10px;
-        font-weight:700;font-size:14px;cursor:pointer;white-space:nowrap">INSTALL</button>
+        font-weight:700;font-size:14px;cursor:pointer;white-space:nowrap">INSTALL</button>`}
       <button id="pwa-install-dismiss" style="background:none;border:none;color:#888;
         font-size:22px;cursor:pointer;padding:4px 8px">✕</button>
     </div>
     <style>@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}</style>
   `;
   document.body.appendChild(banner);
-  document.getElementById('pwa-install-btn').onclick = async () => {
+  const _ibtn=document.getElementById('pwa-install-btn');
+  if(_ibtn)_ibtn.onclick = async () => {
     if(_deferredInstallPrompt){
       _deferredInstallPrompt.prompt();
       const result = await _deferredInstallPrompt.userChoice;

@@ -368,7 +368,7 @@ body[data-mapzoom="lo"] .fiber-lbl,body[data-mapzoom="mid"] .fiber-lbl{display:n
 
 <!-- Version Badge -->
 <div class="version-badge" id="versionBadge" style="display:none">
-  <span class="version-tag">v46</span>
+  <span class="version-tag">v47</span>
   <button class="update-btn" id="updateBtn">🔄 Update</button>
 </div>
 
@@ -617,7 +617,7 @@ let deferredInstall=null;
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredInstall=e});
 function isStandalone(){return window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true}
 function maybeAskInstall(){
-  if(isStandalone()||localStorage.getItem('shentel-install-dismissed'))return;
+  if(isStandalone())return; // ask every open until the app is installed
   const banner=document.getElementById('installBanner');
   const btn=document.getElementById('installBtn');
   if(!banner||!btn)return;
