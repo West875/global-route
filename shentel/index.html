@@ -367,7 +367,7 @@ body[data-mapzoom="lo"] .fiber-lbl,body[data-mapzoom="mid"] .fiber-lbl{display:n
 
 <!-- Version Badge -->
 <div class="version-badge" id="versionBadge" style="display:none">
-  <span class="version-tag">v40</span>
+  <span class="version-tag">v41</span>
   <button class="update-btn" id="updateBtn">🔄 Update</button>
 </div>
 
@@ -538,7 +538,7 @@ const RATE_MAP={};
 RATES.forEach(r=>RATE_MAP[r.code]=r);
 
 /* ── State ── */
-let map,myPos=null,myUid=null,crewName='',followMode=false;
+let map,myPos=null,myUid=null,crewName='',followMode=false,myMarker=null,crewLayer=null,crewMarkers={};
 let spanStages={},ticMarks={},poleNotes={},spanNotes={};
 let storagePts={},splices={},billingData={};
 let poleMarkers={},spanLines={};
