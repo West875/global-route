@@ -367,7 +367,7 @@ body[data-mapzoom="lo"] .fiber-lbl,body[data-mapzoom="mid"] .fiber-lbl{display:n
 
 <!-- Version Badge -->
 <div class="version-badge" id="versionBadge" style="display:none">
-  <span class="version-tag">v41</span>
+  <span class="version-tag">v42</span>
   <button class="update-btn" id="updateBtn">🔄 Update</button>
 </div>
 
@@ -1248,6 +1248,7 @@ function openSpanModal(sp,idx){
 
   if(stage?.strandDate)html+=`<div class="detail-row"><span class="detail-label">Strand Date</span><span class="detail-value">${stage.strandDate}</span></div>`;
   if(stage?.lashDate)html+=`<div class="detail-row"><span class="detail-label">Lash Date</span><span class="detail-value">${stage.lashDate}</span></div>`;
+  if(stage?.reel)html+=`<div class="detail-row"><span class="detail-label">Fiber Reel</span><span class="detail-value">${stage.reel}</span></div>`;
 
   html+=`
     <div class="section-title">Work Info</div>
@@ -1293,7 +1294,15 @@ window._setStage=async(idx,stage)=>{
     stage:stage,crew:crewName,ts:now,updatedAt:now
   };
   if(stage==='strand')data.strandDate=dateStr;
-  if(stage==='lashed'){data.lashDate=dateStr;if(spanStages[sk]?.strandDate)data.strandDate=spanStages[sk].strandDate}
+  if(stage==='lashed'){
+    let reel=localStorage.getItem('shentelReel')||'';
+    const r=prompt('Fiber reel number (on the reel tag):',reel);
+    if(r===null)return;
+    reel=(r||'').trim().toUpperCase();
+    if(!reel){alert('Reel number is required before running fiber.');return}
+    localStorage.setItem('shentelReel',reel);
+    data.reel=reel;
+    data.lashDate=dateStr;if(spanStages[sk]?.strandDate)data.strandDate=spanStages[sk].strandDate}
   try{
     await setDoc(doc(db,'shentelSpanStages','sp_'+sk),data);
     spanStages[sk]=data;
