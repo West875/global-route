@@ -1184,8 +1184,8 @@ window.submitInviteCode=async function(){
     // Add user to node
     await setDoc(doc(db,'charterNodeMembers',`${nodeId}_${currentUser.uid}`),{
       nodeId,uid:currentUser.uid,
-      name:currentUser.displayName||currentUser.email.split('@')[0],
-      email:currentUser.email,
+      name:currentUser.displayName||(currentUser.email?currentUser.email.split('@')[0]:'Crew'),
+      email:currentUser.email||'',
       photoURL:currentUser.photoURL||'',
       joinedAt:serverTimestamp()
     });
@@ -4129,7 +4129,7 @@ function removeGPSGate(){
 }
 
 // ============ VERSION BADGE + UPDATE BUTTON ============
-const APP_VERSION='v70';
+const APP_VERSION='v71';
 (function(){
   const wrap=document.createElement('div');
   wrap.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;display:flex;align-items:center;gap:6px;';
@@ -4171,6 +4171,11 @@ window.onerror=function(msg,src,line,col,err){
 
 // ============ AUTH STATE ============
 onAuthStateChanged(auth,async(user)=>{
+  if(user&&user.isAnonymous){
+    // Anonymous sessions (e.g. from other apps on this domain) are not valid for Charter — force real sign-in
+    await signOut(auth);
+    return;
+  }
   if(user){
     currentUser=user;
     // Request GPS silently in background — no blocking gate
@@ -4285,7 +4290,7 @@ updateOnlineStatus();
 // ============ NUCLEAR CACHE BUST + SW REGISTRATION v53 ============
 (async function nuclearBoot(){
   try{
-    const CURRENT='charter-v70';
+    const CURRENT='charter-v71';
     if('caches' in window){
       const keys = await caches.keys();
       const stale = keys.filter(k => k !== CURRENT && k !== CURRENT+'-tiles');
