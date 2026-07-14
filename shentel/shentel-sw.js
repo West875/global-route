@@ -8,7 +8,8 @@ const ASSETS=[
 ];
 
 self.addEventListener('install',e=>{
-  e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)).then(()=>self.skipWaiting()));
+  // cache:'reload' bypasses HTTP cache so we never precache a stale build
+  e.waitUntil(caches.open(CACHE).then(c=>Promise.all(ASSETS.map(u=>fetch(new Request(u,{cache:'reload'})).then(res=>{if(res.status===200)return c.put(u,res)}).catch(()=>{})))).then(()=>self.skipWaiting()));
 });
 
 self.addEventListener('activate',e=>{
