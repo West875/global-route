@@ -368,7 +368,7 @@ body[data-mapzoom="lo"] .fiber-lbl,body[data-mapzoom="mid"] .fiber-lbl{display:n
 
 <!-- Version Badge -->
 <div class="version-badge" id="versionBadge" style="display:none">
-  <span class="version-tag">v45</span>
+  <span class="version-tag">v46</span>
   <button class="update-btn" id="updateBtn">🔄 Update</button>
 </div>
 
@@ -858,6 +858,13 @@ function loadFirestoreData(){
     });
   }catch(e){}
 
+  // Tree trim (2031 Aerial Line Clearing)
+  try{
+    onSnapshot(collection(db,'shentelTreeTrim'),snap=>{
+      snap.forEach(d=>{const data=d.data();treeTrim[data.sk]=Object.assign({docId:d.id},data)});
+    });
+  }catch(e){}
+
   // Notes
   try{
     onSnapshot(collection(db,'shentelNotes'),snap=>{
@@ -1278,6 +1285,30 @@ function openSpanModal(sp,idx){
     </div>`;
   }
 
+  // ── Tree Trim — Aerial Line Clearing (code 2031), before/after photos mandatory ──
+  const tt=treeTrim[sk];
+  html+=`<div class="section-title">Tree Trim — Aerial Line Clearing</div>`;
+  if(!tt){
+    html+=`
+    <button class="btn-pill" style="width:100%;padding:12px;font-weight:700" onclick="window._ttBefore(${idx})">🌲 Start Tree Trim — 📸 Before Photo</button>
+    <div style="font-size:11px;color:#8a8fa3;margin-top:4px">Camera opens first — a time-stamped BEFORE photo is required to start. An AFTER photo is required to complete.</div>`;
+  }else if(tt.status==='before'){
+    html+=`
+    <div style="display:flex;gap:8px;align-items:center;margin:6px 0">
+      <img src="${tt.beforePhoto}" style="width:84px;height:63px;object-fit:cover;border-radius:8px;border:2px solid #ffd54f">
+      <div style="font-size:12px;color:#ffd54f;font-weight:700">BEFORE taken<br><span style="color:#8a8fa3;font-weight:400">${tt.beforeDate||''} · ${tt.beforeCrew||tt.crew||''}</span></div>
+    </div>
+    <button class="btn-pill" style="width:100%;padding:12px;font-weight:700;background:linear-gradient(135deg,#34d399,#0f9d6e);color:#fff" onclick="window._ttAfter(${idx})">✅ Complete — 📸 After Photo</button>
+    <div style="font-size:11px;color:#8a8fa3;margin-top:4px">Tree trim is NOT logged until the after photo is taken.</div>`;
+  }else{
+    html+=`
+    <div style="display:flex;gap:8px;margin:6px 0">
+      <div style="text-align:center"><img src="${tt.beforePhoto}" style="width:84px;height:63px;object-fit:cover;border-radius:8px;border:2px solid #ffd54f"><div style="font-size:10px;color:#ffd54f;font-weight:700">BEFORE</div></div>
+      <div style="text-align:center"><img src="${tt.afterPhoto}" style="width:84px;height:63px;object-fit:cover;border-radius:8px;border:2px solid #34d399"><div style="font-size:10px;color:#34d399;font-weight:700">AFTER</div></div>
+    </div>
+    <div style="font-size:12px;color:#34d399;font-weight:700">🌲 Tree Trim complete · ${tt.date||''} · ${tt.crew||''}</div>`;
+  }
+
   html+=`
     <div class="section-title">Notes</div>
     <textarea class="note-textarea" id="spanNoteInput" placeholder="Add notes for this span...">${notes?.text||''}</textarea>
@@ -1368,6 +1399,39 @@ window._saveSpanNote=async(idx)=>{
 document.getElementById('poleModal').addEventListener('click',e=>{
   if(e.target.id==='poleModal')document.getElementById('poleModal').classList.remove('open');
 });
+/* ── Tree Trim (2031) — photo-gated ── */
+window._ttBefore=async(idx)=>{
+  const sp=SPANS[idx],sk=sp.sk;
+  const [fp,tp]=spanPoles(sp);
+  let shot;
+  try{shot=await capturePhoto('TREE TRIM — BEFORE',`${fp.num}→${tp.num}`)}
+  catch(e){alert('Before photo is required to start tree trim.');return}
+  const now=new Date();
+  const data={sk:sk,fromPole:sp.f,toPole:sp.t,fromNum:fp.num,toNum:tp.num,ft:sp.ft,code:'2031',workType:'Aerial Line Clearing',
+    status:'before',beforePhoto:shot.dataUrl,beforeDate:now.toLocaleDateString('en-US'),beforeTs:now,
+    beforeLat:shot.lat,beforeLon:shot.lon,beforeCrew:crewName,crew:crewName,ts:now,updatedAt:now};
+  try{
+    await setDoc(doc(db,'shentelTreeTrim','tt_'+sk),data);
+    treeTrim[sk]=data;
+    setTimeout(()=>openSpanModal(sp,idx),200);
+  }catch(e){console.error(e);alert('Save failed — check connection and retry.')}
+};
+window._ttAfter=async(idx)=>{
+  const sp=SPANS[idx],sk=sp.sk;
+  const [fp,tp]=spanPoles(sp);
+  let shot;
+  try{shot=await capturePhoto('TREE TRIM — AFTER',`${fp.num}→${tp.num}`)}
+  catch(e){alert('After photo is required to complete tree trim.');return}
+  const now=new Date();
+  const upd={status:'complete',afterPhoto:shot.dataUrl,afterDate:now.toLocaleDateString('en-US'),afterTs:now,
+    afterLat:shot.lat,afterLon:shot.lon,afterCrew:crewName,date:now.toLocaleDateString('en-US'),updatedAt:now};
+  try{
+    await setDoc(doc(db,'shentelTreeTrim','tt_'+sk),upd,{merge:true});
+    treeTrim[sk]=Object.assign({},treeTrim[sk],upd);
+    setTimeout(()=>openSpanModal(sp,idx),200);
+  }catch(e){console.error(e);alert('Save failed — check connection and retry.')}
+};
+
 document.getElementById('spanModal').addEventListener('click',e=>{
   if(e.target.id==='spanModal')document.getElementById('spanModal').classList.remove('open');
 });
