@@ -367,7 +367,7 @@ body[data-mapzoom="lo"] .fiber-lbl,body[data-mapzoom="mid"] .fiber-lbl{display:n
 
 <!-- Version Badge -->
 <div class="version-badge" id="versionBadge" style="display:none">
-  <span class="version-tag">v38</span>
+  <span class="version-tag">v39</span>
   <button class="update-btn" id="updateBtn">🔄 Update</button>
 </div>
 
@@ -1456,16 +1456,20 @@ document.getElementById('locateBtn').addEventListener('click',()=>{
   btn.style.filter=followMode?'brightness(1.4)':'';
   if(!followMode)return;
   btn.classList.add('locating');
+  // Jump immediately with last known fix, then refine with a fresh one
+  if(myPos&&map){updateMyMarker();map.setView(myPos,18,{animate:true});}
   navigator.geolocation.getCurrentPosition(pos=>{
     myPos=[pos.coords.latitude,pos.coords.longitude];
     updateMyMarker();
-    map.setView(myPos,18);
+    if(map)map.setView(myPos,18);
     btn.classList.remove('locating');
   },err=>{
     btn.classList.remove('locating');
-    followMode=false;btn.style.boxShadow='';btn.style.filter='';
-    alert('Could not get location. Check GPS settings.');
-  },{enableHighAccuracy:true,timeout:10000});
+    if(!myPos){
+      followMode=false;btn.style.boxShadow='';btn.style.filter='';
+      alert('Could not get location. Check GPS settings.');
+    }
+  },{enableHighAccuracy:true,timeout:15000,maximumAge:5000});
 });
 
 /* ── Refresh Button ── */
