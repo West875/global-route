@@ -1,4 +1,4 @@
-const CACHE='shentel-v51';
+const CACHE='shentel-v52';
 const ASSETS=[
   './',
   './index.html',

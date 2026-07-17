@@ -368,7 +368,7 @@ body[data-mapzoom="lo"] .fiber-lbl,body[data-mapzoom="mid"] .fiber-lbl{display:n
 
 <!-- Version Badge -->
 <div class="version-badge" id="versionBadge" style="display:none">
-  <span class="version-tag">v51</span>
+  <span class="version-tag">v52</span>
   <button class="update-btn" id="updateBtn">🔄 Update</button>
 </div>
 
@@ -1111,30 +1111,29 @@ function openPoleModal(p){
       <div class="toggle-switch ${hasSplice?'on':''}" id="spliceToggle" onclick="window._toggleSplice('${p.id}')"></div>
     </div>`;
 
-  // Tic marks — entered at the pole (IN/OUT per cable class passing this pole)
-  const cablesHere={f48:false,f12:false};
-  SPANS.forEach(sp=>{if(sp.f===p.num||sp.t===p.num){if(sp.n48)cablesHere.f48=true;if(sp.n12)cablesHere.f12=true}});
+  // Tic marks — one row PER CABLE (dual-cable spans get a row for each cable)
+  let c48=0,c12=0;
+  SPANS.forEach(sp=>{if(sp.f===p.num||sp.t===p.num){c48=Math.max(c48,sp.n48||0);c12=Math.max(c12,sp.n12||0)}});
+  if(!c48&&!c12){c48=1;c12=1} // no design fiber here — still allow tic entry
   const ticCabs=[];
-  if(cablesHere.f48)ticCabs.push({key:'48F',color:'#ff9100'});
-  if(cablesHere.f12)ticCabs.push({key:'12F',color:'#69f0ae'});
-  if(ticCabs.length){
-    html+=`<div class="section-title">Tic Marks</div>`;
-    ticCabs.forEach(c=>{
-      const t=ticMarks['pole_'+p.id+'_'+c.key];
-      html+=`
-      <div style="font-size:12px;font-weight:700;color:${c.color};margin:8px 0 4px">${c.key} Fiber</div>
-      <div class="tic-row">
-        <span class="tic-label">IN</span>
-        <input class="tic-input" id="pticIn_${c.key}" type="text" value="${t?.ticIn||''}" placeholder="—">
-        <span class="tic-label">OUT</span>
-        <input class="tic-input" id="pticOut_${c.key}" type="text" value="${t?.ticOut||''}" placeholder="—">
-      </div>`;
-    });
+  for(let i=1;i<=c48;i++)ticCabs.push({key:'48F'+(i>1?'_'+i:''),label:'48F Fiber'+(c48>1?' — Cable '+i:''),color:'#ff9100'});
+  for(let i=1;i<=c12;i++)ticCabs.push({key:'12F'+(i>1?'_'+i:''),label:'12F Fiber'+(c12>1?' — Cable '+i:''),color:'#69f0ae'});
+  html+=`<div class="section-title">Tic Marks</div>`;
+  ticCabs.forEach(c=>{
+    const t=ticMarks['pole_'+p.id+'_'+c.key];
     html+=`
-    <div style="margin-top:8px;text-align:right">
-      <button class="btn-pill" id="poleTicSaveBtn" style="flex:none;width:auto;padding:8px 20px" onclick="window._savePoleTic('${p.id}','${p.num}')">Save Tics</button>
+    <div style="font-size:12px;font-weight:700;color:${c.color};margin:8px 0 4px">${c.label}</div>
+    <div class="tic-row">
+      <span class="tic-label">IN</span>
+      <input class="tic-input" id="pticIn_${c.key}" type="text" inputmode="numeric" value="${t?.ticIn||''}" placeholder="—">
+      <span class="tic-label">OUT</span>
+      <input class="tic-input" id="pticOut_${c.key}" type="text" inputmode="numeric" value="${t?.ticOut||''}" placeholder="—">
     </div>`;
-  }
+  });
+  html+=`
+  <div style="margin-top:8px;text-align:right">
+    <button class="btn-pill" id="poleTicSaveBtn" style="flex:none;width:auto;padding:8px 20px" onclick="window._savePoleTic('${p.id}','${p.num}')">Save Tics</button>
+  </div>`;
 
   html+=`
 
@@ -1364,21 +1363,26 @@ window._setStage=async(idx,stage)=>{
 };
 
 window._savePoleTic=async(pid,pnum)=>{
+  const btn=document.getElementById('poleTicSaveBtn');
   try{
-    for(const ck of ['48F','12F']){
-      const inEl=document.getElementById('pticIn_'+ck),outEl=document.getElementById('pticOut_'+ck);
-      if(!inEl&&!outEl)continue;
-      const ticIn=inEl?.value||'';
+    const inEls=document.querySelectorAll('[id^="pticIn_"]');
+    for(const inEl of inEls){
+      const ck=inEl.id.slice(7); // after 'pticIn_'
+      const outEl=document.getElementById('pticOut_'+ck);
+      const ticIn=inEl.value||'';
       const ticOut=outEl?.value||'';
       if(!ticIn&&!ticOut)continue;
       const key='pole_'+pid+'_'+ck;
-      const data={poleId:pid,pole:pnum,cable:ck,ticIn,ticOut,crew:crewName,ts:new Date(),updatedAt:new Date()};
+      const data={poleId:pid,pole:pnum,cable:ck,ticIn,ticOut,crew:crewName||'Crew',ts:new Date(),updatedAt:new Date()};
       await setDoc(doc(db,'shentelTicMarks',key),data);
       ticMarks[key]=data;
     }
-    const btn=document.getElementById('poleTicSaveBtn');
     if(btn){btn.textContent='✓ Saved';setTimeout(()=>{btn.textContent='Save Tics'},1500)}
-  }catch(e){console.error(e)}
+  }catch(e){
+    console.error(e);
+    if(btn){btn.textContent='⚠ Failed — tap to retry';setTimeout(()=>{btn.textContent='Save Tics'},3000)}
+    alert('Tic save failed: '+(e.message||e)+'\nCheck signal and try again.');
+  }
 };
 
 window._toggleStorage=async(idx)=>{
