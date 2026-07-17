@@ -3470,8 +3470,8 @@ window.logBilling=async function(poleId){
   const qty=parseFloat($('bill-qty-'+poleId)?.value);
   if(!code||!qty||qty<=0){alert('Enter a valid quantity');return;}
   
-  // These codes require before/after photos
-  const PHOTO_REQUIRED=['MC04','AS12','AS18'];
+  // These codes require before/after photos (AS18 make-ready photos removed per D. West 7/17)
+  const PHOTO_REQUIRED=['MC04','AS12'];
   if(PHOTO_REQUIRED.includes(code)){
     openPhotoRequiredFlow(poleId,qty,code);
     return;
@@ -4158,7 +4158,7 @@ function removeGPSGate(){
 }
 
 // ============ VERSION BADGE + UPDATE BUTTON ============
-const APP_VERSION='v82';
+const APP_VERSION='v83';
 (function(){
   const wrap=document.createElement('div');
   wrap.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;display:flex;align-items:center;gap:6px;';
@@ -4319,7 +4319,7 @@ updateOnlineStatus();
 // ============ NUCLEAR CACHE BUST + SW REGISTRATION v53 ============
 (async function nuclearBoot(){
   try{
-    const CURRENT='charter-v82';
+    const CURRENT='charter-v83';
     if('caches' in window){
       const keys = await caches.keys();
       const stale = keys.filter(k => k !== CURRENT && k !== CURRENT+'-tiles');
