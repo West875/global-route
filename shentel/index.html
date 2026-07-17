@@ -368,7 +368,7 @@ body[data-mapzoom="lo"] .fiber-lbl,body[data-mapzoom="mid"] .fiber-lbl{display:n
 
 <!-- Version Badge -->
 <div class="version-badge" id="versionBadge" style="display:none">
-  <span class="version-tag">v52</span>
+  <span class="version-tag">v53</span>
   <button class="update-btn" id="updateBtn">🔄 Update</button>
 </div>
 
@@ -702,6 +702,7 @@ async function initApp(){
   }catch(e){console.warn('Auth error:',e)}
 
   initMap();
+  renderCrewStorage(); // draw any crew-placed storage once map exists
   initSearch();
   initTabs();
   loadFirestoreData();
@@ -896,6 +897,7 @@ function loadFirestoreData(){
     onSnapshot(collection(db,'shentelStorage'),snap=>{
       storagePts={};
       snap.forEach(d=>{storagePts[d.id]=d.data()});
+      renderCrewStorage();
     });
   }catch(e){}
 
@@ -1250,7 +1252,6 @@ function openSpanModal(sp,idx){
   const stage=spanStages[sk];
   const curStage=stage?.stage||'planned';
   const notes=spanNotes[sk];
-  const hasStorage=!!storagePts['sp_'+sk];
   const cables=spanCables(sp);
   let chips=cables.map(c=>`<span style="padding:4px 10px;border-radius:6px;font-size:12px;font-weight:700;background:${c.color}26;color:${c.color};border:1px solid ${c.color}">${c.label}</span>`).join('');
   if(!cables.length)chips=`<span style="padding:4px 10px;border-radius:6px;font-size:12px;font-weight:700;background:rgba(255,213,79,0.15);color:#ffd54f;border:1px solid #ffd54f">${sp.guy?'Guy / OHG':'Strand only'}</span>`;
@@ -1285,19 +1286,25 @@ function openSpanModal(sp,idx){
     // Tic marks live on the POLE modal — show read-only summary here if any exist
     let ticSummary='';
     [fp,tp].forEach(pp=>{
-      ['48F','12F'].forEach(ck=>{
+      ['48F','48F_2','12F','12F_2'].forEach(ck=>{
         const t=ticMarks['pole_'+pp.id+'_'+ck];
         if(t&&(t.ticIn||t.ticOut))ticSummary+=`<div class="detail-row"><span class="detail-label">Pole ${pp.num} · ${ck}</span><span class="detail-value">IN ${t.ticIn||'—'} / OUT ${t.ticOut||'—'}</span></div>`;
       });
     });
     if(ticSummary)html+=`<div class="section-title">Tic Marks (entered at poles)</div>${ticSummary}`;
-    html+=`
-    <div class="section-title">Storage Loop</div>
-    <div class="toggle-row">
-      <span class="toggle-label">∞ Storage on cable (150')</span>
-      <div class="toggle-switch ${hasStorage?'on':''}" id="storageToggle" onclick="window._toggleStorage(${idx})"></div>
-    </div>`;
   }
+  // Storage — per cable, available on every span
+  html+=`<div class="section-title">Storage Loop — ∞ 150' coil</div>`;
+  const stCabs=cables.length?cables:[{key:'CABLE',label:'Cable',color:'#ffd54f'}];
+  stCabs.forEach((c,ci)=>{
+    const skey=window._stKey(sk,c.key,ci);
+    const on=!!storagePts[skey];
+    html+=`
+    <div class="toggle-row">
+      <span class="toggle-label" style="color:${c.color}">∞ ${c.label} storage (150')</span>
+      <div class="toggle-switch ${on?'on':''}" id="storageToggle_${c.key}" onclick="window._toggleStorage(${idx},'${c.key}',${ci})"></div>
+    </div>`;
+  });
 
   // ── Tree Trim — Aerial Line Clearing (code 2031), before/after photos mandatory ──
   const tt=treeTrim[sk];
@@ -1385,22 +1392,55 @@ window._savePoleTic=async(pid,pnum)=>{
   }
 };
 
-window._toggleStorage=async(idx)=>{
+let crewStorageLayer=null;
+const SPAN_BY_SK={};SPANS.forEach((s,i)=>{SPAN_BY_SK[s.sk]=i});
+const CREW_ST_COLORS={'48F':'#FF8C00','48F-2':'#FF8C00','12F':'#2e7d32','12F-2':'#2e7d32'};
+function renderCrewStorage(){
+  if(!map)return;
+  if(!crewStorageLayer)crewStorageLayer=L.layerGroup().addTo(map);
+  crewStorageLayer.clearLayers();
+  const seen={};
+  Object.values(storagePts).forEach(st=>{
+    if(!st||!st.sk)return;
+    const idx=SPAN_BY_SK[st.sk];if(idx===undefined)return;
+    const sp=SPANS[idx];const [fp,tp]=spanPoles(sp);if(!fp||!tp)return;
+    const n=(seen[st.sk]=(seen[st.sk]||0)+1); // stack multiple coils on same span
+    const t=0.5+((n-1)*0.12);
+    const lat=fp.lat+(tp.lat-fp.lat)*Math.min(t,0.9),lon=fp.lon+(tp.lon-fp.lon)*Math.min(t,0.9);
+    const col=CREW_ST_COLORS[st.cable]||'#ffd54f';
+    const mk=L.marker([lat,lon],{icon:L.divIcon({className:'',
+      html:`<div style="font-size:17px;font-weight:900;color:${col};text-shadow:0 0 3px #000,0 0 4px #000;line-height:1">∞</div>`,
+      iconSize:[20,18],iconAnchor:[10,9]}),interactive:true});
+    mk.bindPopup(`<div style="font-size:13px;font-weight:600;color:${col}">∞ 150' Storage${st.cable&&st.cable!=='CABLE'?' — '+st.cable:''}</div><div style="font-size:10px;color:#888">Placed by ${st.crew||'crew'}</div>`,{className:'dark-popup'});
+    crewStorageLayer.addLayer(mk);
+  });
+}
+// per-cable storage key — first cable honors legacy 'sp_{sk}' docs
+window._stKey=(sk,cabKey,ci)=>{
+  if(ci===0&&storagePts['sp_'+sk])return 'sp_'+sk;
+  return 'sp_'+sk+'_'+cabKey;
+};
+window._toggleStorage=async(idx,cabKey,ci)=>{
   const sp=SPANS[idx],sk=sp.sk;
-  const key='sp_'+sk;
-  if(storagePts[key]){
-    try{await deleteDoc(doc(db,'shentelStorage',key))}catch(e){}
-    delete storagePts[key];
-  }else{
-    try{
-      await setDoc(doc(db,'shentelStorage',key),{
-        sk:sk,fromPole:sp.f,toPole:sp.t,footage:150,crew:crewName,ts:new Date(),createdAt:new Date()
-      });
-      storagePts[key]={sk:sk,footage:150};
-    }catch(e){}
+  cabKey=cabKey||'CABLE';ci=ci||0;
+  const key=window._stKey(sk,cabKey,ci);
+  const toggle=document.getElementById('storageToggle_'+cabKey);
+  try{
+    if(storagePts[key]){
+      await deleteDoc(doc(db,'shentelStorage',key));
+      if(ci===0&&key==='sp_'+sk){try{await deleteDoc(doc(db,'shentelStorage','sp_'+sk+'_'+cabKey))}catch(e){}}
+      delete storagePts[key];
+    }else{
+      const data={sk:sk,fromPole:sp.f,toPole:sp.t,cable:cabKey,footage:150,crew:crewName||'Crew',ts:new Date(),createdAt:new Date()};
+      await setDoc(doc(db,'shentelStorage','sp_'+sk+'_'+cabKey),data);
+      storagePts['sp_'+sk+'_'+cabKey]=data;
+    }
+    if(toggle)toggle.classList.toggle('on');
+    renderCrewStorage();
+  }catch(e){
+    console.error(e);
+    alert('Storage save failed: '+(e.message||e)+'\nCheck signal and try again.');
   }
-  const toggle=document.getElementById('storageToggle');
-  if(toggle)toggle.classList.toggle('on');
 };
 
 window._saveSpanNote=async(idx)=>{
