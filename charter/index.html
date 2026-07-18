@@ -108,7 +108,7 @@ window.onerror=function(msg,src,line,col,err){
 window.addEventListener('unhandledrejection',function(e){
   var msg=(e.reason?.message||e.reason||'unknown');
   // Suppress SW update errors — not critical
-  if(typeof msg==='string' && msg.indexOf('ServiceWorker')!==-1){console.warn('SW:',msg);return;}
+  if(typeof msg==='string' && /service ?worker/i.test(msg)){console.warn('SW:',msg);return;}
   var d=document.createElement('div');
   d.style.cssText='position:fixed;top:0;left:0;right:0;z-index:999999;background:#dc2626;color:white;padding:12px;font-size:12px;font-family:monospace;word-break:break-all;max-height:40vh;overflow:auto;';
   d.textContent='PROMISE ERROR: '+msg;
@@ -4158,7 +4158,7 @@ function removeGPSGate(){
 }
 
 // ============ VERSION BADGE + UPDATE BUTTON ============
-const APP_VERSION='v83';
+const APP_VERSION='v84';
 (function(){
   const wrap=document.createElement('div');
   wrap.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;display:flex;align-items:center;gap:6px;';
@@ -4319,7 +4319,7 @@ updateOnlineStatus();
 // ============ NUCLEAR CACHE BUST + SW REGISTRATION v53 ============
 (async function nuclearBoot(){
   try{
-    const CURRENT='charter-v83';
+    const CURRENT='charter-v84';
     if('caches' in window){
       const keys = await caches.keys();
       const stale = keys.filter(k => k !== CURRENT && k !== CURRENT+'-tiles');
@@ -4338,7 +4338,7 @@ updateOnlineStatus();
     if('serviceWorker' in navigator){
       const reg = await navigator.serviceWorker.register('./charter-sw.js', { updateViaCache: 'none' });
       console.log('Charter SW registered, scope:',reg.scope);
-      reg.update();
+      try{ await reg.update(); }catch(e){ console.warn('SW update skipped:', e.message); }
       // Auto-reload when new SW activates
       reg.addEventListener('updatefound', () => {
         const nw = reg.installing;
