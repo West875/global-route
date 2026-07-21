@@ -1918,6 +1918,7 @@ window.openPole=function(poleId){
       <button onclick="${done?`undoComplete('${poleId}')`:`markComplete('${poleId}')`}" class="btn-primary p-4 rounded-xl text-sm font-semibold ${done?'btn-amber':'btn-green'}" style="min-height:52px">${done?'↩️ Undo':'✅ Done'}</button>
     </div>
     <button onclick="toggleBilling('${poleId}')" class="btn-primary w-full p-4 rounded-xl text-base font-semibold mb-3 flex items-center justify-center gap-2" style="background:linear-gradient(135deg,#3b82f6,#7c3aed);min-height:52px">💰 Log Work / Billing</button>
+    <button id="mr-btn-${poleId}" onclick="logMakeReady('${poleId}')" class="w-full p-4 rounded-xl text-base font-semibold mb-3 flex items-center justify-center gap-2" style="min-height:52px;background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff">🔧 Make Ready (AS18)${(()=>{const n=poleBilling.filter(([id,b])=>b.code==='AS18').reduce((s,[id,b])=>s+(b.qty||1),0);return n?` — ${n} logged`:''})()}</button>
     
     <!-- Splice Enclosure Toggle -->
     <button id="splice-btn-${poleId}" onclick="window._toggleSplice('${poleId}')" class="w-full p-4 rounded-xl text-base font-semibold mb-3 flex items-center justify-center gap-2" style="min-height:52px;background:${window._poleSplices?.[poleId]?'linear-gradient(135deg,#f59e0b,#d97706)':'rgba(245,158,11,0.12)'};border:2px solid ${window._poleSplices?.[poleId]?'white':'rgba(245,158,11,0.3)'};color:${window._poleSplices?.[poleId]?'#fff':'#f59e0b'};cursor:pointer">
@@ -3465,6 +3466,20 @@ window.deleteNote=async function(noteId){
   vibrate();
 };
 
+const CLIENT_RATES={'AS18':45.50,'MC04':50.00,'AS02':0.40,'AS26':20.00,'AS12':0,'AS01':0};
+function easternDate(){
+  return new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+}
+async function writeBillingDoc(poleId,code,qty){
+  const cr=CLIENT_RATES[code];
+  const docData={
+    nodeId:currentNodeId,poleId,code,qty,uid:currentUser.uid,
+    userName:currentUser.displayName||currentUser.email.split('@')[0],
+    date:easternDate(),createdAt:serverTimestamp()
+  };
+  if(cr!==undefined&&cr>0){docData.clientRate=cr;docData.clientTotal=Math.round(cr*qty*100)/100;}
+  await addDoc(collection(db,'charterBilling'),docData);
+}
 window.logBilling=async function(poleId){
   const code=$('bill-code-'+poleId)?.value;
   const qty=parseFloat($('bill-qty-'+poleId)?.value);
@@ -3478,12 +3493,27 @@ window.logBilling=async function(poleId){
   }
   
   vibrate();playSound('done');
-  await addDoc(collection(db,'charterBilling'),{
-    nodeId:currentNodeId,poleId,code,qty,uid:currentUser.uid,
-    userName:currentUser.displayName||currentUser.email.split('@')[0],
-    createdAt:serverTimestamp()
-  });
+  try{
+    await writeBillingDoc(poleId,code,qty);
+  }catch(e){
+    alert('⚠ Save failed — check signal and try again');return;
+  }
+  const name=(CHARTER_CODES.find(c=>c.code===code)||{}).name||code;
+  showBanner(`✅ ${code} logged — ${name}`,'#059669');
   $('bill-qty-'+poleId).value='';
+  openPole(poleId);
+};
+window.logMakeReady=async function(poleId){
+  vibrate();playSound('done');
+  const btn=$('mr-btn-'+poleId);
+  if(btn){btn.style.opacity='0.5';btn.style.pointerEvents='none';}
+  try{
+    await writeBillingDoc(poleId,'AS18',1);
+  }catch(e){
+    if(btn){btn.style.opacity='1';btn.style.pointerEvents='auto';}
+    alert('⚠ Save failed — check signal and try again');return;
+  }
+  showBanner('🔧 Make Ready (AS18) logged — tap again to add another unit','#7c3aed');
   openPole(poleId);
 };
 
@@ -3510,7 +3540,7 @@ window.openPhotoRequiredFlow=function(poleId,qty,code){
   modal.innerHTML=`
     <div class="modal-content" style="max-width:500px">
       <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-bold">${info.icon} ${info.title} — ${poleName}</h2>
+        <h2 class="text-lg font-bold">${info.icon} ${info.title} — ${poleLabel}</h2>
         <button onclick="closePhotoFlow()" class="text-gray-400 text-2xl">&times;</button>
       </div>
       <p class="text-sm text-gray-400 mb-4">Take a <strong>BEFORE</strong> photo first, then do the work, then take an <strong>AFTER</strong> photo.</p>
