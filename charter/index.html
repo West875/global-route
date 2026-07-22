@@ -1952,47 +1952,43 @@ window.openPole=function(poleId){
       </div>`;
     })()}
     
-    <!-- Tic Mark — dual cable for poles on lashed spans -->
+    <!-- Tic Mark — per-cable rows from SPAN_FIBER of ALL connecting spans (incl. off-legs) -->
     ${(()=>{
-      const hasLashed = SPAN_DATA.some(s => {
-        const sk = s.f+'_'+s.t;
-        const skR = s.t+'_'+s.f;
-        return (s.f===poleId||s.t===poleId) && (spanStages[sk]==='lashed'||spanStages[skR]==='lashed');
-      });
-      if(hasLashed){
-        const t96 = ticMarks[poleId+'_96CT'];
-        const t48 = ticMarks[poleId+'_48CT'];
+      const adj = SPAN_DATA.filter(s => s.f===poleId || s.t===poleId);
+      const worked = adj.filter(s => ['lashed','overlashed'].includes(spanStages[s.f+'_'+s.t] || spanStages[s.t+'_'+s.f]));
+      let cables = [...new Set(adj.flatMap(s => SPAN_FIBER[s.f+'_'+s.t] || SPAN_FIBER[s.t+'_'+s.f] || []))];
+      if(!cables.length && worked.length) cables = ['96CT','48CT'];
+      const order = {'96CT':0,'48CT':1,'12CT':2};
+      cables.sort((a,b)=>(order[a]??9)-(order[b]??9));
+      if(cables.length){
+        const C = {'96CT':['#ef4444','239,68,68','\u{1F534}'],'48CT':['#22c55e','34,197,94','\u{1F7E2}'],'12CT':['#3b82f6','59,130,246','\u{1F535}']};
         return `<div class="glass rounded-xl p-3 mb-4">
           <div class="flex items-center justify-between mb-2">
-            <h3 class="font-semibold text-sm text-gray-400">📏 TIC MARKS</h3>
+            <h3 class="font-semibold text-sm text-gray-400">\u{1F4CF} TIC MARKS</h3>
             <span class="text-xs text-gray-500" id="tic-saved-${poleId}"></span>
           </div>
-          <div style="margin-bottom:10px;padding:10px;border-radius:10px;border:2px solid rgba(239,68,68,0.4);background:rgba(239,68,68,0.08)">
-            <div style="font-size:13px;font-weight:700;color:#ef4444;margin-bottom:6px">🔴 96 CT Fiber</div>
+          ${cables.map((c,ci)=>{
+            const col = C[c] || ['#fbbf24','251,191,36','\u{1F7E1}'];
+            const t = ticMarks[poleId+'_'+c];
+            return `<div style="${ci<cables.length-1?'margin-bottom:10px;':''}padding:10px;border-radius:10px;border:2px solid rgba(${col[1]},0.4);background:rgba(${col[1]},0.08)">
+            <div style="font-size:13px;font-weight:700;color:${col[0]};margin-bottom:6px">${col[2]} ${c.replace('CT',' CT')} Fiber</div>
             <div class="flex gap-2">
-              <input id="tic-input-${poleId}-96CT" class="input-field text-sm flex-1" type="number" inputmode="numeric" placeholder="Footage..." value="${t96?.footage||''}" min="0" step="1">
-              <button onclick="saveTicMark('${poleId}','96CT')" style="padding:8px 16px;border-radius:10px;background:linear-gradient(135deg,#ef4444,#dc2626);border:none;color:#fff;font-size:13px;font-weight:700;cursor:pointer">💾 Save</button>
+              <input id="tic-input-${poleId}-${c}" class="input-field text-sm flex-1" type="number" inputmode="numeric" placeholder="Footage..." value="${t?.footage||''}" min="0" step="1">
+              <button onclick="saveTicMark('${poleId}','${c}')" style="padding:8px 16px;border-radius:10px;background:${col[0]};border:none;color:#fff;font-size:13px;font-weight:700;cursor:pointer">\u{1F4BE} Save</button>
             </div>
-            ${t96?'<div style="font-size:11px;color:#9ca3af;margin-top:4px">Last: '+t96.footage+' ft by '+(t96.userName||'')+'</div>':''}
-          </div>
-          <div style="padding:10px;border-radius:10px;border:2px solid rgba(34,197,94,0.4);background:rgba(34,197,94,0.08)">
-            <div style="font-size:13px;font-weight:700;color:#22c55e;margin-bottom:6px">🟢 48 CT Fiber</div>
-            <div class="flex gap-2">
-              <input id="tic-input-${poleId}-48CT" class="input-field text-sm flex-1" type="number" inputmode="numeric" placeholder="Footage..." value="${t48?.footage||''}" min="0" step="1">
-              <button onclick="saveTicMark('${poleId}','48CT')" style="padding:8px 16px;border-radius:10px;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;color:#fff;font-size:13px;font-weight:700;cursor:pointer">💾 Save</button>
-            </div>
-            ${t48?'<div style="font-size:11px;color:#9ca3af;margin-top:4px">Last: '+t48.footage+' ft by '+(t48.userName||'')+'</div>':''}
-          </div>
+            ${t?'<div style="font-size:11px;color:#9ca3af;margin-top:4px">Last: '+t.footage+' ft by '+(t.userName||'')+'</div>':''}
+          </div>`;
+          }).join('')}
         </div>`;
       } else {
         return `<div class="glass rounded-xl p-3 mb-4">
           <div class="flex items-center justify-between mb-2">
-            <h3 class="font-semibold text-sm text-gray-400">📏 TIC MARK (footage)</h3>
+            <h3 class="font-semibold text-sm text-gray-400">\u{1F4CF} TIC MARK (footage)</h3>
             <span class="text-xs text-gray-500" id="tic-saved-${poleId}"></span>
           </div>
           <div class="flex gap-2">
             <input id="tic-input-${poleId}" class="input-field text-sm flex-1" type="number" placeholder="Enter tic mark footage..." value="${ticMarks[poleId]?.footage||''}" min="0" step="1">
-            <button onclick="saveTicMark('${poleId}')" class="btn-gold p-2 rounded-xl text-sm px-4">💾 Save</button>
+            <button onclick="saveTicMark('${poleId}')" class="btn-gold p-2 rounded-xl text-sm px-4">\u{1F4BE} Save</button>
           </div>
           ${ticMarks[poleId]?'<div class="text-xs text-gray-500 mt-1">Last: '+ticMarks[poleId].footage+' ft by '+(ticMarks[poleId].userName||'')+'</div>':''}
         </div>`;
@@ -2584,82 +2580,65 @@ function showSpanModal(span, spanKey, p1, p2){
         </div>
       </div>`;
       })() : ''}
-      <!-- Tic Mark In/Out — dual cable for lashed, single for others -->
-      ${(stage === 'lashed' && !window._spanStrandOnly?.[spanKey]) ? `
-      <div style="margin-top:12px;padding:12px;border-radius:12px;background:rgba(255,255,255,0.05);border:2px solid rgba(239,68,68,0.4)">
-        <div style="color:#ef4444;font-size:14px;font-weight:700;margin-bottom:8px">🔴 96 CT Fiber${(()=>{
-          const tc = SPAN_TAP_COUNTS['${spanKey}'] || 0;
-          return tc > 0 ? ' <span style="color:#f59e0b;font-size:11px;font-weight:400">• ' + tc + ' tap' + (tc>1?'s':'') + ' ('+tc*100+' ft auto)</span>' : '';
-        })()}</div>
+      <!-- Tic Mark In/Out — per-cable rows from SPAN_FIBER design truth -->
+      ${(()=>{
+        const rev = spanKey.split('_').reverse().join('_');
+        const fib = SPAN_FIBER[spanKey] || SPAN_FIBER[rev] || [];
+        const strandOnly = !!window._spanStrandOnly?.[spanKey];
+        let cables = null;
+        if(!strandOnly && fib.length > 0) cables = fib;
+        else if(!strandOnly && (stage === 'lashed' || stage === 'overlashed')) cables = ['96CT','48CT'];
+        if(cables){
+          const C = {'96CT':['#ef4444','239,68,68','\u{1F534}'],'48CT':['#22c55e','34,197,94','\u{1F7E2}'],'12CT':['#3b82f6','59,130,246','\u{1F535}']};
+          return cables.map((c,i)=>{
+            const col = C[c] || ['#fbbf24','251,191,36','\u{1F7E1}'];
+            const tc = (i===0) ? (SPAN_TAP_COUNTS[spanKey] || 0) : 0;
+            const tapNote = tc > 0 ? ' <span style="color:#f59e0b;font-size:11px;font-weight:400">\u2022 ' + tc + ' tap' + (tc>1?'s':'') + ' ('+(tc*100)+' ft auto)</span>' : '';
+            const d = window._spanTicData?.[spanKey + '_' + c];
+            const res = (d && d.ticIn != null && d.ticOut != null) ? '\u{1F4E6} ' + (d.ticOut - d.ticIn).toLocaleString() + ' ft' + (d.savedBy ? ' \u2022 ' + d.savedBy : '') : '';
+            return `
+      <div style="margin-top:${i===0?12:8}px;padding:12px;border-radius:12px;background:rgba(255,255,255,0.05);border:2px solid rgba(${col[1]},0.4)">
+        <div style="color:${col[0]};font-size:14px;font-weight:700;margin-bottom:8px">${col[2]} ${c.replace('CT',' CT')} Fiber${tapNote}</div>
         <div style="display:flex;gap:8px;margin-bottom:6px">
           <div style="flex:1">
             <label style="color:#94a3b8;font-size:11px;font-weight:600;display:block;margin-bottom:4px">IN (ft)</label>
-            <input id="span-tic-in-96CT" type="number" inputmode="numeric" min="0" step="1" placeholder="Start" value="${window._spanTicData?.['${spanKey}_96CT']?.ticIn??''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(239,68,68,0.3);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorageCable('${spanKey}','96CT')">
+            <input id="span-tic-in-${c}" type="number" inputmode="numeric" min="0" step="1" placeholder="Start" value="${d?.ticIn ?? ''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(${col[1]},0.3);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorageCable('${spanKey}','${c}')">
           </div>
           <div style="flex:1">
             <label style="color:#94a3b8;font-size:11px;font-weight:600;display:block;margin-bottom:4px">OUT (ft)</label>
-            <input id="span-tic-out-96CT" type="number" inputmode="numeric" min="0" step="1" placeholder="End" value="${window._spanTicData?.['${spanKey}_96CT']?.ticOut??''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(239,68,68,0.3);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorageCable('${spanKey}','96CT')">
+            <input id="span-tic-out-${c}" type="number" inputmode="numeric" min="0" step="1" placeholder="End" value="${d?.ticOut ?? ''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(${col[1]},0.3);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorageCable('${spanKey}','${c}')">
           </div>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;min-height:24px">
-          <span id="span-tic-result-96CT" style="color:#ef4444;font-size:12px;font-weight:600">${(()=>{
-            const d=window._spanTicData?.['${spanKey}_96CT'];
-            if(d&&d.ticIn!=null&&d.ticOut!=null){return '📦 '+(d.ticOut-d.ticIn).toLocaleString()+' ft'+(d.savedBy?' • '+d.savedBy:'');}
-            return '';
-          })()}</span>
-          <span id="span-tic-status-96CT" style="color:#94a3b8;font-size:11px"></span>
+          <span id="span-tic-result-${c}" style="color:${col[0]};font-size:12px;font-weight:600">${res}</span>
+          <span id="span-tic-status-${c}" style="color:#94a3b8;font-size:11px"></span>
         </div>
-        <button onclick="window._saveSpanTicCable('${spanKey}','96CT')" style="width:100%;padding:10px;border-radius:10px;background:linear-gradient(135deg,#ef4444,#dc2626);border:none;color:#fff;font-size:14px;font-weight:700;cursor:pointer;margin-top:6px">💾 Save 96 CT</button>
-      </div>
-      <div style="margin-top:8px;padding:12px;border-radius:12px;background:rgba(255,255,255,0.05);border:2px solid rgba(34,197,94,0.4)">
-        <div style="color:#22c55e;font-size:14px;font-weight:700;margin-bottom:8px">🟢 48 CT Fiber</div>
-        <div style="display:flex;gap:8px;margin-bottom:6px">
-          <div style="flex:1">
-            <label style="color:#94a3b8;font-size:11px;font-weight:600;display:block;margin-bottom:4px">IN (ft)</label>
-            <input id="span-tic-in-48CT" type="number" inputmode="numeric" min="0" step="1" placeholder="Start" value="${window._spanTicData?.['${spanKey}_48CT']?.ticIn??''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(34,197,94,0.3);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorageCable('${spanKey}','48CT')">
-          </div>
-          <div style="flex:1">
-            <label style="color:#94a3b8;font-size:11px;font-weight:600;display:block;margin-bottom:4px">OUT (ft)</label>
-            <input id="span-tic-out-48CT" type="number" inputmode="numeric" min="0" step="1" placeholder="End" value="${window._spanTicData?.['${spanKey}_48CT']?.ticOut??''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(34,197,94,0.3);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorageCable('${spanKey}','48CT')">
-          </div>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;min-height:24px">
-          <span id="span-tic-result-48CT" style="color:#22c55e;font-size:12px;font-weight:600">${(()=>{
-            const d=window._spanTicData?.['${spanKey}_48CT'];
-            if(d&&d.ticIn!=null&&d.ticOut!=null){return '📦 '+(d.ticOut-d.ticIn).toLocaleString()+' ft'+(d.savedBy?' • '+d.savedBy:'');}
-            return '';
-          })()}</span>
-          <span id="span-tic-status-48CT" style="color:#94a3b8;font-size:11px"></span>
-        </div>
-        <button onclick="window._saveSpanTicCable('${spanKey}','48CT')" style="width:100%;padding:10px;border-radius:10px;background:linear-gradient(135deg,#22c55e,#16a34a);border:none;color:#fff;font-size:14px;font-weight:700;cursor:pointer;margin-top:6px">💾 Save 48 CT</button>
-      </div>
-      ` : `
+        <button onclick="window._saveSpanTicCable('${spanKey}','${c}')" style="width:100%;padding:10px;border-radius:10px;background:${col[0]};border:none;color:#fff;font-size:14px;font-weight:700;cursor:pointer;margin-top:6px">\u{1F4BE} Save ${c.replace('CT',' CT')}</button>
+      </div>`;
+          }).join('');
+        }
+        const gd = window._spanTicData?.[spanKey];
+        const gtc = SPAN_TAP_COUNTS[spanKey] || 0;
+        return `
       <div style="margin-top:12px;padding:12px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1)">
-        <div style="color:#fbbf24;font-size:13px;font-weight:600;margin-bottom:8px">📏 Tic Marks (Cable Storage)${(()=>{
-          const tc = SPAN_TAP_COUNTS['${spanKey}'] || 0;
-          return tc > 0 ? ' <span style="color:#f59e0b;font-size:11px;font-weight:400">• ' + tc + ' tap' + (tc>1?'s':'') + ' ('+tc*100+' ft auto)</span>' : '';
-        })()}</div>
+        <div style="color:#fbbf24;font-size:13px;font-weight:600;margin-bottom:8px">\u{1F4CF} Tic Marks (Cable Storage)${gtc>0?' <span style="color:#f59e0b;font-size:11px;font-weight:400">\u2022 '+gtc+' tap'+(gtc>1?'s':'')+' ('+(gtc*100)+' ft auto)</span>':''}</div>
         <div style="display:flex;gap:8px;margin-bottom:6px">
           <div style="flex:1">
             <label style="color:#94a3b8;font-size:11px;font-weight:600;display:block;margin-bottom:4px">IN (ft)</label>
-            <input id="span-tic-in" type="number" inputmode="numeric" min="0" step="1" placeholder="Start reading" value="${window._spanTicData?.['${spanKey}']?.ticIn||''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorage('${spanKey}')">
+            <input id="span-tic-in" type="number" inputmode="numeric" min="0" step="1" placeholder="Start reading" value="${gd?.ticIn ?? ''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorage('${spanKey}')">
           </div>
           <div style="flex:1">
             <label style="color:#94a3b8;font-size:11px;font-weight:600;display:block;margin-bottom:4px">OUT (ft)</label>
-            <input id="span-tic-out" type="number" inputmode="numeric" min="0" step="1" placeholder="End reading" value="${window._spanTicData?.['${spanKey}']?.ticOut||''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorage('${spanKey}')">
+            <input id="span-tic-out" type="number" inputmode="numeric" min="0" step="1" placeholder="End reading" value="${gd?.ticOut ?? ''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorage('${spanKey}')">
           </div>
         </div>
         <div id="span-tic-storage" style="display:flex;justify-content:space-between;align-items:center;min-height:28px">
-          <span id="span-tic-result" style="color:#22c55e;font-size:13px;font-weight:600">${(()=>{
-            const d=window._spanTicData?.['${spanKey}'];
-            if(d&&d.ticIn!=null&&d.ticOut!=null){const diff=d.ticOut-d.ticIn;return '📦 Storage: '+diff.toLocaleString()+' ft'+(d.savedBy?' • by '+d.savedBy:'');}
-            return '';
-          })()}</span>
+          <span id="span-tic-result" style="color:#22c55e;font-size:13px;font-weight:600">${(gd&&gd.ticIn!=null&&gd.ticOut!=null)?'\u{1F4E6} Storage: '+(gd.ticOut-gd.ticIn).toLocaleString()+' ft'+(gd.savedBy?' \u2022 by '+gd.savedBy:''):''}</span>
           <span id="span-tic-status" style="color:#94a3b8;font-size:11px"></span>
         </div>
-        <button onclick="window._saveSpanTic('${spanKey}')" style="width:100%;padding:10px;border-radius:10px;background:linear-gradient(135deg,#fbbf24,#f59e0b);border:none;color:#000;font-size:14px;font-weight:700;cursor:pointer;margin-top:6px;transition:all 0.2s">💾 Save Tic Marks</button>
-      </div>
-      `}
+        <button onclick="window._saveSpanTic('${spanKey}')" style="width:100%;padding:10px;border-radius:10px;background:linear-gradient(135deg,#fbbf24,#f59e0b);border:none;color:#000;font-size:14px;font-weight:700;cursor:pointer;margin-top:6px;transition:all 0.2s">\u{1F4BE} Save Tic Marks</button>
+      </div>`;
+      })()}
       <div style="color:#64748b;font-size:11px;text-align:center;margin-top:8px">Tap a stage to update • Changes sync in real-time</div>
     </div>
   `;
@@ -4188,7 +4167,7 @@ function removeGPSGate(){
 }
 
 // ============ VERSION BADGE + UPDATE BUTTON ============
-const APP_VERSION='v84';
+const APP_VERSION='v86';
 (function(){
   const wrap=document.createElement('div');
   wrap.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;display:flex;align-items:center;gap:6px;';
@@ -4349,7 +4328,7 @@ updateOnlineStatus();
 // ============ NUCLEAR CACHE BUST + SW REGISTRATION v53 ============
 (async function nuclearBoot(){
   try{
-    const CURRENT='charter-v84';
+    const CURRENT='charter-v86';
     if('caches' in window){
       const keys = await caches.keys();
       const stale = keys.filter(k => k !== CURRENT && k !== CURRENT+'-tiles');
