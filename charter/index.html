@@ -2904,6 +2904,17 @@ window.setSpanStage = async function(spanKey, stage){
     showBanner('Span reset — billing removed','#6b7280');
   } else if(stage === 'strandOnly'){
     // AS02 — Strand only, no fiber will be placed
+    // v87 GUARD: never overwrite strand billed in a PRIOR billing week (locked invoice)
+    try {
+      const prev = await getDoc(docRef);
+      if(prev.exists() && prev.data().strandDate){
+        const wk=(ds)=>{const d=new Date(ds+'T12:00:00');const o=(d.getDay()-5+7)%7;d.setDate(d.getDate()-o);return d.toLocaleDateString('en-CA');};
+        if(wk(prev.data().strandDate) !== wk(today)){
+          showBanner('⚠️ Strand already billed '+prev.data().strandDate+' — locked to that invoice. No changes made.','#dc2626');
+          return;
+        }
+      }
+    } catch(e){}
     const stageOk = await safeWrite(()=>setDoc(docRef, {
       nodeId: currentNodeId,
       spanKey: spanKey,
@@ -2943,6 +2954,17 @@ window.setSpanStage = async function(spanKey, stage){
     showBanner(`🔧 AS02 Strand Only — ${footage.toLocaleString()} ft → $${earn}`,'#d97706');
   } else if(stage === 'strand'){
     window._spanStrandOnly[spanKey] = false;
+    // v87 GUARD: never overwrite strand billed in a PRIOR billing week (locked invoice)
+    try {
+      const prev = await getDoc(docRef);
+      if(prev.exists() && prev.data().strandDate){
+        const wk=(ds)=>{const d=new Date(ds+'T12:00:00');const o=(d.getDay()-5+7)%7;d.setDate(d.getDate()-o);return d.toLocaleDateString('en-CA');};
+        if(wk(prev.data().strandDate) !== wk(today)){
+          showBanner('⚠️ Strand already billed '+prev.data().strandDate+' — locked to that invoice. No changes made.','#dc2626');
+          return;
+        }
+      }
+    } catch(e){}
     const stageOk = await safeWrite(()=>setDoc(docRef, {
       nodeId: currentNodeId,
       spanKey: spanKey,
@@ -3029,8 +3051,17 @@ window.setSpanStage = async function(spanKey, stage){
     }
     const strandWeek = getBillingWeekStart(existingStrandDate);
     const todayWeek = getBillingWeekStart(today);
-    const sameBillingWeek = (strandWeek === todayWeek);
+    let sameBillingWeek = (strandWeek === todayWeek);
     const billingDocId = currentNodeId + '_span_' + spanKey;
+    // v87 GUARD: check the actual billing doc — if it was billed in a prior week, NEVER convert it
+    if(sameBillingWeek){
+      try {
+        const prevBill = await getDoc(doc(db, 'charterBilling', billingDocId));
+        if(prevBill.exists() && prevBill.data().date && getBillingWeekStart(prevBill.data().date) !== todayWeek){
+          sameBillingWeek = false; // strand invoice locked -> split path (AC02-2 only)
+        }
+      } catch(e){}
+    }
     
     if(sameBillingWeek){
       // Same billing week → convert to AC02 Composite ($1.20/ft client, $0.40/ft crew)
@@ -4167,7 +4198,7 @@ function removeGPSGate(){
 }
 
 // ============ VERSION BADGE + UPDATE BUTTON ============
-const APP_VERSION='v86';
+const APP_VERSION='v87';
 (function(){
   const wrap=document.createElement('div');
   wrap.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;display:flex;align-items:center;gap:6px;';
@@ -4328,7 +4359,7 @@ updateOnlineStatus();
 // ============ NUCLEAR CACHE BUST + SW REGISTRATION v53 ============
 (async function nuclearBoot(){
   try{
-    const CURRENT='charter-v86';
+    const CURRENT='charter-v87';
     if('caches' in window){
       const keys = await caches.keys();
       const stale = keys.filter(k => k !== CURRENT && k !== CURRENT+'-tiles');
