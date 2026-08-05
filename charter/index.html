@@ -1242,30 +1242,33 @@ window.switchNode=async function(){
     const snap=await getDocs(query(collection(db,'charterNodeMembers'),where('uid','==',currentUser.uid)));
     const nodes=[...new Set(snap.docs.map(d=>d.data().nodeId))];
     const others=nodes.filter(n=>n!==currentNodeId);
+    let input='';
     if(others.length>=1){
-      let target=others[0];
-      if(others.length>1){
-        target=(prompt('Switch to which node? Options: '+others.join(', '))||'').trim().toLowerCase();
-        if(!others.includes(target))return;
+      input=(prompt('Switch to which node? Options: '+others.join(', ')+'\n\nOr enter a 6-character invite code to join a new node:')||'').trim();
+      if(!input)return;
+      if(others.includes(input.toLowerCase())){
+        localStorage.setItem('charterNodePref',input.toLowerCase());
+        location.reload();
+        return;
       }
-      localStorage.setItem('charterNodePref',target);
-      location.reload();
     }else{
-      const code=(prompt('Enter the 6-character invite code for the node you want to join:')||'').trim().toUpperCase();
-      if(code.length!==6)return;
-      const ns=await getDocs(query(collection(db,'charterNodes'),where('inviteCode','==',code)));
-      if(ns.empty){alert('Invalid code. Check with your supervisor.');return;}
-      const nodeId=ns.docs[0].id;
-      await setDoc(doc(db,'charterNodeMembers',`${nodeId}_${currentUser.uid}`),{
-        nodeId,uid:currentUser.uid,
-        name:currentUser.displayName||(currentUser.email?currentUser.email.split('@')[0]:'Crew'),
-        email:currentUser.email||'',
-        photoURL:currentUser.photoURL||'',
-        joinedAt:serverTimestamp()
-      });
-      localStorage.setItem('charterNodePref',nodeId);
-      location.reload();
+      input=(prompt('Enter the 6-character invite code for the node you want to join:')||'').trim();
+      if(!input)return;
     }
+    const code=input.toUpperCase();
+    if(code.length!==6){alert('Not a valid node name or invite code.');return;}
+    const ns=await getDocs(query(collection(db,'charterNodes'),where('inviteCode','==',code)));
+    if(ns.empty){alert('Invalid code. Check with your supervisor.');return;}
+    const nodeId=ns.docs[0].id;
+    await setDoc(doc(db,'charterNodeMembers',`${nodeId}_${currentUser.uid}`),{
+      nodeId,uid:currentUser.uid,
+      name:currentUser.displayName||(currentUser.email?currentUser.email.split('@')[0]:'Crew'),
+      email:currentUser.email||'',
+      photoURL:currentUser.photoURL||'',
+      joinedAt:serverTimestamp()
+    });
+    localStorage.setItem('charterNodePref',nodeId);
+    location.reload();
   }catch(e){console.error('Switch node error:',e);alert('Error switching node. Try again.');}
 };
 
