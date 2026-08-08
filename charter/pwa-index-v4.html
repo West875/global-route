@@ -1617,7 +1617,7 @@ function initMap(){
   if(!container.querySelector('#map')){
     var mapH = window.innerHeight - 140;
     container.innerHTML='<div id="map" style="height:'+mapH+'px;width:100%;position:relative;z-index:1"></div>';
-    container.insertAdjacentHTML('beforeend', '<div id="mapLegend" style="position:fixed;bottom:56px;left:10px;z-index:1000;color:#fff;font-size:11px;font-family:Inter,sans-serif">\n  <div id="legendChip" onclick="document.getElementById(\'legendBody\').style.display=\'block\';this.style.display=\'none\'" style="background:rgba(0,0,0,.85);backdrop-filter:blur(10px);border-radius:10px;padding:6px 12px;border:1px solid rgba(212,168,67,0.25);color:#d4a843;font-weight:700;cursor:pointer;display:block">🗺 Legend</div>\n  <div id="legendBody" style="display:none;background:rgba(0,0,0,.85);backdrop-filter:blur(10px);border-radius:12px;padding:10px 12px;min-width:150px">\n  <div onclick="document.getElementById(\'legendBody\').style.display=\'none\';document.getElementById(\'legendChip\').style.display=\'block\'" style="font-weight:700;margin-bottom:6px;color:#d4a843;cursor:pointer">🗺️ MAP KEY <span style="float:right;color:#888">✕</span></div>\n  <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">\n    <input type="checkbox" checked onchange="toggleFiberLayer(\'trunk\',this.checked)" style="accent-color:#ef4444">\n    <span style="width:20px;height:3px;background:#ef4444;border-radius:2px"></span> Trunk (96CT)\n  </label>\n  <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">\n    <input type="checkbox" checked onchange="toggleFiberLayer(\'feeder\',this.checked)" style="accent-color:#22c55e">\n    <span style="width:20px;height:3px;background:#22c55e;border-radius:2px"></span> Feeder (48CT)\n  </label>\n  <div style="display:flex;align-items:center;gap:6px;margin:4px 0">\n    <span style="width:20px;height:3px;background:#a855f7;border-radius:2px"></span> Feeder (36CT)\n  </div>\n  <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">\n    <input type="checkbox" checked onchange="toggleFiberLayer(\'storage\',this.checked)" style="accent-color:#fbbf24">\n    <span style="background:#fbbf24;color:#000;font-weight:900;width:14px;height:14px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px">∞</span> Fiber Storage\n  </label>\n  <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">\n    <input type="checkbox" checked onchange="toggleFiberLayer(\'splices\',this.checked)" style="accent-color:#06b6d4">\n    <span style="background:#06b6d4;color:#fff;font-weight:700;width:14px;height:14px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:8px">SP</span> Splice Points\n  </label>\n  <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">\n    <input type="checkbox" checked onchange="toggleFiberLayer(\'anchors\',this.checked)" style="accent-color:#f97316">\n    <span style="background:#f97316;color:#fff;font-weight:700;width:14px;height:14px;border-radius:3px;display:inline-flex;align-items:center;justify-content:center;font-size:8px;transform:rotate(45deg)"><span style="transform:rotate(-45deg)">⚓</span></span> Anchors\n  </label>\n  </div>\n</div>');
+    container.insertAdjacentHTML('beforeend', '<div id="mapLegend" style="position:fixed;bottom:56px;left:10px;z-index:1000;color:#fff;font-size:11px;font-family:Inter,sans-serif">\n  <div id="legendChip" onclick="document.getElementById(\'legendBody\').style.display=\'block\';this.style.display=\'none\'" style="background:rgba(0,0,0,.85);backdrop-filter:blur(10px);border-radius:10px;padding:6px 12px;border:1px solid rgba(212,168,67,0.25);color:#d4a843;font-weight:700;cursor:pointer;display:block">🗺 Legend</div>\n  <div id="legendBody" style="display:none;background:rgba(0,0,0,.85);backdrop-filter:blur(10px);border-radius:12px;padding:10px 12px;min-width:150px">\n  <div onclick="document.getElementById(\'legendBody\').style.display=\'none\';document.getElementById(\'legendChip\').style.display=\'block\'" style="font-weight:700;margin-bottom:6px;color:#d4a843;cursor:pointer">🗺️ MAP KEY <span style="float:right;color:#888">✕</span></div>\n  <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">\n    <input type="checkbox" checked onchange="toggleFiberLayer(\'trunk\',this.checked)" style="accent-color:#ef4444">\n    <span style="width:20px;height:3px;background:#ef4444;border-radius:2px"></span> Trunk (96CT)\n  </label>\n  <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">\n    <input type="checkbox" checked onchange="toggleFiberLayer(\'feeder\',this.checked)" style="accent-color:#22c55e">\n    <span style="width:20px;height:3px;background:#22c55e;border-radius:2px"></span> Feeder (48CT)\n  </label>\n  <div style="display:flex;align-items:center;gap:6px;margin:4px 0">\n    <span style="width:20px;height:3px;background:#9ca3af;border-radius:2px"></span> 36CT existing \u2014 overlash onto\n  </div>\n  <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">\n    <input type="checkbox" checked onchange="toggleFiberLayer(\'storage\',this.checked)" style="accent-color:#fbbf24">\n    <span style="background:#fbbf24;color:#000;font-weight:900;width:14px;height:14px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px">∞</span> Fiber Storage\n  </label>\n  <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">\n    <input type="checkbox" checked onchange="toggleFiberLayer(\'splices\',this.checked)" style="accent-color:#06b6d4">\n    <span style="background:#06b6d4;color:#fff;font-weight:700;width:14px;height:14px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:8px">SP</span> Splice Points\n  </label>\n  <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">\n    <input type="checkbox" checked onchange="toggleFiberLayer(\'anchors\',this.checked)" style="accent-color:#f97316">\n    <span style="background:#f97316;color:#fff;font-weight:700;width:14px;height:14px;border-radius:3px;display:inline-flex;align-items:center;justify-content:center;font-size:8px;transform:rotate(45deg)"><span style="transform:rotate(-45deg)">⚓</span></span> Anchors\n  </label>\n  </div>\n</div>');
   }
   
   if(mapInstance){try{mapInstance.remove();}catch(e){}mapInstance=null;}
@@ -2001,12 +2001,12 @@ window.openPole=function(poleId){
     ${(()=>{
       const adj = SPAN_DATA.filter(s => s.f===poleId || s.t===poleId);
       const worked = adj.filter(s => ['lashed','overlashed'].includes(spanStages[s.f+'_'+s.t] || spanStages[s.t+'_'+s.f]));
-      let cables = [...new Set(adj.flatMap(s => SPAN_FIBER[s.f+'_'+s.t] || SPAN_FIBER[s.t+'_'+s.f] || []))];
+      let cables = [...new Set(adj.flatMap(s => SPAN_FIBER[s.f+'_'+s.t] || SPAN_FIBER[s.t+'_'+s.f] || []))].filter(c=>c!=='36CT');
       if(!cables.length && worked.length) cables = ['96CT','48CT'];
       const order = {'96CT':0,'48CT':1,'36CT':2,'12CT':3};
       cables.sort((a,b)=>(order[a]??9)-(order[b]??9));
       if(cables.length){
-        const C = {'96CT':['#ef4444','239,68,68','\u{1F534}'],'48CT':['#22c55e','34,197,94','\u{1F7E2}'],'36CT':['#a855f7','168,85,247','\u{1F7E3}'],'12CT':['#3b82f6','59,130,246','\u{1F535}']};
+        const C = {'96CT':['#ef4444','239,68,68','\u{1F534}'],'48CT':['#22c55e','34,197,94','\u{1F7E2}'],'36CT':['#9ca3af','156,163,175','\u{1F7E3}'],'12CT':['#3b82f6','59,130,246','\u{1F535}']};
         return `<div class="glass rounded-xl p-3 mb-4">
           <div class="flex items-center justify-between mb-2">
             <h3 class="font-semibold text-sm text-gray-400">\u{1F4CF} TIC MARKS</h3>
@@ -2455,7 +2455,7 @@ function renderSpanLines(){
       const allows48 = spanFiber.includes('48CT');
       const allows36 = spanFiber.includes('36CT');
       const secType = allows48 ? '48CT' : (allows36 ? '36CT' : null);
-      const secColor = (secType === '36CT') ? '#a855f7' : '#22c55e';
+      const secColor = (secType === '36CT') ? '#9ca3af' : '#22c55e';
       const has96 = allows96 && !!(window._spanTicData?.[spanKey + '_96CT'] || ticMarks[s.f+'_96CT'] || ticMarks[s.t+'_96CT']);
       const has48 = !!secType && !!(window._spanTicData?.[spanKey + '_' + secType] || ticMarks[s.f+'_'+secType] || ticMarks[s.t+'_'+secType]);
       const lineRefs = {};
@@ -2585,7 +2585,7 @@ function showSpanModal(span, spanKey, p1, p2){
       ${(()=>{
         const fiber = SPAN_FIBER['${spanKey}'];
         if(!fiber) return '<div style="color:#64748b;font-size:12px;margin-bottom:8px">No fiber mapped</div>';
-        const labels = fiber.map(f => f === '96CT' ? '<span style="color:#ef4444;font-weight:700">🔴 96CT</span>' : f === '48CT' ? '<span style="color:#22c55e;font-weight:700">🟢 48CT</span>' : f === '36CT' ? '<span style="color:#a855f7;font-weight:700">36CT</span>' : '<span style="color:#60a5fa;font-weight:700">🔵 '+f+'</span>');
+        const labels = fiber.map(f => f === '96CT' ? '<span style="color:#ef4444;font-weight:700">🔴 96CT</span>' : f === '48CT' ? '<span style="color:#22c55e;font-weight:700">🟢 48CT</span>' : f === '36CT' ? '<span style="color:#9ca3af;font-weight:700">⚪ 36CT (existing)</span>' : '<span style="color:#60a5fa;font-weight:700">🔵 '+f+'</span>');
         return '<div style="font-size:13px;margin-bottom:8px">🔌 Fiber: '+labels.join(' + ')+'</div>';
       })()}
       <div style="color:#94a3b8;font-size:12px;margin-bottom:16px">
@@ -2617,19 +2617,19 @@ function showSpanModal(span, spanKey, p1, p2){
         const s96 = !!window._spanStorage?.[spanKey + '_96CT'];
         const _revS = spanKey.split('_').reverse().join('_');
         const _fibS = SPAN_FIBER[spanKey] || SPAN_FIBER[_revS] || [];
-        const sec = _fibS.includes('48CT') ? '48CT' : (_fibS.includes('36CT') ? '36CT' : '48CT');
-        const secC = sec === '36CT' ? '#a855f7' : '#22c55e';
-        const secRGB = sec === '36CT' ? '168,85,247' : '34,197,94';
-        const s48 = !!window._spanStorage?.[spanKey + '_' + sec];
+        const sec = _fibS.includes('48CT') ? '48CT' : (_fibS.includes('12CT') ? '12CT' : (_fibS.length ? null : '48CT'));
+        const secC = sec === '12CT' ? '#3b82f6' : '#22c55e';
+        const secRGB = sec === '12CT' ? '59,130,246' : '34,197,94';
+        const s48 = sec ? !!window._spanStorage?.[spanKey + '_' + sec] : false;
         return `<div style="margin-top:8px;margin-bottom:12px;padding:12px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1)">
         <div style="color:#e2e8f0;font-size:14px;font-weight:700;margin-bottom:8px">∞ Storage (150')</div>
         <div style="display:flex;gap:8px">
           <button id="storage-btn-96CT" onclick="window._toggleSpanStorage('${spanKey}','96CT')" style="flex:1;padding:12px 8px;border-radius:10px;background:${s96?'#ef4444':'rgba(239,68,68,0.12)'};border:2px solid ${s96?'white':'rgba(239,68,68,0.4)'};color:${s96?'#fff':'#ef4444'};font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s">
             ${s96?'✅':'➕'} ∞ on 96CT
           </button>
-          <button id="storage-btn-${sec}" onclick="window._toggleSpanStorage('${spanKey}','${sec}')" style="flex:1;padding:12px 8px;border-radius:10px;background:${s48?secC:'rgba('+secRGB+',0.12)'};border:2px solid ${s48?'white':'rgba('+secRGB+',0.4)'};color:${s48?'#fff':secC};font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s">
+          ${sec ? `<button id="storage-btn-${sec}" onclick="window._toggleSpanStorage('${spanKey}','${sec}')" style="flex:1;padding:12px 8px;border-radius:10px;background:${s48?secC:'rgba('+secRGB+',0.12)'};border:2px solid ${s48?'white':'rgba('+secRGB+',0.4)'};color:${s48?'#fff':secC};font-size:13px;font-weight:700;cursor:pointer;transition:all 0.2s">
             ${s48?'✅':'➕'} ∞ on ${sec}
-          </button>
+          </button>` : ``}
         </div>
       </div>`;
       })() : ''}
@@ -2639,10 +2639,10 @@ function showSpanModal(span, spanKey, p1, p2){
         const fib = SPAN_FIBER[spanKey] || SPAN_FIBER[rev] || [];
         const strandOnly = !!window._spanStrandOnly?.[spanKey];
         let cables = null;
-        if(!strandOnly && fib.length > 0) cables = fib;
+        if(!strandOnly && fib.length > 0) cables = fib.filter(c=>c!=='36CT');
         else if(!strandOnly && (stage === 'lashed' || stage === 'overlashed')) cables = ['96CT','48CT'];
-        if(cables){
-          const C = {'96CT':['#ef4444','239,68,68','\u{1F534}'],'48CT':['#22c55e','34,197,94','\u{1F7E2}'],'36CT':['#a855f7','168,85,247','\u{1F7E3}'],'12CT':['#3b82f6','59,130,246','\u{1F535}']};
+        if(cables && cables.length){
+          const C = {'96CT':['#ef4444','239,68,68','\u{1F534}'],'48CT':['#22c55e','34,197,94','\u{1F7E2}'],'36CT':['#9ca3af','156,163,175','\u{1F7E3}'],'12CT':['#3b82f6','59,130,246','\u{1F535}']};
           return cables.map((c,i)=>{
             const col = C[c] || ['#fbbf24','251,191,36','\u{1F7E1}'];
             const tc = (i===0) ? (SPAN_TAP_COUNTS[spanKey] || 0) : 0;
@@ -4251,7 +4251,7 @@ function removeGPSGate(){
 }
 
 // ============ VERSION BADGE + UPDATE BUTTON ============
-const APP_VERSION='v94';
+const APP_VERSION='v95';
 (function(){
   const wrap=document.createElement('div');
   wrap.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;display:flex;align-items:center;gap:6px;';
