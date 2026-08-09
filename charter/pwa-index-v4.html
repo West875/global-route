@@ -135,19 +135,38 @@ const storage=getStorage(app);
 
 // Charter billing codes
 const CHARTER_CODES=[
-{code:"AC02",name:"When Fiber Portion of AC02 is placed in same day",unit:"Per Ft",type:"footage",rate:0.40},
-{code:"AC02-1",name:"Strand Portion of AC02",unit:"Per Ft",type:"footage",rate:0.16},
-{code:"AC02-2",name:"Fiber Portion of AC02",unit:"Per Ft",type:"footage",rate:0.24},
-{code:"AS02",name:"Place New Strand. But fiber never go there",unit:"Per Ft",type:"footage",rate:0.13},
-{code:"AS07",name:"Overlash Fiber 1000'+",unit:"Per Ft",type:"footage",rate:0.20},
-{code:"AS07A",name:"Overlash Fiber 1'–999'",unit:"Per Ft",type:"footage",rate:0.20},
-{code:"AS08",name:"Additional Fiber Cable",unit:"Per Ft",type:"footage",rate:0.05},
-{code:"MC04",name:"Tree Trimming",unit:"Per Span",type:"each",rate:16.50},
-{code:"AS18",name:"Make Ready and Compliance",unit:"Per Pole",type:"each",rate:15.02},
-{code:"AC05",name:"De/Relash",unit:"Per Ft",type:"footage",rate:0.35},
-{code:"AS01",name:"Set/Replace Pole",unit:"Each",type:"quote",rate:0},
-{code:"AS26",name:"Top Pole",unit:"Each",type:"each",rate:6.60},
-{code:"AS12",name:"Pole Transfer",unit:"Per Pole",type:"each",rate:0},
+{code:"AC02",name:"When Fiber Portion of AC02 is placed in same day",unit:"Per Ft",type:"footage",rate:0.4,client:1.2,group:"auto"},
+{code:"AC02-1",name:"Strand Portion of AC02",unit:"Per Ft",type:"footage",rate:0.16,client:0.48,group:"auto"},
+{code:"AC02-2",name:"Fiber Portion of AC02",unit:"Per Ft",type:"footage",rate:0.24,client:0.72,group:"auto"},
+{code:"AS02",name:"Place New Strand. But fiber never go there",unit:"Per Ft",type:"footage",rate:0.13,client:0.4,group:"fiber",incl:"AC02"},
+{code:"AS07",name:"Overlash Fiber 1000'+",unit:"Per Ft",type:"footage",rate:0.2,client:0.6,group:"fiber"},
+{code:"AS07A",name:"Overlash Fiber 1'-999'",unit:"Per Ft",type:"footage",rate:0.2,client:0.6,group:"fiber"},
+{code:"AS08",name:"Additional Fiber Cable",unit:"Per Ft",type:"footage",rate:0.05,client:0.15,group:"fiber"},
+{code:"MC04",name:"Tree Trimming",unit:"Per Span",type:"each",rate:16.5,client:50.0,group:"pole"},
+{code:"AS18",name:"Make Ready and Compliance",unit:"Per Pole",type:"each",rate:15.02,client:45.5,group:"pole"},
+{code:"AC05",name:"De/Relash",unit:"Per Ft",type:"footage",rate:0.35,client:1.05,group:"coax"},
+{code:"AS01",name:"Set/Replace Pole",unit:"Each",type:"quote",rate:0,client:0,group:"pole"},
+{code:"AS26",name:"Top Pole",unit:"Each",type:"each",rate:6.6,client:20.0,group:"pole"},
+{code:"AS12",name:"Pole Transfer",unit:"Per Pole",type:"each",rate:20.46,client:62.0,group:"pole"},
+{code:"AS03",name:"Lash Coax to New Strand 1000'+",unit:"Per Ft",type:"footage",rate:0,client:0,group:"coax"},
+{code:"AS03A",name:"Lash Coax to New Strand 1'-999'",unit:"Per Ft",type:"footage",rate:0,client:0,group:"coax"},
+{code:"AS04",name:"Lash Fiber to New Strand 1000'+",unit:"Per Ft",type:"footage",rate:0,client:0,group:"fiber",incl:"AC02"},
+{code:"AS04A",name:"Lash Fiber to New Strand 1'-999'",unit:"Per Ft",type:"footage",rate:0,client:0,group:"fiber",incl:"AC02"},
+{code:"AS05",name:"Lash/Overlash Additional Coax Cable",unit:"Per Ft",type:"footage",rate:0.04,client:0.11,group:"coax"},
+{code:"AS06",name:"Overlash Coax Cable 1000'+",unit:"Per Ft",type:"footage",rate:0.13,client:0.4,group:"coax"},
+{code:"AS06A",name:"Overlash Coax Cable 1'-999'",unit:"Per Ft",type:"footage",rate:0.13,client:0.4,group:"coax"},
+{code:"AS09",name:"Place Screw Anchor",unit:"Each",type:"each",rate:10.73,client:32.5,group:"pole",incl:"AC02"},
+{code:"AS10",name:"Place Plate Anchor",unit:"Each",type:"each",rate:19.31,client:58.5,group:"pole",incl:"AC02"},
+{code:"AS11",name:"Place Rock Anchor",unit:"Each",type:"each",rate:23.6,client:71.5,group:"pole",incl:"AC02"},
+{code:"AS13",name:"Transfer Riser Cable",unit:"Each",type:"each",rate:19.8,client:60.0,group:"riser"},
+{code:"AS14",name:"Install New Riser Hardware",unit:"Each",type:"each",rate:10.89,client:33.0,group:"riser"},
+{code:"AS16",name:"Install Pole Mounted Power Supply",unit:"Each",type:"each",rate:132.0,client:400.0,group:"power"},
+{code:"AS17",name:"Hot Swap Existing Power Supply",unit:"Each",type:"each",rate:87.95,client:266.5,group:"power"},
+{code:"AS19",name:"Partial Wreck Out",unit:"Per Ft",type:"footage",rate:0.04,client:0.13,group:"fiber"},
+{code:"AS20",name:"Wreck Out All Strand and Cable",unit:"Per Ft",type:"footage",rate:0.07,client:0.2,group:"fiber"},
+{code:"AS21",name:"Wreck Out Pole Mounted Power Supply",unit:"Each",type:"each",rate:32.34,client:98.0,group:"power"},
+{code:"AS24",name:"Drop Splice Case / Reentry",unit:"Each",type:"each",rate:24.75,client:75.0,group:"pole"},
+{code:"AS27",name:"Prep for Relash - Cable Support",unit:"Per Ft",type:"footage",rate:0.08,client:0.25,group:"fiber"},
 ];
 
 
@@ -2044,8 +2063,9 @@ window.openPole=function(poleId){
     <div id="billing-section-${poleId}" class="hidden mb-4" style="transition:all 0.3s ease">
       <h3 class="font-semibold text-sm mb-2" style="color:#7c3aed">💰 LOG BILLING</h3>
       <p class="text-xs mb-2" style="color:#d97706">📏 Footage billing (AC02-1/AC02) auto-tracked when you mark spans on the map</p>
+      <p class="text-xs mb-2" style="color:#9ca3af">\u26A0 = Charter includes this code inside AC02. Do not log it on a span already billed AC02.</p>
       <select id="bill-code-${poleId}" class="input-field text-sm mb-2" onchange="updateBillQtyLabel('${poleId}')">
-        ${CHARTER_CODES.filter(c=>c.type!=='footage'||c.code==='AS02').map(c=>`<option value="${c.code}">${c.code} — ${c.name} ${c.rate?'$'+c.rate.toFixed(2)+'/'+c.unit.replace('Per ',''):''}</option>`).join('')}
+        <option value="">— Select billing code —</option>${[['fiber','\u{1F4CF} Fiber & Strand'],['pole','\u{1F4CD} Poles, Anchors & Make Ready'],['riser','\u{1F50C} Risers'],['power','\u{1F50B} Power Supply'],['coax','\u{1F4FA} Coax (rare on fiber nodes)'],['auto','\u26A1 Auto-tracked on map — avoid duplicates']].map(([g,lbl])=>{const it=CHARTER_CODES.filter(c=>c.group===g);return it.length?`<optgroup label="${lbl}">`+it.map(c=>`<option value="${c.code}">${c.code} — ${c.name}${c.rate?' · $'+c.rate.toFixed(2)+'/'+c.unit.replace('Per ',''):(c.type==='quote'?' · by quote':' · $0.00 no separate pay')}${c.incl?' \u26A0 incl in '+c.incl:''}</option>`).join('')+`</optgroup>`:''}).join('')}
       </select>
       <div class="flex gap-2 mb-2">
         <input id="bill-qty-${poleId}" class="input-field text-base flex-1 p-3" type="number" placeholder="Quantity" min="0" step="1" inputmode="numeric" value="1">
@@ -3190,7 +3210,7 @@ window.setSpanStage = async function(spanKey, stage){
     const olBillOk = await safeWrite(()=>setDoc(doc(db, 'charterBilling', olDocId), {
       nodeId: currentNodeId, spanKey,
       fromPole: poleName(spanInfo?.f||''), toPole: poleName(spanInfo?.t||''),
-      code: 'AS07', name: 'Overlash Fiber Cable',
+      code: (footage<1000?'AS07A':'AS07'), name: (footage<1000?"Overlash Fiber Cable 1' to 999'":"Overlash Fiber Cable 1000'+"),
       qty: footage, unit: 'ft',
       crewRate: crewRateOverlash, clientRate: clientRateOverlash,
       crewTotal: Math.round(footage * crewRateOverlash * 100) / 100,
@@ -3529,7 +3549,7 @@ window.deleteNote=async function(noteId){
   vibrate();
 };
 
-const CLIENT_RATES={'AS18':45.50,'MC04':50.00,'AS02':0.40,'AS26':20.00,'AS12':0,'AS01':0};
+const CLIENT_RATES=Object.fromEntries(CHARTER_CODES.map(c=>[c.code,c.client||0]));
 function easternDate(){
   return new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 }
@@ -3876,7 +3896,8 @@ window.updateBillQtyLabel=function(poleId){
   const code=$('bill-code-'+poleId)?.value;
   const inp=$('bill-qty-'+poleId);
   if(!inp) return;
-  if(code==='AS02'){
+  const _c=CHARTER_CODES.find(x=>x.code===code);
+  if(_c&&_c.type==='footage'){
     inp.placeholder='Footage (ft)';
     inp.value='';
     inp.step='1';
@@ -4251,7 +4272,7 @@ function removeGPSGate(){
 }
 
 // ============ VERSION BADGE + UPDATE BUTTON ============
-const APP_VERSION='v95';
+const APP_VERSION='v96';
 (function(){
   const wrap=document.createElement('div');
   wrap.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;display:flex;align-items:center;gap:6px;';
@@ -4412,7 +4433,7 @@ updateOnlineStatus();
 // ============ NUCLEAR CACHE BUST + SW REGISTRATION v53 ============
 (async function nuclearBoot(){
   try{
-    const CURRENT='charter-v93';
+    const CURRENT='charter-v96';
     if('caches' in window){
       const keys = await caches.keys();
       const stale = keys.filter(k => k !== CURRENT && k !== CURRENT+'-tiles');
