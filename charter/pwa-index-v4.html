@@ -1636,7 +1636,7 @@ function initMap(){
   if(!container.querySelector('#map')){
     var mapH = window.innerHeight - 140;
     container.innerHTML='<div id="map" style="height:'+mapH+'px;width:100%;position:relative;z-index:1"></div>';
-    container.insertAdjacentHTML('beforeend', '<div id="mapLegend" style="position:fixed;bottom:56px;left:10px;z-index:1000;color:#fff;font-size:11px;font-family:Inter,sans-serif">\n  <div id="legendChip" onclick="document.getElementById(\'legendBody\').style.display=\'block\';this.style.display=\'none\'" style="background:rgba(0,0,0,.85);backdrop-filter:blur(10px);border-radius:10px;padding:6px 12px;border:1px solid rgba(212,168,67,0.25);color:#d4a843;font-weight:700;cursor:pointer;display:block">🗺 Legend</div>\n  <div id="legendBody" style="display:none;background:rgba(0,0,0,.85);backdrop-filter:blur(10px);border-radius:12px;padding:10px 12px;min-width:150px">\n  <div onclick="document.getElementById(\'legendBody\').style.display=\'none\';document.getElementById(\'legendChip\').style.display=\'block\'" style="font-weight:700;margin-bottom:6px;color:#d4a843;cursor:pointer">🗺️ MAP KEY <span style="float:right;color:#888">✕</span></div>\n  <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">\n    <input type="checkbox" checked onchange="toggleFiberLayer(\'trunk\',this.checked)" style="accent-color:#ef4444">\n    <span style="width:20px;height:3px;background:#ef4444;border-radius:2px"></span> Trunk (96CT)\n  </label>\n  <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">\n    <input type="checkbox" checked onchange="toggleFiberLayer(\'feeder\',this.checked)" style="accent-color:#22c55e">\n    <span style="width:20px;height:3px;background:#22c55e;border-radius:2px"></span> Feeder (48CT)\n  </label>\n  <div style="display:flex;align-items:center;gap:6px;margin:4px 0">\n    <span style="width:20px;height:3px;background:#9ca3af;border-radius:2px"></span> 36CT existing \u2014 overlash onto\n  </div>\n  <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">\n    <input type="checkbox" checked onchange="toggleFiberLayer(\'storage\',this.checked)" style="accent-color:#fbbf24">\n    <span style="background:#fbbf24;color:#000;font-weight:900;width:14px;height:14px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px">∞</span> Fiber Storage\n  </label>\n  <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">\n    <input type="checkbox" checked onchange="toggleFiberLayer(\'splices\',this.checked)" style="accent-color:#06b6d4">\n    <span style="background:#06b6d4;color:#fff;font-weight:700;width:14px;height:14px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:8px">SP</span> Splice Points\n  </label>\n  <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">\n    <input type="checkbox" checked onchange="toggleFiberLayer(\'anchors\',this.checked)" style="accent-color:#f97316">\n    <span style="background:#f97316;color:#fff;font-weight:700;width:14px;height:14px;border-radius:3px;display:inline-flex;align-items:center;justify-content:center;font-size:8px;transform:rotate(45deg)"><span style="transform:rotate(-45deg)">⚓</span></span> Anchors\n  </label>\n  </div>\n</div>');
+    container.insertAdjacentHTML('beforeend', '<div id="mapLegend" style="position:fixed;bottom:56px;left:10px;z-index:1000;color:#fff;font-size:11px;font-family:Inter,sans-serif">\n  <div id="legendChip" onclick="document.getElementById(\'legendBody\').style.display=\'block\';this.style.display=\'none\'" style="background:rgba(0,0,0,.85);backdrop-filter:blur(10px);border-radius:10px;padding:6px 12px;border:1px solid rgba(212,168,67,0.25);color:#d4a843;font-weight:700;cursor:pointer;display:block">🗺 Legend</div>\n  <div id="legendBody" style="display:none;background:rgba(0,0,0,.85);backdrop-filter:blur(10px);border-radius:12px;padding:10px 12px;min-width:150px">\n  <div onclick="document.getElementById(\'legendBody\').style.display=\'none\';document.getElementById(\'legendChip\').style.display=\'block\'" style="font-weight:700;margin-bottom:6px;color:#d4a843;cursor:pointer">🗺️ MAP KEY <span style="float:right;color:#888">✕</span></div>\n  <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">\n    <input type="checkbox" checked onchange="toggleFiberLayer(\'trunk\',this.checked)" style="accent-color:#ef4444">\n    <span style="width:20px;height:3px;background:#ef4444;border-radius:2px"></span> Trunk (96CT)\n  </label>\n  <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">\n    <input type="checkbox" checked onchange="toggleFiberLayer(\'feeder\',this.checked)" style="accent-color:#22c55e">\n    <span style="width:20px;height:3px;background:#22c55e;border-radius:2px"></span> Feeder (48CT)\n  </label>\n  <div style="display:flex;align-items:center;gap:6px;margin:4px 0">\n    <span style="width:20px;height:3px;background:#9ca3af;border-radius:2px"></span> 36CT existing \u2014 overlash onto\n  </div>\n  <div style="display:flex;align-items:center;gap:6px;margin:4px 0">\n    <span style="width:20px;height:0;border-top:2px dashed #ef4444"></span> Dual 96CT+48CT \u2014 tic both\n  </div>\n  <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">\n    <input type="checkbox" checked onchange="toggleFiberLayer(\'storage\',this.checked)" style="accent-color:#fbbf24">\n    <span style="background:#fbbf24;color:#000;font-weight:900;width:14px;height:14px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px">∞</span> Fiber Storage\n  </label>\n  <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">\n    <input type="checkbox" checked onchange="toggleFiberLayer(\'splices\',this.checked)" style="accent-color:#06b6d4">\n    <span style="background:#06b6d4;color:#fff;font-weight:700;width:14px;height:14px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:8px">SP</span> Splice Points\n  </label>\n  <label style="display:flex;align-items:center;gap:6px;margin:4px 0;cursor:pointer">\n    <input type="checkbox" checked onchange="toggleFiberLayer(\'anchors\',this.checked)" style="accent-color:#f97316">\n    <span style="background:#f97316;color:#fff;font-weight:700;width:14px;height:14px;border-radius:3px;display:inline-flex;align-items:center;justify-content:center;font-size:8px;transform:rotate(45deg)"><span style="transform:rotate(-45deg)">⚓</span></span> Anchors\n  </label>\n  </div>\n</div>');
   }
   
   if(mapInstance){try{mapInstance.remove();}catch(e){}mapInstance=null;}
@@ -2504,6 +2504,13 @@ function renderSpanLines(){
           color: secColor, weight: 4, opacity: 0.9,
           interactive: false, bubblingMouseEvents: false
         }).addTo(window._spanLayerGroup);
+        if(allows96){
+          // dual span — 96CT designed here but not ticked yet: dashed red = still owed
+          lineRefs.missing96 = L.polyline(coords, {
+            color: '#ef4444', weight: 3, opacity: 0.9, dashArray: '4,7',
+            interactive: false, bubblingMouseEvents: false
+          }).addTo(window._spanLayerGroup);
+        }
       } else if(has96){
         // Only 96CT fiber — red + yellow (no green)
         lineRefs.red = L.polyline(coords, {
@@ -2514,6 +2521,13 @@ function renderSpanLines(){
           color: '#eab308', weight: 4, opacity: 0.9,
           interactive: false, bubblingMouseEvents: false
         }).addTo(window._spanLayerGroup);
+        if(secType){
+          // dual span — second cable designed here but not ticked yet: dashed = still owed
+          lineRefs.missing48 = L.polyline(coords, {
+            color: secColor, weight: 3, opacity: 0.9, dashArray: '4,7',
+            interactive: false, bubblingMouseEvents: false
+          }).addTo(window._spanLayerGroup);
+        }
       } else {
         // Lashed but no tic marks yet — fall back to SPAN_FIBER design truth
         if(allows96 && secType){
@@ -2539,6 +2553,15 @@ function renderSpanLines(){
         interactive: false, bubblingMouseEvents: false
       }).addTo(window._spanLayerGroup);
       spanLines[spanKey] = { line: line, hit: hitLine };
+      // DUAL FIBER design marker — span carries BOTH 96CT and 48CT. Dashed red thread
+      // makes the dual corridor visible before any work is logged.
+      const _dfib = SPAN_FIBER[spanKey] || SPAN_FIBER[s.t+'_'+s.f] || [];
+      if(_dfib.includes('96CT') && _dfib.includes('48CT')){
+        spanLines[spanKey].dual = L.polyline(coords, {
+          color: '#ef4444', weight: 2, opacity: 0.8, dashArray: '5,6',
+          interactive: false, bubblingMouseEvents: false
+        }).addTo(window._spanLayerGroup);
+      }
     }
 
     // ∞ Storage — crew-placed only (from charterStorage Firestore collection)
@@ -2938,6 +2961,31 @@ window._saveSpanTic = async function(spanKey){
 window.setSpanStage = async function(spanKey, stage){
   if(!currentUser || !currentNodeId) return;
   vibrate(50);
+
+  // ── DUAL FIBER GUARD ──────────────────────────────────────────────
+  // A span designed with BOTH 96CT and 48CT must carry tic marks on BOTH
+  // cables before it can be marked Lashed. Billing is unchanged (one AC02
+  // on span footage) — this only guarantees the tic record is complete.
+  if(stage === 'lashed'){
+    const _si  = SPAN_DATA.find(s => s.f+'_'+s.t === spanKey);
+    const _rev = _si ? (_si.t+'_'+_si.f) : spanKey.split('_').reverse().join('_');
+    const _fib = SPAN_FIBER[spanKey] || SPAN_FIBER[_rev] || [];
+    if(_fib.includes('96CT') && _fib.includes('48CT')){
+      const _ticked = function(c){
+        return !!(window._spanTicData?.[spanKey+'_'+c] || window._spanTicData?.[_rev+'_'+c]
+               || (_si && (ticMarks[_si.f+'_'+c] || ticMarks[_si.t+'_'+c])));
+      };
+      const _missing = ['96CT','48CT'].filter(c => !_ticked(c));
+      if(_missing.length){
+        if(currentNodeId === 'js59'){
+          showBanner('\u26D4 Dual fiber span \u2014 record tic marks on ' + _missing.join(' and ') + ' before marking Lashed', '#ef4444');
+          vibrate(200);
+          return;
+        }
+        showBanner('\u26A0\uFE0F Dual fiber span \u2014 no tic marks yet on ' + _missing.join(' and '), '#f59e0b');
+      }
+    }
+  }
   
   const docRef = doc(db, 'charterSpanStages', currentNodeId + '_' + spanKey);
   const today = new Date().toLocaleDateString('en-CA'); // Local date YYYY-MM-DD, not UTC
@@ -4433,7 +4481,7 @@ updateOnlineStatus();
 // ============ NUCLEAR CACHE BUST + SW REGISTRATION v53 ============
 (async function nuclearBoot(){
   try{
-    const CURRENT='charter-v96';
+    const CURRENT='charter-v97';
     if('caches' in window){
       const keys = await caches.keys();
       const stale = keys.filter(k => k !== CURRENT && k !== CURRENT+'-tiles');
