@@ -1259,14 +1259,25 @@ window.submitInviteCode=async function(){
     const nodeDoc=snap.docs[0];
     const nodeId=nodeDoc.id;
     
+    // Suspended / terminated members cannot rejoin with an invite code
+    const existingRef=doc(db,'charterNodeMembers',`${nodeId}_${currentUser.uid}`);
+    const existingDoc=await getDoc(existingRef);
+    if(existingDoc.exists()){
+      const est=existingDoc.data().status;
+      if(est==='terminated'||est==='suspended'){
+        $('invite-error').textContent=(est==='terminated')?'Access removed. Contact your administrator.':'Account suspended. Contact your administrator.';
+        $('invite-error').classList.remove('hidden');return;
+      }
+    }
     // Add user to node
-    await setDoc(doc(db,'charterNodeMembers',`${nodeId}_${currentUser.uid}`),{
+    await setDoc(existingRef,{
       nodeId,uid:currentUser.uid,
       name:currentUser.displayName||(currentUser.email?currentUser.email.split('@')[0]:'Crew'),
       email:currentUser.email||'',
       photoURL:currentUser.photoURL||'',
+      status:'active',
       joinedAt:serverTimestamp()
-    });
+    },{merge:true});
     
     localStorage.setItem('charterNodePref',nodeId);
     vibrate(100);playSound('done');
@@ -1300,13 +1311,21 @@ window.switchNode=async function(){
     const ns=await getDocs(query(collection(db,'charterNodes'),where('inviteCode','==',code)));
     if(ns.empty){alert('Invalid code. Check with your supervisor.');return;}
     const nodeId=ns.docs[0].id;
-    await setDoc(doc(db,'charterNodeMembers',`${nodeId}_${currentUser.uid}`),{
+    const swRef=doc(db,'charterNodeMembers',`${nodeId}_${currentUser.uid}`);
+    const swDoc=await getDoc(swRef);
+    if(swDoc.exists()){
+      const sst=swDoc.data().status;
+      if(sst==='terminated'){alert('Access removed for that node. Contact your administrator.');return;}
+      if(sst==='suspended'){alert('Your access to that node is suspended. Contact your administrator.');return;}
+    }
+    await setDoc(swRef,{
       nodeId,uid:currentUser.uid,
       name:currentUser.displayName||(currentUser.email?currentUser.email.split('@')[0]:'Crew'),
       email:currentUser.email||'',
       photoURL:currentUser.photoURL||'',
+      status:'active',
       joinedAt:serverTimestamp()
-    });
+    },{merge:true});
     localStorage.setItem('charterNodePref',nodeId);
     location.reload();
   }catch(e){console.error('Switch node error:',e);alert('Error switching node. Try again.');}
@@ -1394,7 +1413,8 @@ window.confirmSelfie=async function(){
     // Save avatar to charterNodeMembers doc
     const memberSnap=await getDocs(query(collection(db,'charterNodeMembers'),where('uid','==',currentUser.uid)));
     if(!memberSnap.empty){
-      await updateDoc(memberSnap.docs[0].ref,{avatarURL:selfieDataURL});
+      const target=memberSnap.docs.find(d=>d.data().nodeId===currentNodeId)||memberSnap.docs[0];
+      await updateDoc(target.ref,{avatarURL:selfieDataURL,selfieAt:serverTimestamp()});
     }
     userAvatarURL=selfieDataURL;
     vibrate(100);playSound('done');
@@ -1405,6 +1425,118 @@ window.confirmSelfie=async function(){
     alert('Error saving photo. Please try again.');
     if(btn)btn.textContent='✅ Looks Good — Continue';
   }
+};
+
+// ============ MEMBER ACCESS CONTROL ============
+const ADMIN_EMAILS=['d.west@globalwestgroupllc.com'];
+window.isAdmin=function(){
+  const e=(currentUser&&currentUser.email?currentUser.email:'').toLowerCase();
+  if(ADMIN_EMAILS.indexOf(e)>=0)return true;
+  return !!(window._myMembership&&window._myMembership.role==='admin');
+};
+
+window.renderAccessBlocked=function(status){
+  try{ unsubscribers.forEach(u=>{try{u();}catch(e){}}); }catch(e){}
+  try{ stopSelfieCamera(); }catch(e){}
+  document.querySelectorAll('.modal-backdrop').forEach(m=>m.classList.add('hidden'));
+  const term=(status==='terminated');
+  document.getElementById('app').innerHTML=
+    '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px">'+
+    '<div style="max-width:360px;text-align:center">'+
+    '<div style="font-size:56px;margin-bottom:12px">'+(term?'\u26D4':'\u23F8\uFE0F')+'</div>'+
+    '<h1 style="color:#f0c040;font-size:22px;font-weight:800;margin-bottom:10px">'+(term?'Access Removed':'Account Suspended')+'</h1>'+
+    '<p style="color:#9ca3af;font-size:14px;line-height:1.6;margin-bottom:22px">'+
+      (term?'Your access to this project has been removed. Contact your administrator if you believe this is a mistake.'
+           :'Your access is temporarily suspended. Contact your administrator to restore it.')+
+    '</p>'+
+    '<button onclick="doSignOut()" style="width:100%;padding:14px;border-radius:12px;font-weight:700;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.18);color:#fff">Sign Out</button>'+
+    '</div></div>';
+};
+
+// Live kick: if an admin suspends/terminates mid-shift, the app locks immediately
+function watchOwnStatus(){
+  if(window._selfStatusWatch)return;
+  try{
+    window._selfStatusWatch=onSnapshot(doc(db,'charterNodeMembers',`${currentNodeId}_${currentUser.uid}`),d=>{
+      if(!d.exists())return;
+      const st=d.data().status||'active';
+      if(st==='suspended'||st==='terminated') renderAccessBlocked(st);
+    },()=>{});
+  }catch(e){}
+}
+
+window.closeMembers=function(){ $('members-modal').classList.add('hidden'); };
+
+window.openMembers=async function(){
+  if(!isAdmin()){alert('Admins only.');return;}
+  try{ closeMenu(); }catch(e){}
+  const modal=$('members-modal');
+  const box=modal.querySelector('.modal-content');
+  box.innerHTML='<p style="color:#9ca3af;font-size:13px;padding:8px">Loading crew\u2026</p>';
+  modal.classList.remove('hidden');
+  try{
+    const snap=await getDocs(query(collection(db,'charterNodeMembers'),where('nodeId','==',currentNodeId)));
+    const rows=snap.docs.map(d=>Object.assign({_id:d.id},d.data()))
+      .sort((a,b)=>((a.name||a.email||'').toLowerCase()>(b.name||b.email||'').toLowerCase()?1:-1));
+    const active=rows.filter(r=>(r.status||'active')==='active').length;
+    let html='<div class="slide-up">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'+
+      '<h2 style="font-size:18px;font-weight:800;color:#f0c040">\uD83D\uDC65 Manage Crew</h2>'+
+      '<button onclick="closeMembers()" style="color:#9ca3af;font-size:22px;line-height:1">\u00D7</button></div>'+
+      '<p style="color:#9ca3af;font-size:12px;margin-bottom:12px">'+(currentNode&&currentNode.name?currentNode.name:currentNodeId)+
+      ' \u2014 '+active+' active of '+rows.length+'</p>';
+    rows.forEach(r=>{
+      const st=r.status||'active';
+      const me=(r.uid===currentUser.uid);
+      const pill=st==='active'?'<span style="background:rgba(16,185,129,.18);color:#34d399;border:1px solid rgba(52,211,153,.4);padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700">ACTIVE</span>'
+        :st==='suspended'?'<span style="background:rgba(245,158,11,.18);color:#fbbf24;border:1px solid rgba(251,191,36,.4);padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700">SUSPENDED</span>'
+        :'<span style="background:rgba(239,68,68,.18);color:#f87171;border:1px solid rgba(248,113,113,.4);padding:2px 8px;border-radius:999px;font-size:10px;font-weight:700">TERMINATED</span>';
+      const av=r.avatarURL
+        ? '<img src="'+r.avatarURL+'" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid #f0c040">'
+        : '<div style="width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(239,68,68,.15);border:2px dashed rgba(248,113,113,.6);font-size:16px">\u2753</div>';
+      const noSelfie=r.avatarURL?'':'<div style="color:#f87171;font-size:10px;margin-top:2px">No selfie on file \u2014 will be required at next sign-in</div>';
+      let btns='';
+      if(me){ btns='<div style="color:#6b7280;font-size:11px;padding:6px 0">This is you</div>'; }
+      else if(st==='active'){
+        btns='<button onclick="setMemberStatus(\''+r._id+'\',\'suspended\')" style="flex:1;padding:9px;border-radius:10px;font-size:12px;font-weight:700;background:rgba(245,158,11,.15);border:1px solid rgba(251,191,36,.45);color:#fbbf24">\u23F8 Suspend</button>'+
+             '<button onclick="setMemberStatus(\''+r._id+'\',\'terminated\')" style="flex:1;padding:9px;border-radius:10px;font-size:12px;font-weight:700;background:rgba(239,68,68,.15);border:1px solid rgba(248,113,113,.45);color:#f87171">\u26D4 Terminate</button>';
+      } else {
+        btns='<button onclick="setMemberStatus(\''+r._id+'\',\'active\')" style="flex:1;padding:9px;border-radius:10px;font-size:12px;font-weight:700;background:rgba(16,185,129,.15);border:1px solid rgba(52,211,153,.45);color:#34d399">\u25B6 Reactivate</button>';
+        if(st==='suspended') btns+='<button onclick="setMemberStatus(\''+r._id+'\',\'terminated\')" style="flex:1;padding:9px;border-radius:10px;font-size:12px;font-weight:700;background:rgba(239,68,68,.15);border:1px solid rgba(248,113,113,.45);color:#f87171">\u26D4 Terminate</button>';
+      }
+      html+='<div style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:12px;margin-bottom:10px">'+
+        '<div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">'+av+
+        '<div style="flex:1;min-width:0">'+
+        '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span style="font-weight:700;font-size:14px;color:#fff">'+(r.name||'Crew')+'</span>'+pill+'</div>'+
+        '<div style="color:#9ca3af;font-size:11px;overflow:hidden;text-overflow:ellipsis">'+(r.email||'')+'</div>'+noSelfie+
+        '</div></div>'+
+        '<div style="display:flex;gap:8px">'+btns+'</div></div>';
+    });
+    html+='<p style="color:#6b7280;font-size:11px;line-height:1.5;margin-top:6px">Suspend blocks access right away and can be undone. Terminate removes access for good and blocks rejoining with the invite code. Completed work and billing records are always kept.</p></div>';
+    box.innerHTML=html;
+  }catch(e){
+    console.error('members load',e);
+    box.innerHTML='<p style="color:#f87171;font-size:13px;padding:8px">Could not load crew. Check connection and try again.</p>';
+  }
+};
+
+window.setMemberStatus=async function(docId,status){
+  const word=status==='terminated'?'TERMINATE':(status==='suspended'?'suspend':'reactivate');
+  if(status!=='active'){
+    const extra=status==='terminated'
+      ? '\n\nThey lose access immediately and cannot rejoin with the invite code.\nTheir completed work and billing records are kept.'
+      : '\n\nThey lose access immediately. You can reactivate them any time.';
+    if(!confirm('Are you sure you want to '+word+' this member?'+extra))return;
+  }
+  try{
+    await updateDoc(doc(db,'charterNodeMembers',docId),{
+      status:status,
+      statusAt:serverTimestamp(),
+      statusBy:(currentUser&&currentUser.email)?currentUser.email:currentUser.uid
+    });
+    try{ vibrate(60); }catch(e){}
+    openMembers();
+  }catch(e){ console.error('setMemberStatus',e); alert('Could not update that member. Try again.'); }
 };
 
 // ============ LOAD USER NODE ============
@@ -1418,14 +1550,28 @@ async function loadUserNode(){
   const prefDoc=nodePref?snap.docs.find(d=>d.data().nodeId===nodePref):null;
   const membership=(prefDoc||snap.docs[0]).data();
   currentNodeId=membership.nodeId;
+  window._myMembership=membership;
   applyNodeData();
-  
-  // Check if avatar is set
-  if(!membership.avatarURL && !currentUser.photoURL){
-    renderSelfieScreen();
-    return;
+
+  // ---- ACCESS CONTROL: suspended / terminated are blocked. No bypass. ----
+  const _mst=membership.status||'active';
+  if(_mst==='suspended'||_mst==='terminated'){ renderAccessBlocked(_mst); return; }
+  watchOwnStatus();
+
+  // ---- SELFIE REQUIRED: a real in-app selfie. A Google profile photo does NOT count. ----
+  if(!membership.avatarURL){
+    const priorSelfie=snap.docs.map(d=>d.data()).find(m=>m.avatarURL);
+    if(priorSelfie){
+      // Same person already verified on another node — carry it over, don't re-shoot
+      userAvatarURL=priorSelfie.avatarURL;
+      try{ await updateDoc((prefDoc||snap.docs[0]).ref,{avatarURL:priorSelfie.avatarURL}); }catch(e){}
+    }else{
+      renderSelfieScreen();
+      return;
+    }
+  }else{
+    userAvatarURL=membership.avatarURL;
   }
-  userAvatarURL=membership.avatarURL||currentUser.photoURL||null;
   
   // Get node details
   const nodeDoc=await getDoc(doc(db,'charterNodes',currentNodeId));
@@ -1537,6 +1683,11 @@ function renderMainApp(){
     <div class="modal-content"></div>
   </div>
   
+  <!-- Members Modal -->
+  <div id="members-modal" class="hidden modal-backdrop" onclick="if(event.target===this)closeMembers()">
+    <div class="modal-content" style="max-height:88vh;overflow-y:auto;-webkit-overflow-scrolling:touch"></div>
+  </div>
+
   <!-- Pole Detail Modal -->
   <div id="pole-modal" class="hidden modal-backdrop" onclick="if(event.target===this)closePoleModal()">
     <div class="modal-content" id="pole-modal-content" style="max-height:90vh;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y"></div>
@@ -3745,6 +3896,7 @@ window.showMenu=function(){
       <div style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15)" class="p-3 rounded-xl text-sm">
         <span style="color:#9ca3af">Progress:</span> <span class="font-semibold" style="color:#fff">${completedCount()}/${GT30E_POLES.length} (${progressPct()}%)</span>
       </div>
+      ${isAdmin()?`<button onclick="openMembers()" class="w-full p-3 rounded-xl text-sm font-bold" style="background:rgba(124,58,237,0.2);border:1px solid rgba(167,139,250,0.5);color:#c4b5fd">👥 Manage Crew</button>`:''}
       <button onclick="switchNode()" class="w-full p-3 rounded-xl text-sm font-semibold" style="background:rgba(240,192,64,0.12);border:1px solid rgba(240,192,64,0.35);color:#f0c040">🔀 Switch Node</button>
       <button onclick="changeAvatar()" class="w-full p-3 rounded-xl text-sm font-semibold" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#fff">📸 Change Photo</button>
       <button onclick="toggleBiometricSetting()" class="w-full p-3 rounded-xl text-sm font-semibold" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:#fff">${hasBiometricRegistered() ? '🔓 Disable Biometric Login' : '🔐 Enable Biometric Login'}</button>
@@ -4195,7 +4347,7 @@ function removeGPSGate(){
 }
 
 // ============ VERSION BADGE + UPDATE BUTTON ============
-const APP_VERSION='v101';
+const APP_VERSION='v102';
 (function(){
   const wrap=document.createElement('div');
   wrap.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;display:flex;align-items:center;gap:6px;';
@@ -4356,7 +4508,7 @@ updateOnlineStatus();
 // ============ NUCLEAR CACHE BUST + SW REGISTRATION v53 ============
 (async function nuclearBoot(){
   try{
-    const CURRENT='charter-v101';
+    const CURRENT='charter-v102';
     if('caches' in window){
       const keys = await caches.keys();
       const stale = keys.filter(k => k !== CURRENT && k !== CURRENT+'-tiles');
