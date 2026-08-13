@@ -3325,34 +3325,14 @@ window.startTreeTrim=async function(spanKey){
         <span style="color:#60a5fa;font-weight:600">${toPole}</span>
       </div>
       
-      <div style="margin-bottom:16px">
-        <label style="color:#4ade80;font-size:14px;font-weight:700;display:block;margin-bottom:8px">📸 BEFORE Photo (required)</label>
-        <input type="file" id="tt-before-photo" accept="image/*" capture="environment" style="display:none" onchange="window._ttPreview('before')">
-        <button onclick="document.getElementById('tt-before-photo').click()" id="tt-before-btn" style="width:100%;padding:14px;border-radius:12px;background:rgba(255,255,255,0.08);border:2px dashed rgba(34,197,94,0.4);color:#94a3b8;font-size:14px;font-weight:600;cursor:pointer">
-          📷 Take Before Photo
-        </button>
-        <div id="tt-before-preview" style="margin-top:8px;display:none">
-          <img id="tt-before-img" style="width:100%;border-radius:8px;max-height:150px;object-fit:cover">
-          <div style="color:#4ade80;font-size:12px;margin-top:4px">✅ Before photo captured</div>
-        </div>
+      <div style="margin-bottom:16px;padding:12px;border-radius:10px;background:rgba(148,163,184,0.08);color:#94a3b8;font-size:13px;text-align:center">
+        Photos are not required for tree trim.
       </div>
       
-      <div style="margin-bottom:16px">
-        <label style="color:#f59e0b;font-size:14px;font-weight:700;display:block;margin-bottom:8px">📸 AFTER Photo (required)</label>
-        <input type="file" id="tt-after-photo" accept="image/*" capture="environment" style="display:none" onchange="window._ttPreview('after')">
-        <button onclick="document.getElementById('tt-after-photo').click()" id="tt-after-btn" style="width:100%;padding:14px;border-radius:12px;background:rgba(255,255,255,0.08);border:2px dashed rgba(245,158,11,0.4);color:#94a3b8;font-size:14px;font-weight:600;cursor:pointer">
-          📷 Take After Photo
-        </button>
-        <div id="tt-after-preview" style="margin-top:8px;display:none">
-          <img id="tt-after-img" style="width:100%;border-radius:8px;max-height:150px;object-fit:cover">
-          <div style="color:#f59e0b;font-size:12px;margin-top:4px">✅ After photo captured</div>
-        </div>
-      </div>
-      
-      <button id="tt-submit-btn" onclick="window._submitTreeTrim('${spanKey}')" disabled style="width:100%;padding:16px;border-radius:12px;background:rgba(34,197,94,0.3);border:2px solid rgba(34,197,94,0.3);color:#6b7280;font-size:16px;font-weight:700;cursor:not-allowed;transition:all 0.2s">
+      <button id="tt-submit-btn" onclick="window._submitTreeTrim('${spanKey}')" style="width:100%;padding:16px;border-radius:12px;background:#16a34a;border:2px solid #22c55e;color:#fff;font-size:16px;font-weight:700;cursor:pointer;transition:all 0.2s">
         🌳 Submit Tree Trim ($16.50)
       </button>
-      <div id="tt-status" style="color:#94a3b8;font-size:12px;text-align:center;margin-top:8px">Both before and after photos are required</div>
+      <div id="tt-status" style="color:#94a3b8;font-size:12px;text-align:center;margin-top:8px">Tap to log MC04 for this span</div>
     </div>
   `;
   document.body.appendChild(modal);
@@ -3386,15 +3366,13 @@ window._ttPreview=function(type){
 };
 
 window._submitTreeTrim=async function(spanKey){
-  const beforeFile = document.getElementById('tt-before-photo').files[0];
-  const afterFile = document.getElementById('tt-after-photo').files[0];
-  if(!beforeFile || !afterFile){
-    alert('Both before and after photos are required');
-    return;
-  }
+  // v100 (D. West 8/13): MC04 needs no photo. Firebase Storage was never provisioned
+  // on this project, so the old uploadBytes() call threw every time and the billing
+  // doc below never got written -- MC04 could not be logged from this button at all.
+  // To restore photos later, reuse the base64 canvas pattern in openPhotoRequiredFlow().
   const btn = document.getElementById('tt-submit-btn');
   btn.disabled = true;
-  btn.innerHTML = '⏳ Uploading photos...';
+  btn.innerHTML = '⏳ Saving...';
   btn.style.background = 'rgba(34,197,94,0.3)';
   
   const spanInfo = SPAN_DATA.find(s=>s.f+'_'+s.t===spanKey);
@@ -3404,17 +3382,6 @@ window._submitTreeTrim=async function(spanKey){
   const clientRateMC04 = 50.00;
   
   try {
-    // Upload before photo
-    const ts = Date.now();
-    const beforeRef = storageRef(storage, `charter/${currentNodeId}/tree-trim/${spanKey}_before_${ts}.jpg`);
-    await uploadBytes(beforeRef, beforeFile);
-    const beforeUrl = await getDownloadURL(beforeRef);
-    
-    // Upload after photo
-    const afterRef = storageRef(storage, `charter/${currentNodeId}/tree-trim/${spanKey}_after_${ts}.jpg`);
-    await uploadBytes(afterRef, afterFile);
-    const afterUrl = await getDownloadURL(afterRef);
-    
     // Count existing MC04 records for this span
     let trimNum = 1;
     try {
@@ -3442,7 +3409,6 @@ window._submitTreeTrim=async function(spanKey){
       billedBy: currentUser.uid, billedByName: userName,
       billedAt: serverTimestamp(), date: today,
       billingWeek: getTTBillingWeekStart(today),
-      beforePhotoUrl: beforeUrl, afterPhotoUrl: afterUrl,
       type: 'tree-trim'
     });
     
@@ -3455,7 +3421,7 @@ window._submitTreeTrim=async function(spanKey){
     btn.disabled = false;
     btn.style.background = '#dc2626';
     btn.style.cursor = 'pointer';
-    document.getElementById('tt-status').textContent = 'Upload failed: ' + e.message;
+    document.getElementById('tt-status').textContent = 'Save failed: ' + e.message;
     document.getElementById('tt-status').style.color = '#f87171';
     console.error('Tree trim error:', e);
   }
@@ -3557,7 +3523,7 @@ window.logBilling=async function(poleId){
   if(!code||!qty||qty<=0){alert('Enter a valid quantity');return;}
   
   // These codes require before/after photos (AS18 make-ready photos removed per D. West 7/17)
-  const PHOTO_REQUIRED=['MC04','AS12'];
+  const PHOTO_REQUIRED=['AS12']; // MC04 photos dropped per D. West 8/13
   if(PHOTO_REQUIRED.includes(code)){
     openPhotoRequiredFlow(poleId,qty,code);
     return;
@@ -4260,7 +4226,7 @@ function removeGPSGate(){
 }
 
 // ============ VERSION BADGE + UPDATE BUTTON ============
-const APP_VERSION='v99';
+const APP_VERSION='v100';
 (function(){
   const wrap=document.createElement('div');
   wrap.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;display:flex;align-items:center;gap:6px;';
@@ -4421,7 +4387,7 @@ updateOnlineStatus();
 // ============ NUCLEAR CACHE BUST + SW REGISTRATION v53 ============
 (async function nuclearBoot(){
   try{
-    const CURRENT='charter-v99';
+    const CURRENT='charter-v100';
     if('caches' in window){
       const keys = await caches.keys();
       const stale = keys.filter(k => k !== CURRENT && k !== CURRENT+'-tiles');
