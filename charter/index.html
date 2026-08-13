@@ -2691,19 +2691,14 @@ function showSpanModal(span, spanKey, p1, p2){
             const tc = (i===0) ? (SPAN_TAP_COUNTS[spanKey] || 0) : 0;
             const tapNote = tc > 0 ? ' <span style="color:#f59e0b;font-size:11px;font-weight:400">\u2022 ' + tc + ' tap' + (tc>1?'s':'') + ' ('+(tc*100)+' ft auto)</span>' : '';
             const d = window._spanTicData?.[spanKey + '_' + c];
-            const res = (d && d.ticIn != null && d.ticOut != null) ? '\u{1F4E6} ' + (d.ticOut - d.ticIn).toLocaleString() + ' ft' + (d.savedBy ? ' \u2022 ' + d.savedBy : '') : '';
+            const _rf = (d && d.footage != null) ? Number(d.footage) : ((d && d.ticIn != null && d.ticOut != null) ? (d.ticOut - d.ticIn) : null);
+            const res = (_rf != null) ? '\u{1F4CF} ' + _rf.toLocaleString() + ' ft' + (d.savedBy ? ' \u2022 ' + d.savedBy : '') : '';
             return `
       <div style="margin-top:${i===0?12:8}px;padding:12px;border-radius:12px;background:rgba(255,255,255,0.05);border:2px solid rgba(${col[1]},0.4)">
         <div style="color:${col[0]};font-size:14px;font-weight:700;margin-bottom:8px">${col[2]} ${c.replace('CT',' CT')} Fiber${tapNote}</div>
-        <div style="display:flex;gap:8px;margin-bottom:6px">
-          <div style="flex:1">
-            <label style="color:#94a3b8;font-size:11px;font-weight:600;display:block;margin-bottom:4px">IN (ft)</label>
-            <input id="span-tic-in-${c}" type="number" inputmode="numeric" min="0" step="1" placeholder="Start" value="${d?.ticIn ?? ''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(${col[1]},0.3);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorageCable('${spanKey}','${c}')">
-          </div>
-          <div style="flex:1">
-            <label style="color:#94a3b8;font-size:11px;font-weight:600;display:block;margin-bottom:4px">OUT (ft)</label>
-            <input id="span-tic-out-${c}" type="number" inputmode="numeric" min="0" step="1" placeholder="End" value="${d?.ticOut ?? ''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(${col[1]},0.3);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorageCable('${spanKey}','${c}')">
-          </div>
+        <div style="margin-bottom:6px">
+          <label style="color:#94a3b8;font-size:11px;font-weight:600;display:block;margin-bottom:4px">Tic Mark (ft)</label>
+          <input id="span-tic-${c}" type="number" inputmode="numeric" min="0" step="1" placeholder="Tic mark reading" value="${d?.footage ?? ''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(${col[1]},0.3);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorageCable('${spanKey}','${c}')">
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;min-height:24px">
           <span id="span-tic-result-${c}" style="color:${col[0]};font-size:12px;font-weight:600">${res}</span>
@@ -2717,19 +2712,13 @@ function showSpanModal(span, spanKey, p1, p2){
         const gtc = SPAN_TAP_COUNTS[spanKey] || 0;
         return `
       <div style="margin-top:12px;padding:12px;border-radius:12px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1)">
-        <div style="color:#fbbf24;font-size:13px;font-weight:600;margin-bottom:8px">\u{1F4CF} Tic Marks (Cable Storage)${gtc>0?' <span style="color:#f59e0b;font-size:11px;font-weight:400">\u2022 '+gtc+' tap'+(gtc>1?'s':'')+' ('+(gtc*100)+' ft auto)</span>':''}</div>
-        <div style="display:flex;gap:8px;margin-bottom:6px">
-          <div style="flex:1">
-            <label style="color:#94a3b8;font-size:11px;font-weight:600;display:block;margin-bottom:4px">IN (ft)</label>
-            <input id="span-tic-in" type="number" inputmode="numeric" min="0" step="1" placeholder="Start reading" value="${gd?.ticIn ?? ''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorage('${spanKey}')">
-          </div>
-          <div style="flex:1">
-            <label style="color:#94a3b8;font-size:11px;font-weight:600;display:block;margin-bottom:4px">OUT (ft)</label>
-            <input id="span-tic-out" type="number" inputmode="numeric" min="0" step="1" placeholder="End reading" value="${gd?.ticOut ?? ''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorage('${spanKey}')">
-          </div>
+        <div style="color:#fbbf24;font-size:13px;font-weight:600;margin-bottom:8px">\u{1F4CF} Tic Marks${gtc>0?' <span style="color:#f59e0b;font-size:11px;font-weight:400">\u2022 '+gtc+' tap'+(gtc>1?'s':'')+' ('+(gtc*100)+' ft auto)</span>':''}</div>
+        <div style="margin-bottom:6px">
+          <label style="color:#94a3b8;font-size:11px;font-weight:600;display:block;margin-bottom:4px">Tic Mark (ft)</label>
+          <input id="span-tic" type="number" inputmode="numeric" min="0" step="1" placeholder="Tic mark reading" value="${gd?.footage ?? ''}" style="width:100%;padding:10px;border-radius:8px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:white;font-size:15px;font-weight:600;outline:none" oninput="window._calcSpanStorage('${spanKey}')">
         </div>
         <div id="span-tic-storage" style="display:flex;justify-content:space-between;align-items:center;min-height:28px">
-          <span id="span-tic-result" style="color:#22c55e;font-size:13px;font-weight:600">${(gd&&gd.ticIn!=null&&gd.ticOut!=null)?'\u{1F4E6} Storage: '+(gd.ticOut-gd.ticIn).toLocaleString()+' ft'+(gd.savedBy?' \u2022 by '+gd.savedBy:''):''}</span>
+          <span id="span-tic-result" style="color:#22c55e;font-size:13px;font-weight:600">${(gd&&gd.footage!=null)?'\u{1F4CF} Tic mark: '+Number(gd.footage).toLocaleString()+' ft'+(gd.savedBy?' \u2022 by '+gd.savedBy:''):((gd&&gd.ticIn!=null&&gd.ticOut!=null)?'\u{1F4CF} Tic mark: '+(gd.ticOut-gd.ticIn).toLocaleString()+' ft'+(gd.savedBy?' \u2022 by '+gd.savedBy:''):'')}</span>
           <span id="span-tic-status" style="color:#94a3b8;font-size:11px"></span>
         </div>
         <button onclick="window._saveSpanTic('${spanKey}')" style="width:100%;padding:10px;border-radius:10px;background:linear-gradient(135deg,#fbbf24,#f59e0b);border:none;color:#000;font-size:14px;font-weight:700;cursor:pointer;margin-top:6px;transition:all 0.2s">\u{1F4BE} Save Tic Marks</button>
@@ -2830,131 +2819,82 @@ window._toggleSpanStorage = async function(spanKey, cable){
 };
 
 window._calcSpanStorage = function(spanKey){
-  const inEl = document.getElementById('span-tic-in');
-  const outEl = document.getElementById('span-tic-out');
+  const el = document.getElementById('span-tic');
   const resultEl = document.getElementById('span-tic-result');
-  if(!inEl||!outEl||!resultEl) return;
-  const ticIn = parseInt(inEl.value);
-  const ticOut = parseInt(outEl.value);
-  if(!isNaN(ticIn)&&!isNaN(ticOut)){
-    const ticStorage = ticOut - ticIn;
-    const tapCount = SPAN_TAP_COUNTS[spanKey] || 0;
-    const tapStorage = tapCount * 100;
-    const totalStorage = ticStorage + tapStorage;
-    let label = '📦 Storage: ' + ticStorage.toLocaleString() + ' ft';
-    if(tapCount > 0){
-      label += ' + ' + tapCount + ' tap' + (tapCount>1?'s':'') + ' (' + tapStorage + ' ft) = ' + totalStorage.toLocaleString() + ' ft total';
-    }
-    resultEl.textContent = label;
-    resultEl.style.color = totalStorage >= 0 ? '#22c55e' : '#ef4444';
+  if(!el||!resultEl) return;
+  const ft = parseInt(el.value);
+  if(!isNaN(ft)){
+    resultEl.textContent = '\u{1F4CF} Tic mark: ' + ft.toLocaleString() + ' ft';
+    resultEl.style.color = '#22c55e';
   } else {
-    const tapCount = SPAN_TAP_COUNTS[spanKey] || 0;
-    if(tapCount > 0){
-      resultEl.textContent = '📍 ' + tapCount + ' tap' + (tapCount>1?'s':'') + ' on this span = ' + (tapCount*100) + ' ft auto-storage';
-      resultEl.style.color = '#f59e0b';
-    } else {
-      resultEl.textContent = '';
-    }
+    resultEl.textContent = '';
   }
 };
 
-// Dual-cable calc for lashed spans (96CT / 48CT)
+// Per-cable tic mark readout for dual / lashed spans (96CT / 48CT)
 window._calcSpanStorageCable = function(spanKey, cable){
-  const inEl = document.getElementById('span-tic-in-' + cable);
-  const outEl = document.getElementById('span-tic-out-' + cable);
+  const el = document.getElementById('span-tic-' + cable);
   const resultEl = document.getElementById('span-tic-result-' + cable);
-  if(!inEl||!outEl||!resultEl) return;
-  const ticIn = parseInt(inEl.value);
-  const ticOut = parseInt(outEl.value);
-  if(!isNaN(ticIn)&&!isNaN(ticOut)){
-    const ticStorage = ticOut - ticIn;
-    const tapCount = cable === '96CT' ? (SPAN_TAP_COUNTS[spanKey] || 0) : 0;
-    const tapStorage = tapCount * 100;
-    const totalStorage = ticStorage + tapStorage;
-    let label = '📦 ' + ticStorage.toLocaleString() + ' ft';
-    if(tapCount > 0){
-      label += ' + ' + tapCount + ' tap' + (tapCount>1?'s':'') + ' (' + tapStorage + ' ft) = ' + totalStorage.toLocaleString() + ' ft';
-    }
-    resultEl.textContent = label;
+  if(!el||!resultEl) return;
+  const ft = parseInt(el.value);
+  if(!isNaN(ft)){
+    resultEl.textContent = '\u{1F4CF} ' + ft.toLocaleString() + ' ft';
     resultEl.style.color = cable === '96CT' ? '#ef4444' : '#22c55e';
   } else {
     resultEl.textContent = '';
   }
 };
 
-// Dual-cable save for lashed spans
+// Per-cable tic mark save for dual / lashed spans
 window._saveSpanTicCable = async function(spanKey, cable){
   if(!currentUser||!currentNodeId) return;
-  const inEl = document.getElementById('span-tic-in-' + cable);
-  const outEl = document.getElementById('span-tic-out-' + cable);
-  if(!inEl||!outEl) return;
-  const ticIn = parseInt(inEl.value);
-  const ticOut = parseInt(outEl.value);
-  if(isNaN(ticIn)||isNaN(ticOut)){ alert('Enter both In and Out readings for ' + cable); return; }
+  const el = document.getElementById('span-tic-' + cable);
+  if(!el) return;
+  const footage = parseInt(el.value);
+  if(isNaN(footage)){ alert('Enter the tic mark reading for ' + cable); return; }
   vibrate(); playSound('complete');
   const userName = currentUser.displayName || currentUser.email.split('@')[0];
   const docId = currentNodeId + '_span_' + spanKey + '_' + cable;
-  const ticStorage = ticOut - ticIn;
-  const tapCount = cable === '96CT' ? (SPAN_TAP_COUNTS[spanKey] || 0) : 0;
-  const tapStorage = tapCount * 100;
-  const totalStorage = ticStorage + tapStorage;
   const data = {
     nodeId: currentNodeId, spanKey, cable,
-    ticIn, ticOut, storage: ticStorage,
-    tapCount, tapStorage, totalStorage,
-    userId: currentUser.uid, savedBy: userName,
+    footage: footage,
+    userId: currentUser.uid, savedBy: userName, userName: userName,
     updatedAt: serverTimestamp()
   };
   await setDoc(doc(db, 'charterTicMarks', docId), data, { merge: true });
   window._spanTicData[spanKey + '_' + cable] = data;
   const statusEl = document.getElementById('span-tic-status-' + cable);
-  if(statusEl){ statusEl.textContent='✅ Saved!'; setTimeout(()=>{if(statusEl)statusEl.textContent='';},2000); }
+  if(statusEl){ statusEl.textContent='\u2705 Saved!'; setTimeout(()=>{if(statusEl)statusEl.textContent='';},2000); }
   const resultEl = document.getElementById('span-tic-result-' + cable);
   if(resultEl){
-    let label = '📦 ' + ticStorage.toLocaleString() + ' ft • ' + userName;
-    if(tapCount > 0){
-      label = '📦 ' + ticStorage.toLocaleString() + ' ft + ' + tapCount + ' tap' + (tapCount>1?'s':'') + ' = ' + totalStorage.toLocaleString() + ' ft • ' + userName;
-    }
-    resultEl.textContent = label;
+    resultEl.textContent = '\u{1F4CF} ' + footage.toLocaleString() + ' ft \u2022 ' + userName;
     resultEl.style.color = cable === '96CT' ? '#ef4444' : '#22c55e';
   }
 };
 
 window._saveSpanTic = async function(spanKey){
   if(!currentUser||!currentNodeId) return;
-  const inEl = document.getElementById('span-tic-in');
-  const outEl = document.getElementById('span-tic-out');
-  if(!inEl||!outEl) return;
-  const ticIn = parseInt(inEl.value);
-  const ticOut = parseInt(outEl.value);
-  if(isNaN(ticIn)||isNaN(ticOut)){ alert('Enter both In and Out readings'); return; }
+  const el = document.getElementById('span-tic');
+  if(!el) return;
+  const footage = parseInt(el.value);
+  if(isNaN(footage)){ alert('Enter the tic mark reading'); return; }
   vibrate(); playSound('complete');
   const userName = currentUser.displayName || currentUser.email.split('@')[0];
   const docId = currentNodeId + '_span_' + spanKey;
-  const ticStorage = ticOut - ticIn;
-  const tapCount = SPAN_TAP_COUNTS[spanKey] || 0;
-  const tapStorage = tapCount * 100;
-  const totalStorage = ticStorage + tapStorage;
   const data = {
     nodeId: currentNodeId, spanKey,
-    ticIn, ticOut, storage: ticStorage,
-    tapCount, tapStorage, totalStorage,
-    userId: currentUser.uid, savedBy: userName,
+    footage: footage,
+    userId: currentUser.uid, savedBy: userName, userName: userName,
     updatedAt: serverTimestamp()
   };
   await setDoc(doc(db, 'charterTicMarks', docId), data, { merge: true });
   window._spanTicData[spanKey] = data;
   const statusEl = document.getElementById('span-tic-status');
-  if(statusEl){ statusEl.textContent='✅ Saved!'; setTimeout(()=>{if(statusEl)statusEl.textContent='';},2000); }
+  if(statusEl){ statusEl.textContent='\u2705 Saved!'; setTimeout(()=>{if(statusEl)statusEl.textContent='';},2000); }
   const resultEl = document.getElementById('span-tic-result');
   if(resultEl){
-    let label = '📦 Storage: ' + ticStorage.toLocaleString() + ' ft';
-    if(tapCount > 0){
-      label += ' + ' + tapCount + ' tap' + (tapCount>1?'s':'') + ' (' + tapStorage + ' ft) = ' + totalStorage.toLocaleString() + ' ft total';
-    }
-    label += ' • by ' + userName;
-    resultEl.textContent = label;
-    resultEl.style.color = totalStorage >= 0 ? '#22c55e' : '#ef4444';
+    resultEl.textContent = '\u{1F4CF} Tic mark: ' + footage.toLocaleString() + ' ft \u2022 by ' + userName;
+    resultEl.style.color = '#22c55e';
   }
 };
 
@@ -4320,7 +4260,7 @@ function removeGPSGate(){
 }
 
 // ============ VERSION BADGE + UPDATE BUTTON ============
-const APP_VERSION='v98';
+const APP_VERSION='v99';
 (function(){
   const wrap=document.createElement('div');
   wrap.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;display:flex;align-items:center;gap:6px;';
@@ -4481,7 +4421,7 @@ updateOnlineStatus();
 // ============ NUCLEAR CACHE BUST + SW REGISTRATION v53 ============
 (async function nuclearBoot(){
   try{
-    const CURRENT='charter-v98';
+    const CURRENT='charter-v99';
     if('caches' in window){
       const keys = await caches.keys();
       const stale = keys.filter(k => k !== CURRENT && k !== CURRENT+'-tiles');
