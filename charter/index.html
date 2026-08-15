@@ -1570,10 +1570,20 @@ async function loadUserNode(){
   const snap=await getDocs(query(collection(db,'charterNodeMembers'),where('uid','==',currentUser.uid)));
   if(snap.empty){renderInviteCode();return;}
   
-  // Use preferred node if set, else first node found
+  // Use preferred node if set, else first node found.
+  // A blocked membership on ONE node must never hide the nodes where the user is
+  // still active (e.g. retired JS59E crew who now work JS43E).
+  const _blocked=d=>{const s=d.data().status||'active';return s==='suspended'||s==='terminated';};
   const nodePref=localStorage.getItem('charterNodePref');
-  const prefDoc=nodePref?snap.docs.find(d=>d.data().nodeId===nodePref):null;
-  const membership=(prefDoc||snap.docs[0]).data();
+  let memberDoc=nodePref?snap.docs.find(d=>d.data().nodeId===nodePref):null;
+  if(!memberDoc||_blocked(memberDoc)){
+    const openDoc=snap.docs.find(d=>!_blocked(d));
+    if(openDoc){
+      memberDoc=openDoc;
+      try{ localStorage.setItem('charterNodePref',openDoc.data().nodeId); }catch(e){}
+    }else{ memberDoc=memberDoc||snap.docs[0]; }
+  }
+  const membership=memberDoc.data();
   currentNodeId=membership.nodeId;
   window._myMembership=membership;
   applyNodeData();
@@ -1589,7 +1599,7 @@ async function loadUserNode(){
     if(priorSelfie){
       // Same person already verified on another node — carry it over, don't re-shoot
       userAvatarURL=priorSelfie.avatarURL;
-      try{ await updateDoc((prefDoc||snap.docs[0]).ref,{avatarURL:priorSelfie.avatarURL}); }catch(e){}
+      try{ await updateDoc(memberDoc.ref,{avatarURL:priorSelfie.avatarURL}); }catch(e){}
     }else{
       renderSelfieScreen();
       return;
@@ -4378,7 +4388,7 @@ function removeGPSGate(){
 }
 
 // ============ VERSION BADGE + UPDATE BUTTON ============
-const APP_VERSION='v104';
+const APP_VERSION='v105';
 (function(){
   const wrap=document.createElement('div');
   wrap.style.cssText='position:fixed;bottom:4px;left:4px;z-index:999999;display:flex;align-items:center;gap:6px;';
@@ -4539,7 +4549,7 @@ updateOnlineStatus();
 // ============ NUCLEAR CACHE BUST + SW REGISTRATION v53 ============
 (async function nuclearBoot(){
   try{
-    const CURRENT='charter-v104';
+    const CURRENT='charter-v105';
     if('caches' in window){
       const keys = await caches.keys();
       const stale = keys.filter(k => k !== CURRENT && k !== CURRENT+'-tiles');
