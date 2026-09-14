@@ -1,7 +1,15 @@
-const CACHE_NAME = 'global-route-v124';
+const CACHE_NAME = 'global-route-v125';
 
-// Only cache external CDN libraries — NEVER cache index.html
+// Caches this app's shell so it opens with no signal.
+// Scoped to 'global-route-' keys only — Charter's cache is never touched.
+const APP_SHELL = ['/global-route/', '/global-route/index.html'];
+
 self.addEventListener('install', (e) => {
+  e.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(c => Promise.all(APP_SHELL.map(u => c.add(u).catch(() => {}))))
+      .catch(() => {})
+  );
   self.skipWaiting();
 });
 
@@ -23,10 +31,19 @@ self.addEventListener('fetch', (e) => {
   
   const url = new URL(e.request.url);
   
-  // NEVER cache the main HTML — always fetch fresh
+  // App shell: always try the network first so crews get the newest build,
+  // but keep a copy so the app still opens when there is no signal.
   if (url.pathname.endsWith('.html') || url.pathname.endsWith('/') || url.pathname === '/global-route' || url.pathname === '/global-route/') {
     e.respondWith(
-      fetch(e.request, { cache: 'no-cache' }).catch(() => caches.match(e.request))
+      fetch(e.request, { cache: 'no-cache' }).then(resp => {
+        if (resp && resp.ok) {
+          const clone = resp.clone();
+          caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+        }
+        return resp;
+      }).catch(() =>
+        caches.match(e.request).then(hit => hit || caches.match('/global-route/index.html'))
+      )
     );
     return;
   }
