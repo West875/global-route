@@ -1,5 +1,5 @@
 // Charter Alabama Service Worker — Offline Support
-const CACHE_NAME = 'charter-v107';
+const CACHE_NAME = 'charter-v108';
 const APP_SHELL = [
   './',
   './index.html'
@@ -31,7 +31,7 @@ self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys => {
       return Promise.all(
-        keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+        keys.filter(k => k.startsWith('charter-') && k !== CACHE_NAME && k !== CACHE_NAME + '-tiles').map(k => caches.delete(k))
       );
     }).then(() => self.clients.claim())
   );

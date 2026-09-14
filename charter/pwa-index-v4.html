@@ -4477,9 +4477,9 @@ const APP_VERSION='v108';
     try{
       if('serviceWorker' in navigator){
         const regs=await navigator.serviceWorker.getRegistrations();
-        for(const r of regs) await r.unregister();
+        for(const r of regs){ if(r.scope.indexOf('/charter/') !== -1) await r.unregister(); }
         const keys=await caches.keys();
-        await Promise.all(keys.map(k=>caches.delete(k)));
+        await Promise.all(keys.filter(k=>k.startsWith('charter-')).map(k=>caches.delete(k)));
       }
       window.location.reload(true);
     }catch(e){
@@ -4618,13 +4618,13 @@ updateOnlineStatus();
     const CURRENT='charter-v108';
     if('caches' in window){
       const keys = await caches.keys();
-      const stale = keys.filter(k => k !== CURRENT && k !== CURRENT+'-tiles');
+      const stale = keys.filter(k => k.startsWith('charter-') && k !== CURRENT && k !== CURRENT+'-tiles');
       if(stale.length){
         console.log('[NUCLEAR] Clearing stale caches:', stale);
         await Promise.all(stale.map(k => caches.delete(k)));
         if('serviceWorker' in navigator){
           const regs = await navigator.serviceWorker.getRegistrations();
-          for(const r of regs) await r.unregister();
+          for(const r of regs){ if(r.scope.indexOf('/charter/') !== -1) await r.unregister(); }
         }
         window.location.reload(true);
         return;

@@ -8,7 +8,7 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then(keys => Promise.all(
-      keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))
+      keys.filter(k => k.startsWith('global-route-') && k !== CACHE_NAME).map(k => caches.delete(k))
     ))
   );
   self.clients.claim();
@@ -18,6 +18,8 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   // Do NOT cache or intercept v2 app
   if (e.request.url.includes('/v2/')) return;
+  // Charter is a separate application sharing this domain — never intercept or cache it
+  if (e.request.url.includes('/charter/')) return;
   
   const url = new URL(e.request.url);
   
