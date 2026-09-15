@@ -719,10 +719,23 @@
         const name = nameEl ? nameEl.textContent.trim() : `Site ${idx + 1}`;
         const descEl = pm.querySelector('description');
         var rawDesc = descEl ? descEl.textContent.trim() : '';
-        // Strip HTML tags and extract clean address text
+
+        // Descriptions arrive as HTML like "<b>Address:</b> 644 Kent Ln<br/>".
+        // Keep the line breaks, otherwise every field runs into the next one
+        // and the whole block ends up printed as the street address.
         var tempDiv = document.createElement('div');
-        tempDiv.innerHTML = rawDesc;
-        var description = tempDiv.textContent.trim().replace(/\s+/g, ' ');
+        tempDiv.innerHTML = rawDesc
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n');
+        var descText = tempDiv.textContent.replace(/[ \t]+/g, ' ').trim();
+
+        // Pull out "Label: value" pairs so real fields can be used directly.
+        var dFields = {};
+        descText.split('\n').forEach(function(line) {
+          var mm = line.match(/^\s*([A-Za-z][A-Za-z0-9 _#\/-]{0,40}?)\s*:\s*(.+?)\s*$/);
+          if (mm) dFields[mm[1].trim().toLowerCase()] = mm[2].trim();
+        });
+        var description = descText.replace(/\n+/g, ' ').trim();
         let coords = null;
         const pointCoords = pm.querySelector('Point coordinates');
         if (pointCoords) {
@@ -738,7 +751,7 @@
           }
         }
         if (coords && !isNaN(coords.lat) && !isNaN(coords.lon)) {
-          let status = 'Imported';
+          let status = dFields['status'] || '';
           const extData = pm.querySelectorAll('ExtendedData Data, ExtendedData SimpleData');
           extData.forEach(function(d) {
             const dName = (d.getAttribute('name') || '').toLowerCase();
@@ -747,7 +760,25 @@
               status = val.textContent.trim() || status;
             }
           });
-          sites.push({ id: name, address: description || `${coords.lat.toFixed(5)}, ${coords.lon.toFixed(5)}`, status, lat: coords.lat, lon: coords.lon, source: file.name.replace(/\.[^.]+$/, '') });
+          if (!status) status = 'Imported';
+
+          var address = dFields['address'] || dFields['location'] || '';
+          if (!address) address = description || `${coords.lat.toFixed(5)}, ${coords.lon.toFixed(5)}`;
+
+          var site = {
+            id: name,
+            name: name,
+            address: address,
+            status: status,
+            lat: coords.lat,
+            lon: coords.lon,
+            source: file.name.replace(/\.[^.]+$/, '')
+          };
+          if (dFields['market']) site.market = dFields['market'];
+          if (dFields['record id']) site.recordId = dFields['record id'];
+          if (dFields['cabinet id']) site.cabinetId = dFields['cabinet id'];
+          if (dFields['state']) site.state = dFields['state'];
+          sites.push(site);
         }
       });
       return sites;
@@ -916,6 +947,15 @@
     }
     function directionsUrl(site) {
       return `https://www.google.com/maps/dir/?api=1&destination=${site.lat},${site.lon}`;
+    }
+
+    // Display name fallback. Must live at top level: the site list, the map
+    // popups, the notes panel and the photo panel all call it, and they are
+    // defined outside the fiber panel.
+    function cleanPoleName(id) {
+      if (!id) return '';
+      // Strip 20-char Firestore auto-ID prefix (e.g. "Py49UWiS7UTzrHY7LBKz-409-23" -> "409-23")
+      return String(id).replace(/^[A-Za-z0-9]{20}-/, '');
     }
 
     // ── SVG Icons ──
@@ -1574,7 +1614,8 @@
         sitesLayerRef.current.clearLayers();
 
         sites.forEach(function(site) {
-          const isExisting = site.status.includes('Existing Cabinet');
+          const isExisting = (site.status || '').includes('Existing Cabinet');
+          const hasScope = /Existing Cabinet|Out of Scope/i.test(site.status || '');
           const isImported = site.source && site.source !== 'builtin';
           const isVisited = visited.has(site.id);
           const isSharedComplete = sharedCompletions[site.id];
@@ -1582,7 +1623,7 @@
 
           var isEnroute = enroutes && enroutes[site.id];
           var isFlagged = revisits && revisits[site.id];
-          let color = isImported ? '#f59e0b' : (isExisting ? '#22c55e' : '#6366f1');
+          let color = isExisting ? '#22c55e' : ((isImported && !hasScope) ? '#f59e0b' : '#6366f1');
           let borderColor = 'white';
           let size = 14;
           if (isCurrent) { color = '#a855f7'; borderColor = '#fbbf24'; size = 20; }
@@ -1631,9 +1672,15 @@
           });
 
           const distText = site.distance !== undefined ? `<br>📍 ${site.distance.toFixed(2)} mi away` : '';
-          const sourceBadge = isImported
-            ? `<span style="background:#f59e0b;color:black;padding:1px 6px;border-radius:8px;font-size:11px;">${site.source}</span>`
-            : (isExisting ? '<span style="background:#22c55e;color:white;padding:1px 6px;border-radius:8px;font-size:11px;">Existing Cabinet</span>' : '<span style="background:#6366f1;color:white;padding:1px 6px;border-radius:8px;font-size:11px;">Out of Scope</span>');
+          const scopeBadge = (!isImported || hasScope)
+            ? (isExisting ? '<span style="background:#22c55e;color:white;padding:1px 6px;border-radius:8px;font-size:11px;">Existing Cabinet</span>' : '<span style="background:#6366f1;color:white;padding:1px 6px;border-radius:8px;font-size:11px;">Out of Scope</span>')
+            : '';
+          const marketBadge = site.market
+            ? `<span style="background:rgba(255,255,255,0.12);color:#d6d2e4;padding:1px 6px;border-radius:8px;font-size:11px;margin-left:4px;">${site.market}</span>`
+            : '';
+          const sourceBadge = (isImported
+            ? `<span style="background:#f59e0b;color:black;padding:1px 6px;border-radius:8px;font-size:11px;margin-right:4px;">${site.source}</span>`
+            : '') + scopeBadge + marketBadge;
           const currentBadge = isCurrent ? '<div style="background:linear-gradient(135deg,#7c3aed,#a855f7);color:white;padding:4px 10px;border-radius:8px;font-size:10px;font-weight:700;text-align:center;margin-bottom:6px;letter-spacing:0.08em;box-shadow:0 2px 8px rgba(139,92,246,0.3);">⭐ NEXT STOP</div>' : '';
 
           let closedByHtml = '';
@@ -1768,7 +1815,8 @@
 
     // ── Site Card ──
     function SiteCard({ site, index, total, isCurrent, isVisited, sharedCompletion, onMarkVisited, onUndoVisit, myAvatarURL, myPhotoURL, noteCount, onOpenNotes, photoCount, onOpenPhotos, currentUserId, enrouteInfo, onClaimEnroute, onCancelEnroute, revisitInfo, onFlagRevisit, onClearRevisit }) {
-      const isExisting = site.status.includes('Existing Cabinet');
+      const isExisting = (site.status || '').includes('Existing Cabinet');
+      const hasScope = /Existing Cabinet|Out of Scope/i.test(site.status || '');
       const isImported = site.source && site.source !== 'builtin';
       const isCompleted = isVisited || sharedCompletion;
       const completedByName = isVisited
@@ -1802,13 +1850,13 @@
             <div className="flex items-center justify-between flex-wrap gap-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="badge badge-sm badge-outline font-mono">#{index + 1} of {total}</span>
-                {isImported ? (
-                  <span className="badge badge-sm badge-warning">{site.source}</span>
-                ) : (
+                {isImported && <span className="badge badge-sm badge-warning">{site.source}</span>}
+                {(!isImported || hasScope) && (
                   <span className={`badge badge-sm ${isExisting ? 'badge-success' : 'badge-info'}`} style={!isExisting ? {background:'#6366f1',border:'none',color:'#fff'} : {}}>
                     {isExisting ? 'Existing Cabinet' : 'Out of Scope'}
                   </span>
                 )}
+                {site.market && <span className="badge badge-sm badge-ghost">{site.market}</span>}
               </div>
               {isCurrent && <span className="badge badge-primary badge-sm">⭐ NEXT STOP</span>}
             </div>
@@ -2864,12 +2912,8 @@
         ctx.fillText('\u2713  Verified by Global Route', tx, infoY + verifyFS + 8);
       }
 
-      function cleanPoleName(id) {
-        if (!id) return '';
-        // Strip 20-char Firestore auto-ID prefix (e.g. "Py49UWiS7UTzrHY7LBKz-409-23" → "409-23")
-        // Also strip "olt57-pole-N" prefix → just show the real name from the pole data
-        return id.replace(/^[A-Za-z0-9]{20}-/, '');
-      }
+      // cleanPoleName is defined once at top level (see Geo Helpers) so every
+      // component can reach it.
 
       // ── Haversine distance in feet (used by spans, tree trims, nearest pole) ──
       function haversineFt(lat1, lon1, lat2, lon2) {
