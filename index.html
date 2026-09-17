@@ -198,6 +198,7 @@
     @keyframes confettiBannerIn { 0% { opacity: 0; transform: translate(-50%,-50%) scale(0.3); } 50% { transform: translate(-50%,-50%) scale(1.1); } 100% { opacity: 1; transform: translate(-50%,-50%) scale(1); } }
     @keyframes waveFlag { 0% { transform: rotate(-15deg); } 15% { transform: rotate(20deg); } 30% { transform: rotate(-12deg); } 45% { transform: rotate(15deg); } 60% { transform: rotate(-8deg); } 75% { transform: rotate(10deg); } 100% { transform: rotate(-15deg); } }
     @keyframes flagGlow { 0%,100% { text-shadow: 0 0 4px #f9731680; } 50% { text-shadow: 0 0 14px #f97316, 0 0 28px #f9731688; } }
+    @keyframes glowGreen { 0%,100% { box-shadow: 0 0 5px 2px rgba(34,197,94,0.45); } 50% { box-shadow: 0 0 16px 6px rgba(34,197,94,0.85), 0 0 30px 10px rgba(34,197,94,0.28); } }
     @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
     @keyframes subtleFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
     @keyframes compassSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
@@ -1590,7 +1591,7 @@
         if (!document.getElementById('pulse-css')) {
           const style = document.createElement('style');
           style.id = 'pulse-css';
-          style.textContent = '@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.3); } } @keyframes pulseRed { 0%,100% { box-shadow: 0 0 6px 3px #f9731680; transform: scale(1); } 50% { box-shadow: 0 0 20px 8px #f97316cc, 0 0 40px 12px #f9731666; transform: scale(1.4); } } @keyframes pulseOrange { 0%,100% { box-shadow: 0 0 6px 3px #f59e0b80; transform: scale(1); } 50% { box-shadow: 0 0 18px 6px #f59e0bcc, 0 0 35px 10px #f59e0b66; transform: scale(1.3); } } @keyframes waveFlag { 0% { transform: rotate(-15deg); } 15% { transform: rotate(20deg); } 30% { transform: rotate(-12deg); } 45% { transform: rotate(15deg); } 60% { transform: rotate(-8deg); } 75% { transform: rotate(10deg); } 100% { transform: rotate(-15deg); } } @keyframes flagGlow { 0%,100% { text-shadow: 0 0 4px #f9731680; } 50% { text-shadow: 0 0 14px #f97316, 0 0 28px #f9731688; } }';
+          style.textContent = '@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.3); } } @keyframes pulseRed { 0%,100% { box-shadow: 0 0 6px 3px #f9731680; transform: scale(1); } 50% { box-shadow: 0 0 20px 8px #f97316cc, 0 0 40px 12px #f9731666; transform: scale(1.4); } } @keyframes pulseOrange { 0%,100% { box-shadow: 0 0 6px 3px #f59e0b80; transform: scale(1); } 50% { box-shadow: 0 0 18px 6px #f59e0bcc, 0 0 35px 10px #f59e0b66; transform: scale(1.3); } } @keyframes waveFlag { 0% { transform: rotate(-15deg); } 15% { transform: rotate(20deg); } 30% { transform: rotate(-12deg); } 45% { transform: rotate(15deg); } 60% { transform: rotate(-8deg); } 75% { transform: rotate(10deg); } 100% { transform: rotate(-15deg); } } @keyframes flagGlow { 0%,100% { text-shadow: 0 0 4px #f9731680; } 50% { text-shadow: 0 0 14px #f97316, 0 0 28px #f9731688; } } @keyframes glowGreen { 0%,100% { box-shadow: 0 0 5px 2px rgba(34,197,94,0.45); } 50% { box-shadow: 0 0 16px 6px rgba(34,197,94,0.85), 0 0 30px 10px rgba(34,197,94,0.28); } }';
           document.head.appendChild(style);
         }
         return function() { if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; } };
@@ -1628,7 +1629,7 @@
           let size = 14;
           if (isCurrent) { color = '#a855f7'; borderColor = '#fbbf24'; size = 20; }
           if (isEnroute && !isVisited && !isSharedComplete) { color = '#f59e0b'; borderColor = '#fff'; size = 18; }
-          if (isVisited || isSharedComplete) { color = '#6b7280'; }
+          if (isVisited || isSharedComplete) { color = '#22c55e'; borderColor = '#fff'; size = 18; }
           if (isFlagged) { color = '#f97316'; borderColor = '#fbbf24'; size = 18; }
 
           var animStyle = '';
@@ -1662,6 +1663,10 @@
               '<div style="width:32px;height:32px;border-radius:50%;background:#f59e0b;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:bold;font-size:15px;box-shadow:0 0 8px #f59e0baa;">' + erInitial + '</div>' +
               '<div style="position:absolute;bottom:-2px;right:-2px;font-size:14px;">&#128663;</div>' +
               '</div>';
+          } else if ((isVisited || isSharedComplete) && !isFlagged) {
+            // Completed — green disc with check mark and a slow breathing glow
+            iconW = 22; iconH = 22; anchorX = 11; anchorY = 11;
+            iconHtml = '<div style="width:20px;height:20px;border-radius:50%;background:#22c55e;border:2px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:700;line-height:1;animation:glowGreen 2.4s ease-in-out infinite;">&#10003;</div>';
           } else {
             iconHtml = '<div style="width:' + size + 'px;height:' + size + 'px;background:' + color + ';border:' + (isCurrent ? '3' : '2') + 'px solid ' + borderColor + ';border-radius:50%;box-shadow:0 0 ' + (isCurrent ? '12px' : '4px') + ' ' + color + '80;' + animStyle + '"></div>';
           }
@@ -8131,9 +8136,9 @@
               <div className="flex items-center gap-2"><div style={{width:10,height:10,borderRadius:'50%',background:'#3b82f6',border:'2px solid white'}}></div> Your Location</div>
               <div className="flex items-center gap-2"><div style={{width:10,height:10,borderRadius:'50%',background:'#a855f7',border:'2px solid #fbbf24'}}></div> Next Stop</div>
               <div className="flex items-center gap-2"><div style={{width:10,height:10,borderRadius:'50%',background:'#22c55e',border:'2px solid white'}}></div> Existing Cabinet</div>
-              <div className="flex items-center gap-2"><div style={{width:10,height:10,borderRadius:'50%',background:'#ef4444',border:'2px solid white'}}></div> Out of Scope</div>
+              <div className="flex items-center gap-2"><div style={{width:10,height:10,borderRadius:'50%',background:'#6366f1',border:'2px solid white'}}></div> Out of Scope</div>
               <div className="flex items-center gap-2"><div style={{width:10,height:10,borderRadius:'50%',background:'#f59e0b',border:'2px solid white'}}></div> Imported</div>
-              <div className="flex items-center gap-2"><div style={{width:10,height:10,borderRadius:'50%',background:'#6b7280',border:'2px solid white'}}></div> Completed</div>
+              <div className="flex items-center gap-2"><div style={{width:14,height:14,borderRadius:'50%',background:'#22c55e',border:'2px solid white',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:9,fontWeight:700,lineHeight:1,boxShadow:'0 0 8px rgba(34,197,94,0.8)'}}>&#10003;</div> Completed</div>
             </div>
           )}
 

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'global-route-v126';
+const CACHE_NAME = 'global-route-v127';
 
 // Caches this app's shell so it opens with no signal.
 // Scoped to 'global-route-' keys only — Charter's cache is never touched.
