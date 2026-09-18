@@ -519,13 +519,13 @@
             await db.collection('fiberAsBuilt').doc(action.poleId).set(action.data, { merge: true });
             break;
           case 'site_completion':
-            await db.collection('sharedRoutes').doc('builtin').collection('completions').doc(action.siteId).set(action.data);
+            await db.collection('sharedRoutes').doc(action.routeKey || 'builtin').collection('completions').doc(action.siteId).set(action.data);
             break;
           case 'site_note':
             await db.collection('siteNotes').doc(action.docPath).collection('messages').add(action.data);
             break;
           case 'site_enroute':
-            await db.collection('sharedRoutes').doc('builtin').collection('enroute').doc(action.siteId).set(action.data);
+            await db.collection('sharedRoutes').doc(action.routeKey || 'builtin').collection('enroute').doc(action.siteId).set(action.data);
             break;
           default:
             console.warn('Unknown offline action type:', action.type);
@@ -533,6 +533,57 @@
       }
     };
     OfflineQueue.init();
+
+    // ── Writes that must survive leaving the app ──
+    // Tapping "Get Directions" hands the phone to Google Maps and the browser
+    // backgrounds this page immediately. A normal Firestore write is still
+    // sitting in the send queue at that moment and is dropped, which is why
+    // en-route claims never reached the other crew. A keepalive request is
+    // guaranteed to be delivered even as the page goes away.
+    var _idTokenCache = { value: null };
+    firebase.auth().onIdTokenChanged(function(u) {
+      if (!u) { _idTokenCache.value = null; return; }
+      u.getIdToken().then(function(t) { _idTokenCache.value = t; }).catch(function() {});
+    });
+    setInterval(function() {
+      var u = firebase.auth().currentUser;
+      if (u) u.getIdToken().then(function(t) { _idTokenCache.value = t; }).catch(function() {});
+    }, 20 * 60 * 1000);
+
+    function _fsDocUrl(path) {
+      return 'https://firestore.googleapis.com/v1/projects/' + firebaseConfig.projectId +
+             '/databases/(default)/documents/' + path;
+    }
+    // Returns true when the request was handed to the network layer.
+    function beaconSetDoc(path, fields, onFail) {
+      var tkn = _idTokenCache.value;
+      if (!tkn || !navigator.onLine) return false;
+      try {
+        fetch(_fsDocUrl(path), {
+          method: 'PATCH',
+          keepalive: true,
+          headers: { 'Authorization': 'Bearer ' + tkn, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fields: fields })
+        }).then(function(r) {
+          if (!r.ok && onFail) onFail();
+        }).catch(function() { if (onFail) onFail(); });
+        return true;
+      } catch (e) { return false; }
+    }
+    function beaconDeleteDoc(path, onFail) {
+      var tkn = _idTokenCache.value;
+      if (!tkn || !navigator.onLine) return false;
+      try {
+        fetch(_fsDocUrl(path), {
+          method: 'DELETE',
+          keepalive: true,
+          headers: { 'Authorization': 'Bearer ' + tkn }
+        }).then(function(r) {
+          if (!r.ok && onFail) onFail();
+        }).catch(function() { if (onFail) onFail(); });
+        return true;
+      } catch (e) { return false; }
+    }
 
     // Global error handler — prevent silent crashes in the field
     window.addEventListener('unhandledrejection', function(event) {
@@ -1568,12 +1619,15 @@
     }
 
     // ── Leaflet Map Component ──
-    function SiteMap({ sites, userLoc, visited, sharedCompletions, currentTargetId, myAvatarURL, myPhotoURL, enroutes, revisits, mapVersion }) {
+    function SiteMap({ sites, userLoc, livePos, onLocationFix, visited, sharedCompletions, currentTargetId, myAvatarURL, myPhotoURL, enroutes, revisits, mapVersion }) {
       const mapRef = useRef(null);
       const mapInstanceRef = useRef(null);
       const userLayerRef = useRef(null);
       const sitesLayerRef = useRef(null);
       const hasInitFit = useRef(false);
+      const openPopupSiteRef = useRef(null);
+      const markersByIdRef = useRef({});
+      const [locating, setLocating] = useState(false);
 
       // Initialize map once
       useEffect(function() {
@@ -1588,10 +1642,16 @@
         mapInstanceRef.current = map;
         userLayerRef.current = L.layerGroup().addTo(map);
         sitesLayerRef.current = L.layerGroup().addTo(map);
+        // Markers are redrawn whenever anything changes; remember which popup
+        // was open so it can be put back instead of snapping shut.
+        map.on('popupopen', function(e) {
+          openPopupSiteRef.current = (e && e.popup && e.popup._siteId) || null;
+        });
+        map.on('popupclose', function() { openPopupSiteRef.current = null; });
         if (!document.getElementById('pulse-css')) {
           const style = document.createElement('style');
           style.id = 'pulse-css';
-          style.textContent = '@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.3); } } @keyframes pulseRed { 0%,100% { box-shadow: 0 0 6px 3px #f9731680; transform: scale(1); } 50% { box-shadow: 0 0 20px 8px #f97316cc, 0 0 40px 12px #f9731666; transform: scale(1.4); } } @keyframes pulseOrange { 0%,100% { box-shadow: 0 0 6px 3px #f59e0b80; transform: scale(1); } 50% { box-shadow: 0 0 18px 6px #f59e0bcc, 0 0 35px 10px #f59e0b66; transform: scale(1.3); } } @keyframes waveFlag { 0% { transform: rotate(-15deg); } 15% { transform: rotate(20deg); } 30% { transform: rotate(-12deg); } 45% { transform: rotate(15deg); } 60% { transform: rotate(-8deg); } 75% { transform: rotate(10deg); } 100% { transform: rotate(-15deg); } } @keyframes flagGlow { 0%,100% { text-shadow: 0 0 4px #f9731680; } 50% { text-shadow: 0 0 14px #f97316, 0 0 28px #f9731688; } } @keyframes glowGreen { 0%,100% { box-shadow: 0 0 5px 2px rgba(34,197,94,0.45); } 50% { box-shadow: 0 0 16px 6px rgba(34,197,94,0.85), 0 0 30px 10px rgba(34,197,94,0.28); } }';
+          style.textContent = '@keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.3); } } @keyframes pulseRed { 0%,100% { box-shadow: 0 0 6px 3px #f9731680; transform: scale(1); } 50% { box-shadow: 0 0 20px 8px #f97316cc, 0 0 40px 12px #f9731666; transform: scale(1.4); } } @keyframes pulseOrange { 0%,100% { box-shadow: 0 0 6px 3px #f59e0b80; transform: scale(1); } 50% { box-shadow: 0 0 18px 6px #f59e0bcc, 0 0 35px 10px #f59e0b66; transform: scale(1.3); } } @keyframes waveFlag { 0% { transform: rotate(-15deg); } 15% { transform: rotate(20deg); } 30% { transform: rotate(-12deg); } 45% { transform: rotate(15deg); } 60% { transform: rotate(-8deg); } 75% { transform: rotate(10deg); } 100% { transform: rotate(-15deg); } } @keyframes flagGlow { 0%,100% { text-shadow: 0 0 4px #f9731680; } 50% { text-shadow: 0 0 14px #f97316, 0 0 28px #f9731688; } } @keyframes glowGreen { 0%,100% { box-shadow: 0 0 5px 2px rgba(34,197,94,0.45); } 50% { box-shadow: 0 0 16px 6px rgba(34,197,94,0.85), 0 0 30px 10px rgba(34,197,94,0.28); } } @keyframes spinLocate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }';
           document.head.appendChild(style);
         }
         return function() { if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; } };
@@ -1600,19 +1660,22 @@
       // Update user location marker (smooth — no map rebuild)
       useEffect(function() {
         if (!userLayerRef.current) return;
+        var here = livePos || userLoc;
         userLayerRef.current.clearLayers();
-        if (userLoc) {
+        if (here && here.lat != null && here.lon != null) {
           const userIcon = L.divIcon({ html: '<div style="width:16px;height:16px;background:#3b82f6;border:3px solid white;border-radius:50%;box-shadow:0 0 8px rgba(59,130,246,0.6);"></div>', iconSize: [16, 16], iconAnchor: [8, 8], className: '' });
-          L.marker([userLoc.lat, userLoc.lon], { icon: userIcon }).addTo(userLayerRef.current).bindPopup('<b>📍 Your Location</b>');
+          L.marker([here.lat, here.lon], { icon: userIcon }).addTo(userLayerRef.current).bindPopup('<b>📍 Your Location</b>');
         }
-      }, [userLoc]);
+      }, [livePos, userLoc]);
 
 
 
       // Update site markers
       useEffect(function() {
         if (!sitesLayerRef.current) return;
+        var reopenSiteId = openPopupSiteRef.current;
         sitesLayerRef.current.clearLayers();
+        markersByIdRef.current = {};
 
         sites.forEach(function(site) {
           const isExisting = (site.status || '').includes('Existing Cabinet');
@@ -1770,8 +1833,23 @@
               </div>
             </div>
           `;
-          L.marker([site.lat, site.lon], { icon }).addTo(sitesLayerRef.current).bindPopup(popup);
+          var mk = L.marker([site.lat, site.lon], { icon }).addTo(sitesLayerRef.current).bindPopup(popup);
+          if (mk.getPopup()) mk.getPopup()._siteId = site.id;
+          markersByIdRef.current[site.id] = mk;
         });
+
+        // Put back the popup the crew member had open before this redraw.
+        if (reopenSiteId && markersByIdRef.current[reopenSiteId]) {
+          try {
+            var reMk = markersByIdRef.current[reopenSiteId];
+            var rePop = reMk.getPopup();
+            var prevAutoPan = rePop ? rePop.options.autoPan : null;
+            if (rePop) rePop.options.autoPan = false; // do not yank the map on a redraw
+            reMk.openPopup();
+            if (rePop) rePop.options.autoPan = prevAutoPan;
+            openPopupSiteRef.current = reopenSiteId;
+          } catch (e) {}
+        }
 
         // Material Pickup markers removed
 
@@ -1788,16 +1866,42 @@
 
       var handleRecenter = function() {
         if (!mapInstanceRef.current) return;
-        if (userLoc) {
-          mapInstanceRef.current.flyTo([userLoc.lat, userLoc.lon], 15, { duration: 0.8 });
-        } else {
-          navigator.geolocation.getCurrentPosition(function(pos) {
-            mapInstanceRef.current.flyTo([pos.coords.latitude, pos.coords.longitude], 15, { duration: 0.8 });
-          }, function() {
-            alert('📍 Could not get your location');
-          }, { enableHighAccuracy: true, timeout: 8000 });
-        }
         if (navigator.vibrate) navigator.vibrate(20);
+        var settled = false;
+        var goTo = function(lat, lon) {
+          if (settled) return;
+          settled = true;
+          setLocating(false);
+          if (mapInstanceRef.current) mapInstanceRef.current.flyTo([lat, lon], 16, { duration: 0.7 });
+        };
+        var lastKnown = livePos || userLoc;
+        if (!navigator.geolocation) {
+          if (lastKnown) goTo(lastKnown.lat, lastKnown.lon);
+          else alert('📍 Location is not available on this device.');
+          return;
+        }
+        setLocating(true);
+        // Always ask the phone where it is *now* — the stored fix can be an
+        // hour old and miles behind the truck.
+        navigator.geolocation.getCurrentPosition(
+          function(pos) {
+            var loc = { lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy };
+            if (onLocationFix) onLocationFix(loc);
+            goTo(loc.lat, loc.lon);
+          },
+          function() {
+            if (lastKnown) { goTo(lastKnown.lat, lastKnown.lon); return; }
+            setLocating(false);
+            alert('📍 Could not get your location — check that Location is turned on for this app.');
+          },
+          { enableHighAccuracy: true, maximumAge: 0, timeout: 12000 }
+        );
+        // Never leave the button spinning if the phone goes quiet.
+        setTimeout(function() {
+          if (settled) return;
+          if (lastKnown) goTo(lastKnown.lat, lastKnown.lon);
+          else { settled = true; setLocating(false); }
+        }, 13000);
       };
 
       return (
@@ -1806,26 +1910,31 @@
           <button
             onClick={handleRecenter}
             title="Re-center on my location"
+            aria-label="Re-center on my location"
             style={{
-              position: 'absolute', top: 60, right: 10, zIndex: 1000,
-              width: 48, height: 48, borderRadius: 6,
-              background: 'white',
-              border: 'none',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.35)',
+              /* bottom-right: clear of the layer switcher and the legend,
+                 and reachable with a thumb one-handed in the field */
+              position: 'absolute', bottom: 22, right: 14, zIndex: 1200,
+              width: 56, height: 56, borderRadius: '50%',
+              background: locating ? '#dbeafe' : 'white',
+              border: '2px solid rgba(59,130,246,0.55)',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.45)',
               cursor: 'pointer',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               transition: 'background 0.2s'
             }}
             onMouseDown={function(e) { e.currentTarget.style.background = '#e0e0e0'; }}
-            onMouseUp={function(e) { e.currentTarget.style.background = 'white'; }}
+            onMouseUp={function(e) { e.currentTarget.style.background = locating ? '#dbeafe' : 'white'; }}
             onTouchStart={function(e) { e.currentTarget.style.background = '#e0e0e0'; }}
-            onTouchEnd={function(e) { e.currentTarget.style.background = 'white'; }}
-          ><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="3.5" stroke="#333" strokeWidth="2" fill="none"/>
-              <line x1="12" y1="1" x2="12" y2="5" stroke="#333" strokeWidth="2"/>
-              <line x1="12" y1="19" x2="12" y2="23" stroke="#333" strokeWidth="2"/>
-              <line x1="1" y1="12" x2="5" y2="12" stroke="#333" strokeWidth="2"/>
-              <line x1="19" y1="12" x2="23" y2="12" stroke="#333" strokeWidth="2"/>
+            onTouchEnd={function(e) { e.currentTarget.style.background = locating ? '#dbeafe' : 'white'; }}
+          ><svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none"
+              style={locating ? { animation: 'spinLocate 1s linear infinite' } : undefined}>
+              <circle cx="12" cy="12" r="3.5" stroke="#1d4ed8" strokeWidth="2" fill="none"/>
+              <circle cx="12" cy="12" r="8" stroke="#1d4ed8" strokeWidth="1.5" fill="none" opacity="0.45"/>
+              <line x1="12" y1="1" x2="12" y2="5" stroke="#1d4ed8" strokeWidth="2"/>
+              <line x1="12" y1="19" x2="12" y2="23" stroke="#1d4ed8" strokeWidth="2"/>
+              <line x1="1" y1="12" x2="5" y2="12" stroke="#1d4ed8" strokeWidth="2"/>
+              <line x1="19" y1="12" x2="23" y2="12" stroke="#1d4ed8" strokeWidth="2"/>
             </svg></button>
         </div>
       );
@@ -7258,6 +7367,7 @@
       const [showAvatarSetup, setShowAvatarSetup] = useState(false);
       const [permissionGranted, setPermissionGranted] = useState(false);
       const [userLoc, setUserLoc] = useState(null);
+      const [livePos, setLivePos] = useState(null); // unthrottled GPS for the map dot
       const [geoError, setGeoError] = useState(null);
       const [loading, setLoading] = useState(true);
       const [visited, setVisited] = useState(new Set());
@@ -7746,20 +7856,54 @@
         );
       }, [applyLocation]);
 
-      // ── Get user location once on load ──
+      // ── Track the crew member's location for as long as the app is open ──
+      // This used to be a single fix taken at start-up, so the blue dot and the
+      // re-centre button stayed pinned to wherever the phone was when the app
+      // was opened. The dot now follows the truck.
       useEffect(function() {
         if (!navigator.geolocation) { setGeoError('Geolocation is not supported.'); setLoading(false); return; }
         setLoading(true); setGeoError(null);
-        navigator.geolocation.getCurrentPosition(
-          function(pos) {
-            applyLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }, false);
-          },
-          function(err) {
-            const msg = err.code === 1 ? 'Location denied — please enable GPS in your device settings.' : `Could not get location: ${err.message}`;
-            setGeoError(msg); setLoading(false);
-          },
-          { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 }
-        );
+        var gotFix = false;
+        var lastSort = { lat: null, lon: null, at: 0 };
+        var lastDot = { lat: null, lon: null, at: 0 };
+        var metres = function(a, b, c, d) {
+          var R = 6371000, t = Math.PI / 180;
+          var dLat = (c - a) * t, dLon = (d - b) * t;
+          var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                  Math.cos(a * t) * Math.cos(c * t) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+          return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+        };
+        var onPos = function(pos) {
+          gotFix = true;
+          var lat = pos.coords.latitude, lon = pos.coords.longitude;
+          var tick = Date.now();
+          // Move the dot often enough to look live, rarely enough that the
+          // phone is not re-rendering the whole site list every second.
+          var dotMoved = lastDot.lat == null ? Infinity : metres(lastDot.lat, lastDot.lon, lat, lon);
+          if (dotMoved >= 5 || tick - lastDot.at >= 2000) {
+            lastDot = { lat: lat, lon: lon, at: tick };
+            setLivePos({ lat: lat, lon: lon, accuracy: pos.coords.accuracy });
+          }
+          // Re-sorting the site list redraws every marker, so only do it once
+          // the truck has actually moved a meaningful distance.
+          var now = Date.now();
+          var moved = lastSort.lat == null ? Infinity : metres(lastSort.lat, lastSort.lon, lat, lon);
+          if (moved >= 120 && now - lastSort.at >= 20000) {
+            lastSort = { lat: lat, lon: lon, at: now };
+            applyLocation({ lat: lat, lon: lon, accuracy: pos.coords.accuracy }, false);
+          } else if (lastSort.lat == null) {
+            lastSort = { lat: lat, lon: lon, at: now };
+            applyLocation({ lat: lat, lon: lon, accuracy: pos.coords.accuracy }, false);
+          }
+        };
+        var onErr = function(err) {
+          if (gotFix) return; // keep the last good fix rather than blanking the map
+          const msg = err.code === 1 ? 'Location denied — please enable GPS in your device settings.' : `Could not get location: ${err.message}`;
+          setGeoError(msg); setLoading(false);
+        };
+        navigator.geolocation.getCurrentPosition(onPos, onErr, { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 });
+        var watchId = navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+        return function() { try { navigator.geolocation.clearWatch(watchId); } catch (e) {} };
       }, []);
 
       var doClaimAndNavigate = function(siteId, site, onConfirmed) {
@@ -7779,9 +7923,15 @@
           }
         });
         myOldClaims.forEach(function(old) {
-          db.collection('sharedRoutes').doc(old.source)
-            .collection('enroute').doc(old.id).delete()
-            .catch(function(err) { console.error('Clear old en-route error:', err); });
+          var oldPath = 'sharedRoutes/' + encodeURIComponent(old.source) +
+                        '/enroute/' + encodeURIComponent(old.id);
+          var sdkDelete = function() {
+            db.collection('sharedRoutes').doc(old.source)
+              .collection('enroute').doc(old.id).delete()
+              .catch(function(err) { console.error('Clear old en-route error:', err); });
+          };
+          beaconDeleteDoc(oldPath, null); // survives the jump to Google Maps
+          sdkDelete();                    // and queues if the phone is offline
         });
         // Optimistic local update — show en-route immediately without waiting for Firestore round-trip
         var optimistic = { userId: user.uid, userName: displayName, userPhoto: avatarURL || user.photoURL || null, startedAt: { toDate: function() { return new Date(); } }, _source: routeKey };
@@ -7797,9 +7947,30 @@
           return next;
         });
         setMapVersion(function(v) { return v + 1; });
-        db.collection('sharedRoutes').doc(routeKey)
-          .collection('enroute').doc(siteId).set(claimData)
-          .catch(function(e) { console.error('En-route claim error:', e); });
+
+        // Send the claim in a way that survives the jump to Google Maps.
+        var sdkClaim = function() {
+          db.collection('sharedRoutes').doc(routeKey)
+            .collection('enroute').doc(siteId).set(claimData)
+            .catch(function(e) { console.error('En-route claim error:', e); });
+        };
+        var photoStr = avatarURL || user.photoURL || null;
+        // keepalive requests are capped at 64 KB — drop an oversized avatar
+        // rather than lose the whole claim; the marker falls back to an initial.
+        if (photoStr && photoStr.length > 40000) photoStr = null;
+        var claimFields = {
+          userId: { stringValue: user.uid },
+          userName: { stringValue: displayName },
+          userPhoto: photoStr ? { stringValue: photoStr } : { nullValue: null },
+          startedAt: { timestampValue: new Date().toISOString() }
+        };
+        var claimPath = 'sharedRoutes/' + encodeURIComponent(routeKey) +
+                        '/enroute/' + encodeURIComponent(siteId);
+        // Both paths, deliberately: the keepalive request gets the claim to the
+        // server even as the phone switches to Google Maps, and the SDK write
+        // queues it safely if there is no signal. Same doc, same values.
+        beaconSetDoc(claimPath, claimFields, null);
+        sdkClaim();
         if (onConfirmed) onConfirmed();
       };
 
@@ -8357,7 +8528,7 @@
           {view === 'team' ? (
             <TeamActivity sharedCompletions={sharedCompletions} allSites={sortedSites} currentUserId={user.uid} />
           ) : view === 'map' ? (
-            <SiteMap sites={filteredSites} userLoc={userLoc} visited={visited} sharedCompletions={sharedCompletions} currentTargetId={currentTargetId} myAvatarURL={avatarURL} myPhotoURL={user.photoURL} enroutes={enroutes} revisits={revisits} mapVersion={mapVersion} />
+            <SiteMap sites={filteredSites} userLoc={userLoc} livePos={livePos} onLocationFix={function(loc) { setLivePos(loc); applyLocation(loc, false); }} visited={visited} sharedCompletions={sharedCompletions} currentTargetId={currentTargetId} myAvatarURL={avatarURL} myPhotoURL={user.photoURL} enroutes={enroutes} revisits={revisits} mapVersion={mapVersion} />
           ) : (
             <div className="flex flex-col gap-3 p-4 pb-24">
               {filteredSites.length === 0 ? (
