@@ -148,7 +148,7 @@
     var S = {
       user: null, isAdmin: false, authLoading: true,
       tab: 'dashboard', q: '', expandedId: null,
-      users: [], completions: [], sites: [], notes: {}, kmzFiles: [],
+      users: [], completions: [], sites: [], notes: {}, kmzFiles: [], kmzSites: [],
       fiberAsBuilt: [], fiberEnroute: [], fiberRoutes: [], fiberTreeTrims: [],
       editingSite: null, showAddSite: false,
       fiberEquipment: [], fiberTicMarks: [], fiberSpanStages: [], fiberPinCorrections: [], fiberPresence: [], fiberPolePhotos: [],
@@ -193,6 +193,33 @@
       console.error('[' + src + ']', err);
       dataErrors.push(src + ': ' + err.message);
       render();
+    }
+
+    // ── One site list, two sources ──
+    // `sites`      — records managed in this back office (editable here)
+    // `sharedKMZ`  — imported route files the crew app reads (read-only here)
+    // A site present in both is shown once; the back office record wins.
+    var _siteDocs = [];
+    var _kmzSiteDocs = [];
+    var _kmzFileDocs = [];
+    var _legacyKmzDocs = [];
+
+    function rebuildSites() {
+      var seen = {};
+      var merged = [];
+      _siteDocs.forEach(function(s) {
+        if (seen[s.id]) return;
+        seen[s.id] = true;
+        merged.push(s);
+      });
+      _kmzSiteDocs.forEach(function(s) {
+        if (seen[s.id]) return;
+        seen[s.id] = true;
+        merged.push(s);
+      });
+      SITE_IDS = merged.map(function(s) { return s.id; });
+      set({ sites: merged, kmzFiles: _legacyKmzDocs.concat(_kmzFileDocs) });
+      subscribeNotes(merged);
     }
 
     function seedIfEmpty() {
@@ -245,20 +272,44 @@
         });
       }, function(e) { logErr('routes', e); });
 
-      // Sites
+      // Sites — the back office list plus every site the crew app can see.
+      // `sites` holds sites managed here; `sharedKMZ` holds the imported route
+      // files the crew app reads. Both feed one merged list so the two apps
+      // never disagree about what exists.
       db.collection('sites').onSnapshot(function(snap) {
         var arr = [];
-        snap.forEach(function(d) { arr.push(Object.assign({id:d.id}, d.data())); });
-        SITE_IDS = arr.map(function(s) { return s.id; });
-        set({sites: arr});
-        subscribeNotes(SITE_IDS);
+        snap.forEach(function(d) { arr.push(Object.assign({id:d.id, _store:'sites', source:'builtin'}, d.data())); });
+        _siteDocs = arr;
+        rebuildSites();
       }, function(e) { logErr('sites', e); set({dataReady: true}); });
 
-      // KMZ
+      // Imported route files shared with the crew (collection: sharedKMZ)
+      db.collection('sharedKMZ').onSnapshot(function(snap) {
+        var files = [], sites = [];
+        snap.forEach(function(d) {
+          var v = d.data() || {};
+          var list = v.sites || [];
+          files.push({
+            id: d.id, _store: 'sharedKMZ', name: d.id, siteCount: list.length,
+            userName: v.uploadedByName, userId: v.uploadedBy, uploadedAt: v.uploadedAt
+          });
+          list.forEach(function(s) {
+            if (!s || !s.id) return;
+            sites.push(Object.assign({}, s, { _store: 'sharedKMZ', _file: d.id, source: s.source || d.id }));
+          });
+        });
+        _kmzFileDocs = files;
+        _kmzSiteDocs = sites;
+        set({kmzSites: sites});
+        rebuildSites();
+      }, function(e) { logErr('sharedKMZ', e); });
+
+      // Legacy KMZ metadata collection — kept so older records still list
       db.collection('kmzFiles').onSnapshot(function(snap) {
         var arr = [];
-        snap.forEach(function(d) { arr.push(Object.assign({id:d.id}, d.data())); });
-        set({kmzFiles: arr});
+        snap.forEach(function(d) { arr.push(Object.assign({id:d.id, _store:'kmzFiles'}, d.data())); });
+        _legacyKmzDocs = arr;
+        rebuildSites();
       }, function(e) { logErr('kmz', e); });
 
 
@@ -326,18 +377,29 @@
 
     }
 
-    // Notes — one listener per site, single setState after all first loads.
-    // Runs once, after the site list arrives from Firestore.
-    var _notesSubscribed = false;
-    function subscribeNotes(ids) {
-      if (_notesSubscribed) return;
-      _notesSubscribed = true;
-      if (!ids.length) { set({dataReady: true}); return; }
-      var notesBySite = {};
-      var firstLoadCount = 0;
-      var firstLoadDone = false;
-      ids.forEach(function(sid) {
-        var docId = 'builtin_' + sid;
+    // Notes — one listener per site. Site lists arrive from two collections,
+    // so this runs again as the list grows and only subscribes to sites it has
+    // not seen yet. Note documents are keyed the same way the crew app writes
+    // them: routeKey + '_' + siteId, where routeKey is 'builtin' for back office
+    // sites and the sanitised file name for sites from an imported route.
+    var _notesBySite = {};
+    var _notesSeen = {};
+    var _notesReady = false;
+    function routeKeyFor(site) {
+      var src = site && site.source;
+      if (!src || src === 'builtin') return 'builtin';
+      return String(src).replace(/[^a-zA-Z0-9\-_]/g, '_');
+    }
+    function subscribeNotes(sites) {
+      if (!sites.length) { if (!_notesReady) { _notesReady = true; set({dataReady: true}); } return; }
+      var pending = 0;
+      var fresh = sites.filter(function(s) { return !_notesSeen[s.id]; });
+      if (!fresh.length) { if (!_notesReady) { _notesReady = true; set({dataReady: true}); } return; }
+      pending = fresh.length;
+      fresh.forEach(function(site) {
+        _notesSeen[site.id] = true;
+        var sid = site.id;
+        var docId = routeKeyFor(site) + '_' + sid;
         db.collection('siteNotes').doc(docId).collection('messages')
           .onSnapshot(function(snap) {
             var msgs = [];
@@ -349,17 +411,20 @@
               var tb = b.createdAt ? (b.createdAt.toMillis ? b.createdAt.toMillis() : +new Date(b.createdAt)) : 0;
               return tb - ta;
             });
-            notesBySite[sid] = msgs;
-            if (!firstLoadDone) {
-              firstLoadCount++;
-              if (firstLoadCount >= ids.length) {
-                firstLoadDone = true;
-                set({notes: Object.assign({}, notesBySite), dataReady: true});
+            _notesBySite[sid] = msgs;
+            if (pending > 0) {
+              pending--;
+              if (pending === 0) {
+                _notesReady = true;
+                set({notes: Object.assign({}, _notesBySite), dataReady: true});
               }
             } else {
-              set({notes: Object.assign({}, notesBySite)});
+              set({notes: Object.assign({}, _notesBySite)});
             }
-          }, function(e) { logErr('notes-' + sid, e); });
+          }, function(e) {
+            logErr('notes-' + sid, e);
+            if (pending > 0) { pending--; if (pending === 0) { _notesReady = true; set({dataReady: true}); } }
+          });
       });
     }
 
@@ -415,11 +480,15 @@
       set({editingSite:null, showAddSite:false});
     }
     function saveSiteForm(eid) {
+      var lon = parseFloat(document.getElementById('sf-lng').value) || 0;
       var d = {
         name: document.getElementById('sf-name').value,
         address: document.getElementById('sf-addr').value,
         lat: parseFloat(document.getElementById('sf-lat').value) || 0,
-        lng: parseFloat(document.getElementById('sf-lng').value) || 0,
+        // Written under both names: the crew app reads `lon`, older admin
+        // records used `lng`. Keeping both means neither side misses it.
+        lon: lon,
+        lng: lon,
         status: document.getElementById('sf-status').value,
         source: document.getElementById('sf-src').value
       };
@@ -428,16 +497,33 @@
     }
     function editSite(id) {
       var s = S.sites.find(function(x){return x.id===id;});
-      if (s) set({editingSite: Object.assign({}, s), showAddSite: false});
+      if (!s) return;
+      if (s._store === 'sharedKMZ') {
+        alert('“' + (s.name || s.id) + '” comes from the imported route file “' + (s._file || 'unknown') + '”.\n\nEdit it in the route file and re-import, or delete that file here first.');
+        return;
+      }
+      set({editingSite: Object.assign({}, s), showAddSite: false});
     }
     function deleteSite(id, name) {
+      var s = S.sites.find(function(x){return x.id===id;});
+      if (s && s._store === 'sharedKMZ') {
+        alert('“' + (name || id) + '” belongs to the imported route file “' + (s._file || 'unknown') + '”.\n\nDelete the whole file from the KMZ Files tab to remove it.');
+        return;
+      }
       if (confirm('Delete site "' + name + '"?')) db.collection('sites').doc(id).delete();
     }
     function deleteNote(docId, msgId) {
       if (confirm('Delete this note?')) db.collection('siteNotes').doc(docId).collection('messages').doc(msgId).delete();
     }
     function deleteKmz(id, name) {
-      if (confirm('Delete KMZ "' + name + '"?')) db.collection('kmzFiles').doc(id).delete();
+      var f = S.kmzFiles.find(function(x){ return x.id === id; });
+      var coll = (f && f._store) ? f._store : 'kmzFiles';
+      var count = (f && f.siteCount) ? f.siteCount : 0;
+      var msg = 'Delete route file "' + name + '"?';
+      if (coll === 'sharedKMZ') {
+        msg += '\n\nThis removes ' + count + ' site' + (count === 1 ? '' : 's') + ' from the crew app as well. Visit history and notes are kept.';
+      }
+      if (confirm(msg)) db.collection(coll).doc(id).delete();
     }
 
     // ── RENDER ──
@@ -741,7 +827,11 @@
       });
 
       var h = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">' +
-        '<h2 style="font-size:1.3rem;font-weight:bold;">📍 Sites ('+S.sites.length+')</h2>' +
+        '<div><h2 style="font-size:1.3rem;font-weight:bold;">📍 Sites ('+S.sites.length+')</h2>' +
+        '<div style="font-size:0.75rem;color:#a6adbb;margin-top:2px;">' +
+          S.sites.filter(function(x){return x._store!=='sharedKMZ';}).length + ' managed here · ' +
+          S.sites.filter(function(x){return x._store==='sharedKMZ';}).length + ' from imported routes · same list the crew app shows' +
+        '</div></div>' +
         '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
         '<input class="search-input" placeholder="🔍 Search sites..." value="'+(S.q||'')+'" oninput="set({q:this.value})" />' +
         '<button class="btn btn-primary btn-sm" onclick="set({showAddSite:true})">+ Add</button></div></div>';
@@ -795,6 +885,13 @@
             '<div class="detail-cell"><div class="label">Status</div><div><span class="badge badge-sm '+(isEx?'badge-success':'badge-warning')+'">'+(s.status||'Unknown')+'</span></div></div>' +
             '<div class="detail-cell span2"><div class="label">Address</div><div class="value" style="font-size:0.88rem;">'+(s.address||'—')+'</div></div>' +
             '<div class="detail-cell span2"><div class="label">Coordinates</div><div style="font-size:0.82rem;">'+(s.lat||'?')+', '+(s.lng||s.lon||'?')+'</div></div>' +
+            (s.market ? '<div class="detail-cell"><div class="label">Market</div><div class="value" style="font-size:0.85rem;">'+s.market+'</div></div>' : '') +
+            (s.cabinetId ? '<div class="detail-cell"><div class="label">Cabinet ID</div><div class="value" style="font-size:0.85rem;">'+s.cabinetId+'</div></div>' : '') +
+            '<div class="detail-cell span2"><div class="label">Source</div><div style="font-size:0.82rem;">' +
+              (s._store === 'sharedKMZ'
+                ? '📁 imported route “'+(s._file||'—')+'” — read-only here'
+                : '🏠 managed in this back office') +
+            '</div></div>' +
           '</div>';
 
           if (cb.length>0) {
